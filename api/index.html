@@ -1,0 +1,4808 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Beam-search feature construction with FDR-controlled selection">
+      
+      
+        <meta name="author" content="Olanrewaju M. Daramola">
+      
+      
+        <link rel="canonical" href="https://ld-shell.github.io/beamFeat/api/">
+      
+      
+        <link rel="prev" href="../notebooks/04_reading_a_fit/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>API reference - beamfeat</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  <meta name="author" content="Olanrewaju M. Daramola">
+  <link rel="author" href="https://orcid.org/0009-0006-3327-2047">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="beamfeat">
+  <meta property="og:title" content="API reference — beamfeat">
+  <meta property="og:description" content="Beam-search feature construction with FDR-controlled selection">
+  <meta property="og:url" content="https://ld-shell.github.io/beamFeat/api/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="API reference — beamfeat">
+  <meta name="twitter:description" content="Beam-search feature construction with FDR-controlled selection">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "beamfeat",
+    "description": "Beam-search feature construction with FDR-controlled selection",
+    "codeRepository": "https://github.com/LD-Shell/beamFeat",
+    "programmingLanguage": "Python",
+    "license": "https://opensource.org/licenses/MIT",
+    "author": {
+      "@type": "Person",
+      "name": "Olanrewaju M. Daramola",
+      "@id": "https://orcid.org/0009-0006-3327-2047",
+      "url": "https://orcid.org/0009-0006-3327-2047"
+    }
+  }
+  </script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="beamfeat" class="md-header__button md-logo" aria-label="beamfeat" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            beamfeat
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/LD-Shell/beamFeat" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../guide/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  User guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../guarantees/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Statistical guarantees
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../migrating-from-autofeat/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Migrating from autofeat
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../notebooks/01_getting_started/" class="md-tabs__link">
+          
+  
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API reference
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="beamfeat" class="md-nav__button md-logo" aria-label="beamfeat" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    beamfeat
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/LD-Shell/beamFeat" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guarantees/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistical guarantees
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-from-autofeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating from autofeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/01_getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started with beamfeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/02_search_and_scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Search and scoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/03_selection_and_units/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selection and units
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/04_reading_a_fit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading a fit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#estimators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Estimators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatRegressor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BeamFeatRegressor
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatRegressor.equation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        equation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatRegressor.fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatRegressor.predict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        predict
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BeamFeatClassifier
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier.decision_function" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        decision_function
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier.equation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        equation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier.fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier.predict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        predict
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier.predict_proba" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        predict_proba
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatTransformer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BeamFeatTransformer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatTransformer.fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatTransformer.transform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        transform
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        selection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.KnockoffSelector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KnockoffSelector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.PermutationSelector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PermutationSelector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.SelectionResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SelectionResult
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SelectionResult">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beamfeat.selection.SelectionResult.n_selected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        n_selected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#beamfeat.selection.SelectionResult.mask" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mask
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#beamfeat.selection.SelectionResult.summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.Selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Selector">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beamfeat.selection.Selector.select" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        select
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.knockoff_threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        knockoff_threshold
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.make_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        make_selector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#search" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Search
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamSearch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BeamSearch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamSearch.run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expressions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluator
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        columns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.dtype" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dtype
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.n_rows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        n_rows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.cache_info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cache_info
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.clear_cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        clear_cache
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.evaluate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        evaluate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.evaluate_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        evaluate_many
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.leaf_nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        leaf_nodes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.transform_values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        transform_values
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#estimators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Estimators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatRegressor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BeamFeatRegressor
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatRegressor.equation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        equation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatRegressor.fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatRegressor.predict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        predict
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BeamFeatClassifier
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier.decision_function" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        decision_function
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier.equation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        equation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier.fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier.predict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        predict
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatClassifier.predict_proba" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        predict_proba
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatTransformer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BeamFeatTransformer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatTransformer.fit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamFeatTransformer.transform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        transform
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        selection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.KnockoffSelector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KnockoffSelector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.PermutationSelector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PermutationSelector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.SelectionResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SelectionResult
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SelectionResult">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beamfeat.selection.SelectionResult.n_selected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        n_selected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#beamfeat.selection.SelectionResult.mask" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mask
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#beamfeat.selection.SelectionResult.summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.Selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Selector">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beamfeat.selection.Selector.select" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        select
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.knockoff_threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        knockoff_threshold
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.selection.make_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        make_selector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#search" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Search
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamSearch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BeamSearch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.BeamSearch.run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expressions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluator
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        columns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.dtype" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dtype
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.n_rows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        n_rows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.cache_info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cache_info
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.clear_cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        clear_cache
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.evaluate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        evaluate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.evaluate_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        evaluate_many
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.leaf_nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        leaf_nodes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beamfeat.Evaluator.transform_values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        transform_values
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="api-reference">API reference</h1>
+<h2 id="estimators">Estimators</h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<a id="beamfeat.BeamFeatRegressor"></a>
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="sklearn.base.RegressorMixin">RegressorMixin</span></code>, <code><span title="beamfeat.estimators._BeamFeatBase">_BeamFeatBase</span></code></p>
+
+
+
+        <p>Constructs features, then fits a linear model on them.</p>
+<p>The linear model is the point: its coefficients combine with the feature
+formulas to give a closed-form expression for the fitted relationship,
+available via :meth:<code>equation</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>alpha</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span> | <span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Ridge regularisation strength for the downstream model. The
+default <code>"auto"</code> selects the strength by efficient leave-one-out
+cross-validation over a logarithmic grid, which stays stable when
+many correlated features are selected from few rows; pass a float
+to fix the strength instead.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;auto&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        <p>Other arguments match :class:<code>BeamFeatTransformer</code>.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatRegressor.features_">features_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Selected expressions.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatRegressor.feature_formulas_">feature_formulas_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Their formula strings.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatRegressor.model_">model_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The fitted downstream linear model.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatRegressor.coef_">coef_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Coefficients of the downstream model.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatRegressor.intercept_">intercept_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Intercept of the downstream model.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatRegressor.fdr_scope_">fdr_scope_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which set :attr:<code>fdr_controlled_</code> is a statement about;
+see :class:<code>BeamFeatTransformer</code>. <code>"screened set"</code> is what
+:meth:<code>equation</code> marks in its output.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamFeatRegressor.equation" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">equation</span><span class="p">(</span><span class="n">precision</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">max_terms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="s1">'significant'</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the fitted model as a readable closed-form equation.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>precision</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Significant figures for the coefficients, or decimal
+places when <code>style="fixed"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>4</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_terms</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If set, include only the terms with the largest
+standardised coefficients.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>style</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"significant"</code> adapts to each coefficient's magnitude,
+<code>"fixed"</code> aligns decimal places, <code>"scientific"</code> uses
+uniform e-notation. <code>"fixed"</code> falls back to significant
+figures for any value that would otherwise display as zero.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;significant&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A string such as <code>y = 2.104*(a * b) - 0.512*log(c) + 3.991</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>When the parsimony step dropped terms from the screened set, a</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>suffix records how many of the certified terms are printed and</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>how to print them all, since the guarantee covers the screened</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>set rather than this subset of it.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamFeatRegressor.fit" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Construct features and fit the downstream model.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamFeatRegressor.predict" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Predict using the constructed features and fitted model.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<a id="beamfeat.BeamFeatClassifier"></a>
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="sklearn.base.ClassifierMixin">ClassifierMixin</span></code>, <code><span title="beamfeat.estimators._BeamFeatBase">_BeamFeatBase</span></code></p>
+
+
+
+        <p>Constructs features, then fits a logistic model on them.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>C</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Inverse regularisation strength for the downstream model.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        <p>Other arguments match :class:<code>BeamFeatTransformer</code>.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatClassifier.features_">features_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Selected expressions.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatClassifier.classes_">classes_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Class labels seen during fit.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatClassifier.model_">model_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The fitted downstream logistic model.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatClassifier.fdr_scope_">fdr_scope_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which set :attr:<code>fdr_controlled_</code> is a statement about;
+see :class:<code>BeamFeatTransformer</code>. <code>"screened set"</code> is what
+:meth:<code>equation</code> marks in its output.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamFeatClassifier.decision_function" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">decision_function</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the model's decision scores.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamFeatClassifier.equation" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">equation</span><span class="p">(</span><span class="n">precision</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">max_terms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="s1">'significant'</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the fitted classifier as a readable log-odds equation.</p>
+<p>For binary problems the single line gives the log-odds of the
+positive class (<code>classes_[1]</code>): <code>logit P(y = c1) = ...</code>, so the
+decision boundary is the zero level set of the right-hand side. For
+multiclass problems one line is returned per class; these are the
+softmax scores of the fitted multinomial model, and the predicted
+class is the argmax across lines.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>precision</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Significant figures for the coefficients, or decimal
+places when <code>style="fixed"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>4</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_terms</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If set, include only the terms with the largest
+standardised coefficients per line.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>style</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"significant"</code> adapts to each coefficient's magnitude,
+<code>"fixed"</code> aligns decimal places, <code>"scientific"</code> uses
+uniform e-notation. <code>"fixed"</code> falls back to significant
+figures for any value that would otherwise display as zero.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;significant&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        <p>When the parsimony step dropped terms from the screened set, a suffix
+records how many of the certified terms are printed and how to print
+them all. The terms are shared across the lines of a multiclass
+equation, so the suffix appears once at the end of the block.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamFeatClassifier.fit" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Construct features and fit the downstream classifier.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamFeatClassifier.predict" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Predict class labels.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamFeatClassifier.predict_proba" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">predict_proba</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Predict class probabilities.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<a id="beamfeat.BeamFeatTransformer"></a>
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="sklearn.base.TransformerMixin">TransformerMixin</span></code>, <code><span title="beamfeat.estimators._BeamFeatBase">_BeamFeatBase</span></code></p>
+
+
+
+        <p>Constructs and selects features, for use inside a pipeline.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>scorer</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | <span title="beamfeat.scoring.Scorer">Scorer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Scoring strategy for the search. A name
+(<code>"correlation"</code>, <code>"mutual_information"</code>,
+<code>"gradient_boosting"</code>) or a
+:class:<code>~beamfeat.scoring.Scorer</code> instance.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;correlation&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>selector</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | <a class="autorefs autorefs-internal" title="Selector (beamfeat.selection.Selector)" href="#beamfeat.selection.Selector">Selector</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>FDR-controlled selector, or <code>None</code> to keep the search
+output unfiltered. A name (<code>"permutation"</code>, <code>"knockoff"</code>) or a
+:class:<code>~beamfeat.selection.Selector</code> instance.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;permutation&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>problem_type</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"regression"</code> or <code>"classification"</code>. Determines how
+the scorer and selector treat the target.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;regression&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_depth</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum expression depth.</p>
+              </div>
+            </td>
+            <td>
+                  <code>2</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>beam_width</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expressions retained at each search depth.</p>
+              </div>
+            </td>
+            <td>
+                  <code>50</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_features</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Cap on features returned by the search, before selection.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>target_fdr</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nominal false discovery rate for the selector.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>unary_ops</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Unary operators to apply.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="beamfeat.search.DEFAULT_UNARY">DEFAULT_UNARY</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>binary_ops</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Binary operators to apply.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="beamfeat.search.DEFAULT_BINARY">DEFAULT_BINARY</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>redundancy_threshold</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Absolute correlation above which a candidate is
+treated as a duplicate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.95</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_originals</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether input columns compete alongside constructed
+expressions.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>units</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional mapping of input column name to pint quantity.
+Supplying units restricts the search to dimensionally valid
+expressions.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>parsimony</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"forward"</code> (default) fits a compact subset of the
+screened set, chosen by greedy forward selection on the selection
+rows. That subset is not re-certified, so the FDR guarantee covers
+the set it was drawn from and not the terms returned, and
+:meth:<code>equation</code> marks this whenever terms were dropped. <code>None</code>
+returns the screened set entire, so the returned features are
+exactly the set the guarantee covers; <code>parsimony_holdout</code> buys
+both, for rows.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;forward&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>parsimony_tol</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Minimum incremental R^2 a feature must add to be kept by
+<code>parsimony="forward"</code>. Ignored when <code>parsimony</code> is <code>None</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.001</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>random_state</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seed. Fitting is deterministic given this.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>verbose</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Progress reporting to stdout. <code>0</code> (default) is silent;
+<code>1</code> prints one line per stage -- the split, the search, the
+screening, the parsimony step and the fitted result; <code>2</code> adds
+per-depth search detail and the strongest certified candidates
+with their p- and q-values.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatTransformer.features_">features_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Selected :class:<code>~beamfeat.expression.Node</code> expressions.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatTransformer.feature_formulas_">feature_formulas_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Their formula strings.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatTransformer.search_result_">search_result_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The :class:<code>~beamfeat.search.SearchResult</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatTransformer.selection_result_">selection_result_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The :class:<code>~beamfeat.selection.SelectionResult</code>,
+or <code>None</code> if no selector was used.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatTransformer.fdr_controlled_">fdr_controlled_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether the returned features came from the
+FDR-screened set. <code>None</code> if no selector was used.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatTransformer.fdr_scope_">fdr_scope_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which set :attr:<code>fdr_controlled_</code> is a statement about --
+<code>"printed equation"</code> when the guarantee covers the returned
+features, <code>"screened set"</code> when it covers a larger set they were
+drawn from, <code>None</code> when the flag is not <code>True</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamFeatTransformer.n_features_out_">n_features_out_</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of features produced.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamFeatTransformer.fit" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Construct and select features from the training data.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>X</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(n_samples, n_features)</code> training data.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Target. Required, since both search and selection are supervised.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>self</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamFeatTransformer.transform" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">transform</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Evaluate the selected expressions on new data.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="selection">Selection</h2>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="beamfeat.selection"></a>
+    <div class="doc doc-contents first">
+
+        <p>False-discovery-rate controlled feature selection.</p>
+<p>Feature construction proposes far more candidates than any dataset can
+support, so selection is where spurious features are either excluded or
+silently admitted. This module provides selectors that control the false
+discovery rate — the expected proportion of selected features that are
+spurious — and is explicit about the assumptions under which each guarantee
+holds.</p>
+<p>:class:<code>PermutationSelector</code> (default)
+    An exact permutation test of marginal association, corrected for
+    multiplicity. The test statistic is a fixed function of the data
+    (|Pearson correlation| for regression, eta-squared for classification),
+    so permuting the target yields exact p-values for the null hypothesis
+    that a feature is marginally independent of the target (Phipson &amp; Smyth,
+    2010). Multiplicity is handled by Benjamini-Hochberg, valid under
+    positive regression dependence, or Benjamini-Yekutieli, valid under
+    arbitrary dependence (Benjamini &amp; Yekutieli, 2001). This class defaults
+    to the former; the estimators default to the latter, since engineered
+    candidates share parents and positive dependence cannot be assumed.</p>
+<div class="highlight"><pre><span></span><code>The marginal null composes correctly with constructed features: two
+near-duplicate expressions of one true signal are *both* genuinely
+associated with the target, so selecting both is not a false discovery
+under this null. De-duplication is the job of the redundancy pass, not
+the error-control procedure.
+</code></pre></div>
+<p>:class:<code>KnockoffSelector</code>
+    The knockoff filter. Two constructions are provided and routed
+    automatically:</p>
+<div class="highlight"><pre><span></span><code>- **Fixed-X** (Barber &amp; Candès, 2015), used when ``n &gt;= 2p``. Treats the
+  design as fixed and makes *no distributional assumption about the
+  features* — deterministic engineered columns are fine. The guarantee
+  requires the linear model ``y = X beta + noise`` with Gaussian,
+  homoskedastic noise. On near-singular designs the construction remains
+  valid but its power degrades toward zero, because the knockoffs become
+  nearly identical to the originals.
+- **Model-X Gaussian** (Candès et al., 2018), used when ``n &lt; 2p``.
+  Requires the features to be jointly Gaussian, which engineered
+  features are not; a warning is recorded when the design is visibly
+  degenerate.
+</code></pre></div>
+<p><strong>Selective inference caveat.</strong> Every guarantee above is for testing a
+candidate set that is <em>fixed before seeing the data used for testing</em>. If
+candidates were chosen by a search on the same data — chosen, in part,
+because they correlate with this sample's target — the p-values are
+optimistically biased and the nominal FDR is not guaranteed. The estimators
+in :mod:<code>beamfeat.estimators</code> therefore hold out a split of the training
+data for selection by default; see <code>selection_holdout</code>.</p>
+
+
+<details class="references" open>
+  <summary>References</summary>
+  <p>Barber, R. F. &amp; Candès, E. J. (2015). Controlling the false discovery
+rate via knockoffs. <em>Annals of Statistics</em>, 43(5), 2055-2085.</p>
+<p>Benjamini, Y. &amp; Hochberg, Y. (1995). Controlling the false discovery
+rate. <em>JRSS-B</em>, 57(1), 289-300.</p>
+<p>Benjamini, Y. &amp; Yekutieli, D. (2001). The control of the false discovery
+rate in multiple testing under dependency. <em>Annals of Statistics</em>,
+29(4), 1165-1188.</p>
+<p>Candès, E., Fan, Y., Janson, L. &amp; Lv, J. (2018). Panning for gold:
+model-X knockoffs. <em>JRSS-B</em>, 80(3), 551-577.</p>
+<p>Phipson, B. &amp; Smyth, G. K. (2010). Permutation p-values should never be
+zero. <em>Stat. Appl. Genet. Mol. Biol.</em>, 9(1), Article 39.</p>
+</details>
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beamfeat.selection.KnockoffSelector" class="doc doc-heading">
+            <code>KnockoffSelector</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="Selector (beamfeat.selection.Selector)" href="#beamfeat.selection.Selector">Selector</a></code></p>
+
+
+
+        <p>Knockoff filter with automatic fixed-X / model-X routing.</p>
+<p><strong>Fixed-X</strong> (Barber &amp; Candès, 2015) is used when <code>n &gt;= 2p</code>. The design
+is treated as fixed, so no assumption about the distribution of the
+features is required — deterministic engineered columns are admissible.
+The finite-sample FDR guarantee (with <code>offset=1</code>) requires the linear
+model <code>y = X beta + eps</code> with i.i.d. Gaussian noise. On a near-singular
+design the construction is still valid but the equicorrelated <code>s</code>
+shrinks toward zero, the knockoffs become nearly identical to the
+originals, and power degrades toward zero; a warning records this.</p>
+<p><strong>Model-X Gaussian</strong> (Candès et al., 2018) is used when <code>n &lt; 2p</code>, where
+the fixed-X construction does not exist. It requires the features to be
+jointly Gaussian, an assumption engineered features violate; a warning is
+recorded when the design is visibly degenerate. Prefer
+:class:<code>PermutationSelector</code> in that regime.</p>
+<p><strong>Power and the offset.</strong> <code>offset=1</code> requires
+<code>(1 + #negatives)/#positives &lt;= target_fdr</code>, unsatisfiable with fewer
+than <code>1/target_fdr</code> features regardless of signal; measured on a
+25-feature Gaussian design at level 0.1, <code>offset=1</code> recovered almost
+nothing while <code>offset=0</code> recovered everything. <code>offset=1</code> remains the
+default because it is the stated finite-sample guarantee; a warning fires
+when the design is too narrow for it.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>target_fdr</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nominal false discovery rate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>problem_type</code>
+            </td>
+            <td>
+                  <code><span title="beamfeat.selection.ProblemType">ProblemType</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"regression"</code> or <code>"classification"</code>. The fixed-X
+guarantee is stated for regression; classification uses the same
+machinery heuristically and records a warning.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;regression&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>random_state</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seed (used by the model-X sampler and the orthogonal
+complement basis).</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>offset</code>
+            </td>
+            <td>
+                  <code><span title="beamfeat.selection.Offset">Offset</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>1</code> for knockoff+ (default), <code>0</code> for the modified-FDR
+filter.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>shrinkage</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Ridge term added to the covariance diagonal for numerical
+stability.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1e-06</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>construction</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;auto&#39;, &#39;fixed&#39;, &#39;gaussian&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"auto"</code> (default), <code>"fixed"</code>, or <code>"gaussian"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;auto&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>warn_on_violation</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to check assumptions and record findings.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beamfeat.selection.PermutationSelector" class="doc doc-heading">
+            <code>PermutationSelector</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="Selector (beamfeat.selection.Selector)" href="#beamfeat.selection.Selector">Selector</a></code></p>
+
+
+
+        <p>Exact permutation test of marginal association, with FDR correction.</p>
+<p><strong>Statistic.</strong> For regression, the absolute Pearson correlation between
+each feature and the target; for classification, eta-squared (the
+between-class share of each feature's variance). Both are fixed functions
+of <code>(X_j, y)</code>, which is the condition for a permutation test to be
+exact: comparing the observed statistic to the same statistic computed on
+<code>(X_j, pi(y))</code> over random permutations <code>pi</code> yields a valid p-value
+for the null that <code>X_j</code> is marginally independent of <code>y</code>, via the
+add-one estimator <code>(1 + #exceedances) / (B + 1)</code> (Phipson &amp; Smyth,
+2010). Statistics that re-tune themselves on the observed target — a
+cross-validated lasso penalty, for instance — do not satisfy this
+condition unless the tuning is repeated inside every permutation.</p>
+<p><strong>What the null means for constructed features.</strong> Marginal independence
+is the appropriate null here: an expression that genuinely co-varies with
+the target is a true discovery even if another selected expression
+carries the same information. Redundancy among true discoveries is
+resolved by the redundancy pass in the search, not by the error-control
+procedure.</p>
+<p><strong>Multiplicity.</strong> Benjamini-Hochberg by default, which controls FDR under
+positive regression dependence; set <code>correction="by"</code> for the
+Benjamini-Yekutieli procedure, valid under arbitrary dependence at the
+cost of a <code>log(m)</code>-factor in power.</p>
+<p><strong>Resolution.</strong> The smallest attainable p-value is <code>1/(B + 1)</code>, and the
+leading feature has to reach the threshold its correction sets:
+<code>target_fdr / m</code> under Benjamini-Hochberg, and
+<code>target_fdr / (m c(m))</code> under Benjamini-Yekutieli, where
+<code>c(m) = sum_{j&lt;=m} 1/j</code>. <code>B</code> therefore must be at least
+<code>m / target_fdr - 1</code> in the first case and <code>c(m)</code> times that in the
+second for selection to be possible at all, and one further null
+exceedance doubles the requirement. When <code>auto_permutations</code> is on
+(default), B is raised to twice the bound belonging to the configured
+correction — satisfiable with headroom for a single exceedance — capped
+at <code>max_permutations</code>. The requirement binds hardest when few
+candidates reach the floor together: several tied true signals relax the
+threshold by their count, whereas a single one carries it alone.
+Because the statistic is a chunked matrix product, the larger counts
+remain inexpensive; raising <code>B</code> ninefold on a 4088-column problem left
+the fit time unchanged within noise.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>target_fdr</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nominal false discovery rate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>problem_type</code>
+            </td>
+            <td>
+                  <code><span title="beamfeat.selection.ProblemType">ProblemType</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"regression"</code> or <code>"classification"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;regression&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>random_state</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seed for the permutation draws.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_permutations</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Minimum number of permutations.</p>
+              </div>
+            </td>
+            <td>
+                  <code>2000</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>auto_permutations</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Raise B to the satisfiability bound when needed.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_permutations</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Hard cap on B.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1000000</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>correction</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;bh&#39;, &#39;by&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"bh"</code> (Benjamini-Hochberg, default) or <code>"by"</code>
+(Benjamini-Yekutieli, arbitrary dependence).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;bh&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beamfeat.selection.SelectionResult" class="doc doc-heading">
+            <code>SelectionResult</code>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>Outcome of a selection run.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.selection.SelectionResult.selected">selected</span></code></td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Indices of the selected features, ascending.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.selection.SelectionResult.statistics">statistics</span></code></td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Importance statistic per feature. For the permutation
+selector this is <code>1 - p_value</code> so that larger is better; for
+knockoffs it is the antisymmetric statistic W.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.selection.SelectionResult.p_values">p_values</span></code></td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exact permutation p-values, where the method produces them.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.selection.SelectionResult.threshold">threshold</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The data-dependent cut applied to :attr:<code>statistics</code>.
+<code>inf</code> means nothing met the criterion.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.selection.SelectionResult.target_fdr">target_fdr</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The nominal FDR level requested.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.selection.SelectionResult.n_candidates">n_candidates</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of features considered.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.selection.SelectionResult.method">method</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the selector used.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.selection.SelectionResult.warnings_raised">warnings_raised</span></code></td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Assumption or configuration issues detected.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="beamfeat.selection.SelectionResult.n_selected" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_selected</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of features selected.</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="beamfeat.selection.SelectionResult.mask" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">mask</span><span class="p">()</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Boolean mask over the candidate features.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="beamfeat.selection.SelectionResult.summary" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">summary</span><span class="p">()</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Human-readable summary of the run.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beamfeat.selection.Selector" class="doc doc-heading">
+            <code>Selector</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="abc.ABC">ABC</span></code></p>
+
+
+
+        <p>Base class for FDR-controlled selectors.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="beamfeat.selection.Selector.select" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">select</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Select features controlling the FDR at :attr:<code>target_fdr</code>.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.selection.knockoff_threshold" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">knockoff_threshold</span><span class="p">(</span><span class="n">statistics</span><span class="p">,</span> <span class="n">target_fdr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Data-dependent threshold of the knockoff filter.</p>
+<p>Finds the smallest positive cut <code>t</code> at which
+<code>(offset + #{W_j &lt;= -t}) / #{W_j &gt;= t} &lt;= target_fdr</code>. <code>offset=1</code>
+gives knockoff+ (finite-sample FDR control); <code>offset=0</code> controls a
+modified FDR.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.selection.make_selector" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">make_selector</span><span class="p">(</span><span class="n">selector</span><span class="p">,</span> <span class="n">target_fdr</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">problem_type</span><span class="o">=</span><span class="s1">'regression'</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Resolve a selector name or instance into a :class:<code>Selector</code>.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="search">Search</h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<a id="beamfeat.BeamSearch"></a>
+    <div class="doc doc-contents first">
+
+
+
+        <p>Guided beam search for feature construction.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>scorer</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | <span title="beamfeat.scoring.Scorer">Scorer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Scoring strategy. Either a name (<code>"correlation"</code>,
+<code>"mutual_information"</code>, <code>"gradient_boosting"</code>, or an alias such
+as <code>"mi"</code>) or a :class:<code>~beamfeat.scoring.Scorer</code> instance.
+Defaults to <code>"correlation"</code>, which is the only choice cheap
+enough for wide beams; see
+:class:<code>~beamfeat.scoring.GradientBoostingScorer</code> for the tradeoff.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;correlation&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>problem_type</code>
+            </td>
+            <td>
+                  <code><span title="beamfeat.scoring.ProblemType">ProblemType</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"regression"</code> or <code>"classification"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;regression&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_depth</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum expression depth. Depth 1 permits single transforms
+and pairwise combinations of inputs; each further depth composes on
+the results of the last.</p>
+              </div>
+            </td>
+            <td>
+                  <code>2</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>beam_width</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expressions retained at each depth. This is the parameter
+that bounds cost: total work is roughly
+<code>max_depth * beam_width * n_operators</code>, rather than compounding.</p>
+              </div>
+            </td>
+            <td>
+                  <code>50</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_features</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum features returned. Defaults to <code>beam_width</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>unary_ops</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Unary operators to apply. Defaults to log, sqrt, reciprocal,
+square, and abs.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="beamfeat.search.DEFAULT_UNARY">DEFAULT_UNARY</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>binary_ops</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Binary operators to apply. Defaults to mul, div, add, sub.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="beamfeat.search.DEFAULT_BINARY">DEFAULT_BINARY</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>redundancy_threshold</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Absolute correlation above which a candidate is
+considered a duplicate of one already in the beam and dropped.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.95</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_originals</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether input columns are eligible for the final
+result alongside constructed expressions.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_candidates_per_depth</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Hard ceiling on candidates constructed at one
+depth, as a guard against a wide beam and many operators producing
+an unaffordable round. Candidates beyond the ceiling are not
+proposed; the beam is traversed in score order so the truncation
+falls on the least promising parents.</p>
+              </div>
+            </td>
+            <td>
+                  <code>200000</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>random_state</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seed passed to the scorer. Search itself is deterministic.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>verbose</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Progress reporting to stdout. <code>0</code> is silent, <code>1</code> prints a
+single summary line for the search, <code>2</code> adds a line per depth.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="beamfeat.BeamSearch.result_">result_</span></code></td>
+            <td>
+                  <code><span title="beamfeat.search.SearchResult">SearchResult</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>:class:<code>SearchResult</code> from the most recent :meth:<code>run</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.BeamSearch.run" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">run</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">evaluator</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Execute the search.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Mapping of column name to array, or a 2-D array. Ignored if
+<code>evaluator</code> is supplied.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>target</code>
+            </td>
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Target vector, one entry per row.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>columns</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Column names, when <code>data</code> is a 2-D array.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>units</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional mapping of column name to pint quantity. Supplying
+units restricts the search to dimensionally valid expressions.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>evaluator</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="beamfeat.expression.Evaluator" href="#beamfeat.Evaluator">Evaluator</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A pre-built :class:<code>~beamfeat.expression.Evaluator</code>, to
+reuse a warm cache across runs.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>A</code></td>            <td>
+                  <code><span title="beamfeat.search.SearchResult">SearchResult</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>class:<code>SearchResult</code>. Also stored on :attr:<code>result_</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="expressions">Expressions</h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<a id="beamfeat.Evaluator"></a>
+    <div class="doc doc-contents first">
+
+
+
+        <p>Lazily evaluates nodes against a data matrix, caching by structural key.</p>
+<p>The cache is bounded and least-recently-used. Leaf columns are pinned and
+never evicted, since they are the base of every expression. Intermediate
+results are evicted under memory pressure and recomputed if needed again.</p>
+<p>Numerical failures are recorded in :attr:<code>log</code> and reported by returning
+<code>None</code> from :meth:<code>evaluate</code>; they never propagate as exceptions and are
+never silently discarded.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="numpy.ndarray">ndarray</span>] | <span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Mapping of column name to 1-D array, or a 2-D array with
+<code>columns</code> supplied separately.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>columns</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Column names, required when <code>data</code> is a 2-D array.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>units</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional mapping of column name to pint quantity.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>dtype</code>
+            </td>
+            <td>
+                  <code><span title="numpy.dtype">dtype</span> | <span title="type">type</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Working dtype. Defaults to float64; float32 halves memory but
+makes overflow substantially more likely in deep expressions.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="numpy.float64">float64</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cache_size</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum number of non-leaf arrays held in the cache.</p>
+              </div>
+            </td>
+            <td>
+                  <code>4096</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>variance_tol</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Relative constancy threshold. A column is treated as
+constant when its variance falls below <code>variance_tol</code> times the
+square of its mean magnitude, so the verdict does not depend on
+the unit the caller happened to choose.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1e-10</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="beamfeat.Evaluator.columns" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">columns</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Names of the available input columns.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="beamfeat.Evaluator.dtype" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">dtype</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Working dtype for evaluation.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="beamfeat.Evaluator.n_rows" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_rows</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of rows in the data.</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.Evaluator.cache_info" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">cache_info</span><span class="p">()</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return current cache occupancy and capacity.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.Evaluator.clear_cache" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">clear_cache</span><span class="p">()</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Evict all cached intermediate results. Leaves are retained.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.Evaluator.evaluate" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">evaluate</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">apply_filters</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compute the values of <code>node</code>, using and updating the cache.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>node</code>
+            </td>
+            <td>
+                  <code><span title="beamfeat.expression.Node">Node</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The expression to evaluate.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>apply_filters</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to apply the search-time admissibility
+filters — zero variance, and the operators' domain predicates.
+These express whether a candidate is <em>worth exploring</em>, and
+they are data-dependent: a column that varies across a training
+set may be constant within some subset of it. At transform time
+that must not change the result, so :meth:<code>transform_values</code>
+passes <code>False</code> and computes the expression unconditionally.
+Genuine numerical failures (overflow, non-finite results) are
+still caught either way.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A 1-D array of length :attr:<code>n_rows</code>, or <code>None</code> if the node was</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>excluded. When <code>None</code> is returned, the reason is appended to</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>attr:<code>log</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.Evaluator.evaluate_many" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">evaluate_many</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Evaluate several nodes, returning only those that survived.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>nodes</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="beamfeat.expression.Node">Node</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expressions to evaluate.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="beamfeat.expression.Node">Node</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A tuple of (surviving nodes, matrix with one column per surviving</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>node in the same order). If nothing survives, the matrix has shape</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="list">list</span>[<span title="beamfeat.expression.Node">Node</span>], <span title="numpy.ndarray">ndarray</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(n_rows, 0)</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.Evaluator.leaf_nodes" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">leaf_nodes</span><span class="p">()</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return leaf nodes for every input column, with units attached.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beamfeat.Evaluator.transform_values" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">transform_values</span><span class="p">(</span><span class="n">node</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compute <code>node</code> without applying search-time admissibility filters.</p>
+<p>Use this when replaying an already-selected expression on new data.
+Applying the search filters here would make the output depend on which
+rows are present — a subset in which some column happens to be constant
+would silently yield a different answer than the full data.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The computed values, or <code>None</code> if the expression genuinely cannot</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="numpy.ndarray">ndarray</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>be evaluated (overflow, or a non-finite result).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 <a href="https://orcid.org/0009-0006-3327-2047" rel="author">Olanrewaju M. Daramola</a> (ORCID)
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.suggest", "navigation.tabs", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

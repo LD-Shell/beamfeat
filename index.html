@@ -1,0 +1,1345 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Beam-search feature construction with FDR-controlled selection">
+      
+      
+        <meta name="author" content="Olanrewaju M. Daramola">
+      
+      
+        <link rel="canonical" href="https://ld-shell.github.io/beamFeat/">
+      
+      
+      
+        <link rel="next" href="installation/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>beamfeat</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  <meta name="author" content="Olanrewaju M. Daramola">
+  <link rel="author" href="https://orcid.org/0009-0006-3327-2047">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="beamfeat">
+  <meta property="og:title" content="Home — beamfeat">
+  <meta property="og:description" content="Beam-search feature construction with FDR-controlled selection">
+  <meta property="og:url" content="https://ld-shell.github.io/beamFeat/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Home — beamfeat">
+  <meta name="twitter:description" content="Beam-search feature construction with FDR-controlled selection">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "beamfeat",
+    "description": "Beam-search feature construction with FDR-controlled selection",
+    "codeRepository": "https://github.com/LD-Shell/beamFeat",
+    "programmingLanguage": "Python",
+    "license": "https://opensource.org/licenses/MIT",
+    "author": {
+      "@type": "Person",
+      "name": "Olanrewaju M. Daramola",
+      "@id": "https://orcid.org/0009-0006-3327-2047",
+      "url": "https://orcid.org/0009-0006-3327-2047"
+    }
+  }
+  </script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#beamfeat" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="." title="beamfeat" class="md-header__button md-logo" aria-label="beamfeat" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            beamfeat
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Home
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/LD-Shell/beamFeat" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="guide/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  User guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="guarantees/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Statistical guarantees
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="migrating-from-autofeat/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Migrating from autofeat
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="notebooks/01_getting_started/" class="md-tabs__link">
+          
+  
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="api/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API reference
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="." title="beamfeat" class="md-nav__button md-logo" aria-label="beamfeat" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    beamfeat
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/LD-Shell/beamFeat" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="." class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it does
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-guarantees-stated-precisely" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The guarantees, stated precisely
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measured-not-assumed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured, not assumed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#relationship-to-autofeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relationship to autofeat
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#independent-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Independent comparison
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#citing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Citing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guarantees/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistical guarantees
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="migrating-from-autofeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating from autofeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="notebooks/01_getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started with beamfeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="notebooks/02_search_and_scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Search and scoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="notebooks/03_selection_and_units/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selection and units
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="notebooks/04_reading_a_fit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading a fit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it does
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-guarantees-stated-precisely" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The guarantees, stated precisely
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measured-not-assumed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured, not assumed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#relationship-to-autofeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relationship to autofeat
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#independent-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Independent comparison
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#citing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Citing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="beamfeat">beamfeat</h1>
+<p><a href="https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml/badge.svg" /></a>
+<a href="https://pypi.org/project/beamfeat/"><img alt="PyPI" src="https://img.shields.io/pypi/v/beamfeat" /></a>
+<a href="https://github.com/LD-Shell/beamfeat"><img alt="Python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue" /></a>
+<a href="https://github.com/LD-Shell/beamfeat/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green" /></a>
+<a href="https://doi.org/10.5281/zenodo.22867108"><img alt="DOI" src="https://zenodo.org/badge/DOI/10.5281/zenodo.22867108.svg" /></a>
+<a href="https://ld-shell.github.io/beamfeat/"><img alt="Docs" src="https://img.shields.io/badge/docs-ld--shell.github.io-blue" /></a></p>
+<p>Beam-search feature construction with false-discovery-rate (FDR) controlled
+selection, packaged as scikit-learn estimators.</p>
+<p><strong>Documentation: <a href="https://ld-shell.github.io/beamfeat/">ld-shell.github.io/beamfeat</a></strong></p>
+<p>beamfeat builds interpretable mathematical expressions from your columns —
+<code>(x0 / x2) * x1</code>, <code>log(a) * log(b)</code> — searches for the ones that explain the
+target, and then screens them with a selection procedure whose statistical
+guarantee is stated, tested, and honestly reported when it cannot be given.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">beamfeat</span><span class="w"> </span><span class="kn">import</span> <span class="n">BeamFeatRegressor</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">beam_width</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+<span class="n">model</span><span class="o">.</span><span class="n">formulas</span><span class="p">()</span>        <span class="c1"># ['((x0 / x2) * x1)', ...]</span>
+<span class="n">model</span><span class="o">.</span><span class="n">equation</span><span class="p">()</span>        <span class="c1"># 'y = 0.9847*((x0 / x2) * x1) + ...'</span>
+<span class="n">model</span><span class="o">.</span><span class="n">fdr_controlled_</span>   <span class="c1"># True: the features carry the stated FDR guarantee</span>
+<span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_new</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="install">Install</h2>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>beamfeat<span class="w">            </span><span class="c1"># core: numpy + scikit-learn only</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"beamfeat[units]"</span><span class="w">   </span><span class="c1"># + pint, for unit-aware search (units as</span>
+<span class="w">                                </span><span class="c1">#   strings like "kg" or as pint quantities)</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"beamfeat[all]"</span><span class="w">     </span><span class="c1"># + sympy display support and test deps</span>
+</code></pre></div>
+<p>Python ≥ 3.10. There are <strong>no upper version pins</strong>: the 431 tests pass from
+scikit-learn 1.6.1 with numpy 1.26 through scikit-learn 1.9.0 with numpy 2.4,
+including 1.7.2 and 1.8.0 in between. Running the test suite or reproducing
+the benchmarks needs a little more setup, described in
+<a href="https://github.com/LD-Shell/beamFeat/blob/main/docs/installation.md"><code>docs/installation.md</code></a>.</p>
+<h2 id="what-it-does">What it does</h2>
+<ol>
+<li><strong>Search.</strong> A beam search over an expression DAG proposes and scores
+   compositions of unary (<code>log</code>, <code>sqrt</code>, <code>reciprocal</code>, <code>square</code>, <code>abs</code>) and
+   binary (<code>*</code>, <code>/</code>, <code>+</code>, <code>-</code>) operators, with structural deduplication,
+   redundancy pruning, and cost O(depth × beam²) rather than the exhaustive
+   O(operators^depth).</li>
+<li><strong>Selection.</strong> Candidates are tested for association with the target under
+   procedures that control the false discovery rate (details below), on a
+   held-out split of the training rows that the search never saw.</li>
+<li><strong>Fit.</strong> A parsimony step (greedy forward selection within the screened
+   set, on by default) keeps the compact subset the equation uses, and
+   <code>.equation()</code> marks how many of the certified terms it printed — the full
+   screened set with per-candidate p- and q-values stays auditable in
+   <code>selection_report_</code>. <code>parsimony=None</code> fits that whole set instead, so the
+   printed equation is itself the certified object.</li>
+</ol>
+<p>Numerical failures (overflow, domain errors) are recorded and excluded, never
+silently masked. Optional unit propagation — units given as pint quantities,
+as plain strings like <code>"kg"</code> or <code>"m / s**2"</code>, or as a sequence with one entry
+per column — rejects dimensionally invalid expressions at construction time,
+and a units specification that matches no column raises rather than being
+ignored. On a kg/m/s mechanics example this cuts the number of candidates
+ever evaluated by roughly two-thirds before any data work; the exact fraction
+depends on how many distinct dimensions the columns carry.</p>
+<h2 id="the-guarantees-stated-precisely">The guarantees, stated precisely</h2>
+<ul>
+<li><strong>Permutation selector (default).</strong> Tests marginal association with an
+  exact permutation test: the statistic (|Pearson r| for regression,
+  eta-squared for classification) is a fixed function of the data, and
+  p-values use the add-one estimator of <a href="https://doi.org/10.2202/1544-6115.1585">Phipson &amp; Smyth (2010)</a>. Multiplicity
+  is corrected with Benjamini–Yekutieli by default (valid under arbitrary
+  dependence); Benjamini–Hochberg is available and is valid under positive
+  dependence (PRDS).</li>
+<li><strong>Knockoff selector.</strong> Fixed-X knockoffs (<a href="https://doi.org/10.1214/15-AOS1337">Barber &amp; Candès, 2015</a>) when
+  <code>n ≥ 2p</code>: no distributional assumption on the features — engineered columns
+  are fine — with the guarantee requiring Gaussian noise in the linear model.
+  Model-X Gaussian knockoffs (<a href="https://doi.org/10.1111/rssb.12265">Candès et al., 2018</a>) only as an <code>n &lt; 2p</code>
+  fallback, with a warning, since engineered features violate its Gaussianity
+  assumption.</li>
+<li><strong>Selective inference.</strong> Search retains candidates <em>because</em> they correlate
+  with the target in its sample, so testing them on the same rows would bias
+  p-values optimistically. By default the estimators search on one half of
+  the training rows and select on the other (<code>selection_holdout=0.5</code>).</li>
+<li><strong>Association ≠ generalisation.</strong> A post-fit check on the selection
+  holdout raises a visible <code>DegenerateFitWarning</code> if the assembled model
+  fails to generalise (negative held-out R², or accuracy below the majority
+  class) — FDR certifies the features' association, and this check covers
+  the separate claim that the equation built on them is sound.</li>
+<li><strong>Scope, not just a flag.</strong> <code>fdr_controlled_</code> says whether the returned
+  features carry the guarantee; <code>fdr_scope_</code> says what it is over —
+  <code>"screened set"</code> when the parsimony step pruned the equation down from a
+  larger certified set, <code>"printed equation"</code> when the two coincide.
+  <code>.equation()</code> prints the same distinction for a human reader.</li>
+<li><strong>Honest failure.</strong> If nothing passes selection, the default
+  (<code>on_no_discoveries="empty"</code>) keeps no constructed features: the model
+  degrades to an intercept-only fit and raises a visible
+  <code>NoDiscoveriesWarning</code>. <code>"fallback"</code> (keep the unfiltered search output,
+  flagged <code>fdr_controlled_ = False</code>) and <code>"raise"</code> are available. It never
+  silently claims a guarantee it does not have.</li>
+</ul>
+<p>Three readings of these guarantees matter. FDR is an <strong>expectation over
+repetitions</strong>, not a per-run bound. The marginal null counts a near-duplicate
+of a real signal as a <strong>true</strong> discovery — de-duplication is the redundancy
+threshold's job, not the error-control procedure's. And every number below
+carries Monte Carlo error from finite trials.</p>
+<h2 id="measured-not-assumed">Measured, not assumed</h2>
+<p><img alt="False features returned on the distractor stress suite" src="https://raw.githubusercontent.com/LD-Shell/beamFeat/main/paper/figures/fig_false_feature_rate.png" /></p>
+<p><em>Signal hidden among ten distractor columns. A false feature is a returned
+formula touching only irrelevant ones; the count is over the five stress
+datasets that declare which columns their formula uses. Regenerate with
+<code>python</code> <a href="https://github.com/LD-Shell/beamFeat/blob/main/benchmarks/make_figures.py"><code>benchmarks/make_figures.py</code></a>, which writes six other figures alongside
+it.</em></p>
+<p>All of the following are measured by the test suite or the committed
+benchmark scripts, not asserted:</p>
+<ul>
+<li>Selector calibration (Gaussian designs, 100 trials,
+  <a href="https://github.com/LD-Shell/beamFeat/blob/main/benchmarks/selector_calibration.py"><code>benchmarks/selector_calibration.py</code></a>): BH realised 0.046 ± 0.008,
+  0.084 ± 0.012 and 0.161 ± 0.016 at nominal 0.05/0.10/0.20, against its
+  ceiling of <code>q·m₀/m</code> = 0.040/0.080/0.160; BY, stricter by a harmonic factor,
+  realised 0.008 ± 0.004, 0.018 ± 0.005 and 0.046 ± 0.008. Power 1.00
+  throughout. The bounds are computed from the design and the script fails if
+  a realised rate sits above one.</li>
+<li>End-to-end pipeline (search + holdout selection) at nominal FDR 0.10,
+  500 rows and 6 input columns of which 2 carry signal through their product,
+  noise at 5% of the signal's standard deviation
+  (<a href="https://github.com/LD-Shell/beamFeat/blob/main/benchmarks/calibration_study.py"><code>benchmarks/calibration_study.py</code></a>):
+  no false discovery in 200 replicates, a 95% upper bound of 0.015 on the true
+  rate, power 1.000, zero fallbacks; zero selections over 60 global-null
+  replicates.</li>
+<li>Feynman-equation panel (12 physics laws, 0.1% noise): 10/12 solved at the
+  SRBench criterion and 8/12 in exact symbolic form, ~0.6 s per equation; the misses are named boundaries (a depth-3 rational, a literal
+  constant, depth-4 nesting, the Gaussian's exponential).</li>
+<li>Pure-noise stress (<a href="https://github.com/LD-Shell/beamFeat/blob/main/benchmarks/selector_calibration.py"><code>benchmarks/selector_calibration.py</code></a>): over 100
+  global-null pipelines, where every selection is false by construction, BH
+  returned features in 6 trials and BY in 1 — false discovery proportions of
+  0.06 and 0.01, both under the nominal 0.10. The gap is not significant at
+  this trial count (p = 0.12); BY is the estimator default because it is valid
+  under arbitrary dependence, and this is the consistency check.</li>
+<li>Stress suite (signal among ten distractor columns): beamfeat's
+  false-feature rate — returned formulas touching only irrelevant columns —
+  is 0.000 at noise levels from 5% to 50% of the signal scale and at n as
+  small as 120, with recovery and the guarantee intact throughout; autofeat
+  recovers the formula equally often but returns distractor-only features on
+  2 of the 5 scoreable datasets. Reported as a count rather than a mean:
+  with five datasets the mean carries a standard error of about 0.15, and
+  autofeat's output varies between processes in any case.</li>
+<li>Real data (seven datasets, numeric columns): best on mpg (0.864 vs LightGBM
+  0.853) and tips — where gradient boosting overfits below ridge while the
+  FDR gate holds beamfeat at the ceiling — tied with ridge on diamonds from
+  one interpretable feature, behind LightGBM on penguins and breast cancer,
+  and behind ridge on diabetes (0.376): no
+  nonlinear structure exists there to find, and beamfeat does not invent
+  any.</li>
+<li>OpenFE on the same stress suite (its features + LightGBM, after shimming a
+  removed sklearn parameter): false-feature rate also 0.000, but 0/5 formulas
+  recovered and lower R² throughout — it optimises tree-model lift, not
+  equations.</li>
+<li>Heavy-tailed noise (Student t(2), infinite variance): exact formula
+  recovered at R² 0.956 vs LightGBM 0.866 — the permutation test is
+  distribution-free, so heavy tails cost it nothing.</li>
+<li>Known boundaries, measured: on piecewise targets trees win outright
+  (LightGBM 0.998 vs 0.808 — if a tree model beats beamfeat by a wide
+  margin, the signal is likely piecewise, not algebraic; OpenFE records 0.998
+  there too, but bit-identically to raw LightGBM and from a feature touching
+  only an irrelevant column, so the credit is its tree consumer's), and on
+  Friedman #1
+  the shortfall splits, over six draws, into a representation oracle of
+  0.960 ± 0.003, a screening-admissible ceiling of 0.874 ± 0.006 (the
+  marginally-quiet quadratic is priced by the guarantee itself) and an
+  achieved 0.780 ± 0.013: about 0.086 lost to what marginal screening cannot
+  see, 0.094 to the search — stated rather than hidden.</li>
+<li>Test suite: 431 tests at 95% statement coverage (a 90% floor is enforced
+  in CI), including scikit-learn's full estimator-conformance checks.</li>
+<li>Selection-only baseline (knockpy on raw columns, modified-FDR offset —
+  the only satisfiable configuration at these dimensionalities): 0/15
+  formulas recovered, core-suite R² at the ridge level (0.845), and
+  distractor-only features on 2 of the 5 scoreable stress datasets — the
+  construction step and the holdout are the delta.</li>
+<li>Independent 360-fit study across nine datasets and eight methods
+  (<a href="https://github.com/LD-Shell/beamFeat/tree/main/benchmarks/independent"><code>benchmarks/independent/</code></a>): mean R² 0.803 against random forest 0.810,
+  LightGBM 0.798, OpenFE 0.736, ridge 0.704, autofeat −1.561 and
+  featuretools −2.478 — and a worst single fit of 0.355, none below zero,
+  where autofeat reached −103.2 and featuretools −57.3, at ~60× autofeat's
+  speed, with the FDR flag delivered on 45/45 fits.</li>
+<li>Benchmarks (70/30 splits): mean R² over the ten core-suite problems, and
+  recovery of the generating columns over the ten synthetic problems that
+  declare them — the two sets differ by one dataset each.
+  beamfeat mean R² 0.9989, ~0.2 s fits, 10/10 recovered; autofeat
+  0.9968, ~12 s, 8/10; LightGBM 0.9798; ridge 0.8442. On the purely linear
+  problem — where feature construction should not win — ridge ties beamfeat.</li>
+</ul>
+<h2 id="relationship-to-autofeat">Relationship to autofeat</h2>
+<p>beamfeat's design began from a code review of
+<a href="https://github.com/cod3licious/autofeat">autofeat</a> (<a href="https://doi.org/10.1007/978-3-030-43823-4_10">Horn et al., 2019</a>) and
+keeps its best idea — compact symbolic features feeding a linear model —
+while replacing exhaustive expansion with beam search, heuristic
+noise-threshold selection with FDR-controlled procedures, and upper-pinned
+dependencies with tested floors. The generate-then-FDR-filter design has a
+direct precedent in <a href="https://github.com/blue-yonder/tsfresh">tsfresh</a>
+(<a href="https://doi.org/10.1016/j.neucom.2018.03.067">Christ et al., 2018</a>), which filters mass-generated time-series features
+under Benjamini–Yekutieli control; beamfeat applies that design to symbolic
+expressions on tabular columns.</p>
+<h2 id="independent-comparison">Independent comparison</h2>
+<p><a href="https://github.com/LD-Shell/beamFeat/tree/main/benchmarks/independent"><code>benchmarks/independent/</code></a> holds a 360-fit study (nine datasets, eight
+methods, five splits, average ranks plus a Friedman test) with its harness,
+pinned environment, data, and a notebook that reproduces the analysis. Mean
+held-out R²: beamfeat 0.803, random forest 0.810, LightGBM 0.798, OpenFE
+0.736, ridge 0.704, autofeat −1.561, featuretools −2.478 — and worst single
+fit of 45: beamfeat 0.355, autofeat −103.2, featuretools −57.3, with the FDR
+guarantee delivered on 45/45. Read <a href="https://github.com/LD-Shell/beamFeat/blob/main/benchmarks/independent/PROVENANCE.md"><code>PROVENANCE.md</code></a> first: it records what is
+reproducible (beamfeat: selections bit-identically; the fitted model's
+cross-validated penalty can flip on marginal problems) and what is not (autofeat seeds
+no <code>random_state</code> and drawing its decoy features from the global NumPy
+generator, swung from +0.952 to −109.8 across six runs on one identical split).</p>
+<h2 id="documentation">Documentation</h2>
+<p>Tutorial notebooks live in <a href="https://github.com/LD-Shell/beamFeat/tree/main/notebooks"><code>notebooks/</code></a> (getting started; search and scoring;
+selection and units). The statistical guarantees are documented in detail in
+<a href="https://github.com/LD-Shell/beamFeat/blob/main/docs/guarantees.md"><code>docs/guarantees.md</code></a> and in the module docstrings of <a href="https://github.com/LD-Shell/beamFeat/blob/main/src/beamfeat/selection.py"><code>beamfeat.selection</code></a>. Users coming
+from autofeat will find a full API mapping and version-compatibility notes
+in <a href="https://github.com/LD-Shell/beamFeat/blob/main/docs/migrating-from-autofeat.md"><code>docs/migrating-from-autofeat.md</code></a>.</p>
+<h2 id="citing">Citing</h2>
+<p>See <a href="https://github.com/LD-Shell/beamFeat/blob/main/CITATION.cff"><code>CITATION.cff</code></a>. If you use the selection procedures, please also cite the
+underlying statistics: <a href="https://doi.org/10.1111/j.2517-6161.1995.tb02031.x">Benjamini &amp; Hochberg (1995)</a>,
+<a href="https://doi.org/10.1214/aos/1013699998">Benjamini &amp; Yekutieli (2001)</a>, <a href="https://doi.org/10.1214/15-AOS1337">Barber &amp; Candès (2015)</a>,
+<a href="https://doi.org/10.1111/rssb.12265">Candès et al. (2018)</a>, and <a href="https://doi.org/10.2202/1544-6115.1585">Phipson &amp; Smyth (2010)</a>.</p>
+<h2 id="license">License</h2>
+<p><a href="https://github.com/LD-Shell/beamFeat/blob/main/LICENSE">MIT</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 <a href="https://orcid.org/0009-0006-3327-2047" rel="author">Olanrewaju M. Daramola</a> (ORCID)
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.suggest", "navigation.tabs", "toc.follow"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
