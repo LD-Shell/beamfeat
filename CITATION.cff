@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
+message: "If you use this software, please cite the paper below; the archived release is cited by its DOI."
 type: software
 title: "beamfeat: beam-search feature construction with FDR-controlled selection"
 version: 0.4.2
@@ -17,4 +17,16 @@ keywords:
   - feature selection
   - false discovery rate
   - knockoffs
-#   year: 2026
+preferred-citation:
+  type: article
+  title: "Symbolic feature construction with false discovery rate control"
+  authors:
+    - family-names: "Daramola"
+      given-names: "Olanrewaju M."
+      orcid: "https://orcid.org/0009-0006-3327-2047"
+      affiliation: "Universiti Teknologi PETRONAS, Malaysia"
+  journal: "Transactions on Machine Learning Research"
+  issn: "2835-8856"
+  year: 2026
+  month: 10
+  url: "https://openreview.net/forum?id=UibXoy4h3u"

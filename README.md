@@ -4,6 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/beamfeat)](https://pypi.org/project/beamfeat/)
 [![Python](https://img.shields.io/badge/python-3.10%E2%80%933.15-blue)](https://github.com/LD-Shell/beamfeat)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE)
+[![TMLR](https://img.shields.io/badge/TMLR-2026-blue)](https://openreview.net/forum?id=UibXoy4h3u)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21619567.svg)](https://doi.org/10.5281/zenodo.21619567)
 [![Docs](https://img.shields.io/badge/docs-ld--shell.github.io-blue)](https://ld-shell.github.io/beamfeat/)
 
@@ -240,7 +241,23 @@ in [`docs/migrating-from-autofeat.md`](https://github.com/LD-Shell/beamfeat/blob
 
 ## Citing
 
-See [`CITATION.cff`](https://github.com/LD-Shell/beamfeat/blob/main/CITATION.cff). If you use the selection procedures, please also cite the
+If you use beamfeat, please cite the paper:
+
+```bibtex
+@article{daramola2026symbolic,
+  title   = {Symbolic feature construction with false discovery rate control},
+  author  = {Daramola, Olanrewaju M.},
+  journal = {Transactions on Machine Learning Research},
+  issn    = {2835-8856},
+  year    = {2026},
+  url     = {https://openreview.net/forum?id=UibXoy4h3u}
+}
+```
+
+The paper describes 0.4.2, archived at
+[10.5281/zenodo.23417132](https://doi.org/10.5281/zenodo.23417132); every release is
+archived under [10.5281/zenodo.21619567](https://doi.org/10.5281/zenodo.21619567). See also
+[`CITATION.cff`](https://github.com/LD-Shell/beamfeat/blob/main/CITATION.cff). If you use the selection procedures, please also cite the
 underlying statistics: [Benjamini & Hochberg (1995)](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x),
 [Benjamini & Yekutieli (2001)](https://doi.org/10.1214/aos/1013699998), [Barber & Candès (2015)](https://doi.org/10.1214/15-AOS1337),
 [Candès et al. (2018)](https://doi.org/10.1111/rssb.12265), and [Phipson & Smyth (2010)](https://doi.org/10.2202/1544-6115.1585).
