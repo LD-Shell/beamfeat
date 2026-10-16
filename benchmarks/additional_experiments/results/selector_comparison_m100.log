@@ -1,5 +1,5 @@
 independent       bh               q=0.05 FDRm=0.051 FDRc=0.051 power=0.999 skipped=0
-independent       by               q=0.05 FDRm=0.012 FDRc=0.012 power=0.988 skipped=0
+independent       by               q=0.05 FDRm=0.009 FDRc=0.009 power=0.989 skipped=0
 [beamfeat.selection] knockoff+ (offset=1) selected nothing at target FDR 0.05, but offset=0 — which controls only a modified FDR — would have selected 10 feature(s). If that trade-off is acceptable, pass KnockoffSelector(offset=0) as the selector; the permutation selector is the recommended default for engineered candidates
 [beamfeat.selection] knockoff+ (offset=1) selected nothing at target FDR 0.05, but offset=0 — which controls only a modified FDR — would have selected 10 feature(s). If that trade-off is acceptable, pass KnockoffSelector(offset=0) as the selector; the permutation selector is the recommended default for engineered candidates
 [beamfeat.selection] knockoff+ (offset=1) selected nothing at target FDR 0.05, but offset=0 — which controls only a modified FDR — would have selected 12 feature(s). If that trade-off is acceptable, pass KnockoffSelector(offset=0) as the selector; the permutation selector is the recommended default for engineered candidates
@@ -302,7 +302,7 @@ independent       knockoff_fixed   q=0.05 FDRm=0.005 FDRc=0.005 power=0.010 skip
 [beamfeat.selection] knockoff+ (offset=1) selected nothing at target FDR 0.05, but offset=0 — which controls only a modified FDR — would have selected 10 feature(s). If that trade-off is acceptable, pass KnockoffSelector(offset=0) as the selector; the permutation selector is the recommended default for engineered candidates
 independent       knockoff_modelx  q=0.05 FDRm=0.000 FDRc=0.000 power=0.000 skipped=0
 independent       bh               q=0.10 FDRm=0.095 FDRc=0.095 power=0.999 skipped=0
-independent       by               q=0.10 FDRm=0.020 FDRc=0.020 power=0.993 skipped=0
+independent       by               q=0.10 FDRm=0.024 FDRc=0.024 power=0.995 skipped=0
 independent       knockoff_fixed   q=0.10 FDRm=0.081 FDRc=0.081 power=1.000 skipped=0
 [beamfeat.selection] n < 2p: falling back to model-X Gaussian knockoffs, which assume jointly Gaussian features — an assumption engineered features violate; prefer the permutation selector in this regime
 [beamfeat.selection] n < 2p: falling back to model-X Gaussian knockoffs, which assume jointly Gaussian features — an assumption engineered features violate; prefer the permutation selector in this regime
@@ -406,7 +406,7 @@ independent       knockoff_fixed   q=0.10 FDRm=0.081 FDRc=0.081 power=1.000 skip
 [beamfeat.selection] n < 2p: falling back to model-X Gaussian knockoffs, which assume jointly Gaussian features — an assumption engineered features violate; prefer the permutation selector in this regime
 independent       knockoff_modelx  q=0.10 FDRm=0.071 FDRc=0.071 power=1.000 skipped=0
 independent       bh               q=0.20 FDRm=0.177 FDRc=0.177 power=0.999 skipped=0
-independent       by               q=0.20 FDRm=0.039 FDRc=0.039 power=0.998 skipped=0
+independent       by               q=0.20 FDRm=0.043 FDRc=0.043 power=0.999 skipped=0
 independent       knockoff_fixed   q=0.20 FDRm=0.167 FDRc=0.167 power=1.000 skipped=0
 [beamfeat.selection] n < 2p: falling back to model-X Gaussian knockoffs, which assume jointly Gaussian features — an assumption engineered features violate; prefer the permutation selector in this regime
 [beamfeat.selection] n < 2p: falling back to model-X Gaussian knockoffs, which assume jointly Gaussian features — an assumption engineered features violate; prefer the permutation selector in this regime
@@ -510,7 +510,7 @@ independent       knockoff_fixed   q=0.20 FDRm=0.167 FDRc=0.167 power=1.000 skip
 [beamfeat.selection] n < 2p: falling back to model-X Gaussian knockoffs, which assume jointly Gaussian features — an assumption engineered features violate; prefer the permutation selector in this regime
 independent       knockoff_modelx  q=0.20 FDRm=0.158 FDRc=0.158 power=1.000 skipped=0
 correlated_nulls  bh               q=0.05 FDRm=0.029 FDRc=0.029 power=1.000 skipped=0
-correlated_nulls  by               q=0.05 FDRm=0.005 FDRc=0.005 power=1.000 skipped=0
+correlated_nulls  by               q=0.05 FDRm=0.007 FDRc=0.007 power=1.000 skipped=0
 [beamfeat.selection] knockoff+ (offset=1) selected nothing at target FDR 0.05, but offset=0 — which controls only a modified FDR — would have selected 11 feature(s). If that trade-off is acceptable, pass KnockoffSelector(offset=0) as the selector; the permutation selector is the recommended default for engineered candidates
 [beamfeat.selection] knockoff+ (offset=1) selected nothing at target FDR 0.05, but offset=0 — which controls only a modified FDR — would have selected 10 feature(s). If that trade-off is acceptable, pass KnockoffSelector(offset=0) as the selector; the permutation selector is the recommended default for engineered candidates
 [beamfeat.selection] knockoff+ (offset=1) selected nothing at target FDR 0.05, but offset=0 — which controls only a modified FDR — would have selected 11 feature(s). If that trade-off is acceptable, pass KnockoffSelector(offset=0) as the selector; the permutation selector is the recommended default for engineered candidates
@@ -2539,4 +2539,4 @@ beam              knockoff_fixed   q=0.20 FDRm=0.000 FDRc=-- power=0.152 skipped
 [beamfeat.selection] n < 2p: falling back to model-X Gaussian knockoffs, which assume jointly Gaussian features — an assumption engineered features violate; prefer the permutation selector in this regime
 [beamfeat.selection] knockoff+ (offset=1) selected nothing at target FDR 0.2, but offset=0 — which controls only a modified FDR — would have selected 2 feature(s). If that trade-off is acceptable, pass KnockoffSelector(offset=0) as the selector; the permutation selector is the recommended default for engineered candidates
 beam              knockoff_modelx  q=0.20 FDRm=0.000 FDRc=-- power=0.154 skipped=0
-wrote results/selector_comparison_m100.json
+wrote /tmp/claude-1000/-home-dara-Downloads-beamfeat-improved-fixed/3333e157-ac2b-4445-9e44-40c893fdfdf1/scratchpad/selrerun/m100.json
