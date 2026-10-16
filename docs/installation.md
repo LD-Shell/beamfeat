@@ -12,8 +12,8 @@ pip install "beamfeat[all]"     # + sympy display and test dependencies
 
 Python 3.10 or newer. There are no upper version pins. The test suite is run
 against the oldest supported stack (numpy 1.26, scikit-learn 1.6) and against
-current releases: 431 tests pass from scikit-learn 1.6.1 with numpy 1.26
-through scikit-learn 1.9.0 with numpy 2.4, including 1.7.2 and 1.8.0.
+current releases on Python 3.10 to 3.15: 436 tests pass from scikit-learn 1.6.1
+with numpy 1.26 through scikit-learn 1.9.1 with numpy 2.5.
 
 Nothing below is needed to use `beamfeat`.
 
@@ -26,7 +26,7 @@ pip install -e ".[all]"
 pytest
 ```
 
-431 tests, about a minute, including scikit-learn's `check_estimator`
+436 tests, about a minute, including scikit-learn's `check_estimator`
 conformance suite. `pytest --cov=beamfeat` reports 95% statement coverage.
 
 The `units` extra matters here: without `pint`, 26 tests skip silently and

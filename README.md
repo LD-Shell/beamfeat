@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml/badge.svg)](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/beamfeat)](https://pypi.org/project/beamfeat/)
-[![Python](https://img.shields.io/badge/python-3.10%E2%80%933.13-blue)](https://github.com/LD-Shell/beamfeat)
+[![Python](https://img.shields.io/badge/python-3.10%E2%80%933.15-blue)](https://github.com/LD-Shell/beamfeat)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22867108.svg)](https://doi.org/10.5281/zenodo.22867108)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21619567.svg)](https://doi.org/10.5281/zenodo.21619567)
 [![Docs](https://img.shields.io/badge/docs-ld--shell.github.io-blue)](https://ld-shell.github.io/beamfeat/)
 
 Beam-search feature construction with false-discovery-rate (FDR) controlled
@@ -37,9 +37,9 @@ pip install "beamfeat[units]"   # + pint, for unit-aware search (units as
 pip install "beamfeat[all]"     # + sympy display support and test deps
 ```
 
-Python ≥ 3.10. There are **no upper version pins**: the 431 tests pass from
-scikit-learn 1.6.1 with numpy 1.26 through scikit-learn 1.9.0 with numpy 2.4,
-including 1.7.2 and 1.8.0 in between. Running the test suite or reproducing
+Python ≥ 3.10. There are **no upper version pins**: the 436 tests pass on
+Python 3.10 to 3.15, from scikit-learn 1.6.1 with numpy 1.26 through
+scikit-learn 1.9.1 with numpy 2.5. Running the test suite or reproducing
 the benchmarks needs a little more setup, described in
 [`docs/installation.md`](https://github.com/LD-Shell/beamFeat/blob/main/docs/installation.md).
 
@@ -181,7 +181,7 @@ benchmark scripts, not asserted:
   marginally-quiet quadratic is priced by the guarantee itself) and an
   achieved 0.780 ± 0.013: about 0.086 lost to what marginal screening cannot
   see, 0.094 to the search — stated rather than hidden.
-- Test suite: 431 tests at 95% statement coverage (a 90% floor is enforced
+- Test suite: 436 tests at 95% statement coverage (a 90% floor is enforced
   in CI), including scikit-learn's full estimator-conformance checks.
 - Selection-only baseline (knockpy on raw columns, modified-FDR offset —
   the only satisfiable configuration at these dimensionalities): 0/15

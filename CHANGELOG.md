@@ -4,7 +4,7 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.2] - 2026-10-16
 
 ### Fixed
 
@@ -13,6 +13,12 @@ Notable changes to `beamfeat`. Format follows
   priors (multiclass), consistent with `predict` and `predict_proba`, which
   already fell back to the class priors. scikit-learn's `check_estimator` is
   now also run with FDR selection on, which is what exposed it.
+
+### Changed
+
+- The tutorial notebooks no longer suggest installing from GitHub; `pip install
+  beamfeat` is the install route.
+- CI now also tests Python 3.14 and 3.15, and the package metadata lists them.
 
 ## [0.4.1] - 2026-09-20
 
