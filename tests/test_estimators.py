@@ -67,6 +67,13 @@ def test_check_estimator(cls):
     check_estimator(cls(max_depth=1, beam_width=6, selector=None))
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("cls", ESTIMATORS)
+def test_check_estimator_with_selection(cls):
+    """The same suite with FDR selection on, so the empty-selection paths run too."""
+    check_estimator(cls(max_depth=1, beam_width=6))
+
+
 @pytest.mark.parametrize("cls", ESTIMATORS)
 class TestApiConventions:
     def test_get_params_roundtrip(self, cls):
@@ -218,6 +225,31 @@ class TestClassifier:
     def test_decision_function(self, classification_data):
         X, y = classification_data
         assert _fast(BeamFeatClassifier).fit(X, y).decision_function(X).shape == (len(y),)
+
+    @pytest.mark.parametrize("n_classes", [2, 3])
+    def test_decision_function_without_discoveries(self, n_classes):
+        """With nothing selected the scores are the log priors and agree with
+        predict and predict_proba."""
+        rng = np.random.default_rng(3)
+        X = rng.uniform(1, 6, (400, 4))
+        y = rng.integers(0, n_classes, 400)
+        with pytest.warns(NoDiscoveriesWarning):
+            model = BeamFeatClassifier(
+                max_depth=2, beam_width=15, target_fdr=0.05, random_state=3
+            ).fit(X, y)
+        scores = model.decision_function(X)
+        log_prior = np.log(model.class_prior_)
+        if n_classes == 2:
+            assert scores.shape == (len(y),)
+            np.testing.assert_allclose(scores, log_prior[1] - log_prior[0])
+            predicted = model.classes_[(scores > 0).astype(int)]
+        else:
+            assert scores.shape == (len(y), n_classes)
+            np.testing.assert_allclose(scores, np.tile(log_prior, (len(y), 1)))
+            predicted = model.classes_[np.argmax(scores, axis=1)]
+            softmax = np.exp(scores) / np.exp(scores).sum(axis=1, keepdims=True)
+            np.testing.assert_allclose(softmax, model.predict_proba(X))
+        np.testing.assert_array_equal(predicted, model.predict(X))
 
     def test_string_labels(self, rng):
         """Labels are encoded internally; string classes must round-trip."""

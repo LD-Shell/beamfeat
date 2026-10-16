@@ -1467,7 +1467,19 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         return self.model_.predict_proba(self.scaler_.transform(self._apply(X)))
 
     def decision_function(self, X) -> np.ndarray:
-        """Return the model's decision scores."""
+        """Return the model's decision scores.
+
+        With no feature selected the scores are the log prior odds (binary)
+        or the log priors (multiclass), so they agree with :meth:`predict`
+        and :meth:`predict_proba`.
+        """
         check_is_fitted(self, ["model_"])
         X = _validate_input(self, X, dtype=np.float64, reset=False)
+        if self.model_ is None:
+            if not hasattr(self, "class_prior_"):
+                return np.zeros(X.shape[0])
+            log_prior = np.log(self.class_prior_)
+            if len(self.classes_) == 2:
+                return np.full(X.shape[0], log_prior[1] - log_prior[0])
+            return np.tile(log_prior, (X.shape[0], 1))
         return self.model_.decision_function(self.scaler_.transform(self._apply(X)))

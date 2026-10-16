@@ -4,6 +4,16 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- `BeamFeatClassifier.decision_function` raised `AttributeError` when no
+  feature passed selection. It now returns the log prior odds (binary) or log
+  priors (multiclass), consistent with `predict` and `predict_proba`, which
+  already fell back to the class priors. scikit-learn's `check_estimator` is
+  now also run with FDR selection on, which is what exposed it.
+
 ## [0.4.1] - 2026-09-20
 
 ### Fixed
