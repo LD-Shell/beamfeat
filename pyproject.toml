@@ -70,16 +70,13 @@ include = [
   "CITATION.cff",
   "CHANGELOG.md",
   "pyproject.toml",
-  # benchmarks/README.md documents these scripts and result files and is
-  # itself shipped; include the artifacts it references so the map is not
-  # left pointing at files the sdist does not contain.
+  # benchmarks/README.md documents these scripts and result files
   "benchmarks/*.py",
   "benchmarks/*.ipynb",
   "benchmarks/*.json",
   "benchmarks/*.csv",
 ]
 # The vendored external comparison study is ~540 KB of raw data and notebooks;
-# it lives in the git repository rather than the sdist.
 exclude = ["benchmarks/independent"]
 
 [tool.pytest.ini_options]
