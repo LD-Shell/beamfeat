@@ -26,7 +26,7 @@ def code(text: str) -> nbf.NotebookNode:
 
 def build(path: pathlib.Path, cells: list[nbf.NotebookNode], title: str) -> None:
     notebook = nbf.v4.new_notebook()
-    url = f"https://colab.research.google.com/github/LD-Shell/beamFeat/blob/main/notebooks/{path.name}"
+    url = f"https://colab.research.google.com/github/LD-Shell/beamfeat/blob/main/notebooks/{path.name}"
     badge = markdown(
         f"[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)]({url})\n\n"
         "Running in Colab? Install first: `%pip install beamfeat`."

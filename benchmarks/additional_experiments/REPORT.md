@@ -168,15 +168,18 @@ Four procedures across four dependence regimes and three nominal levels, 100
 trials each. FDR is reported against two null definitions: marginal
 independence of the feature from the response, which is what the permutation
 test addresses, and conditional independence given the other features.
+The figures are from the run after the permutation-budget fix in 0.3.1, kept in
+`results/selector_comparison*.json` and `.log`; the selector cell's printed output in
+`run_all.ipynb` predates that fix.
 
 | regime | selector | FDR .05 | FDR .10 | FDR .20 | pow .05 | pow .10 | pow .20 | cond FDR .10 |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: |
 | independent | bh | 0.051 | 0.095 | 0.177 | 1.00 | 1.00 | 1.00 | 0.095 |
-| independent | by | 0.012 | 0.020 | 0.039 | 0.99 | 0.99 | 1.00 | 0.020 |
+| independent | by | 0.009 | 0.024 | 0.043 | 0.99 | 0.99 | 1.00 | 0.024 |
 | independent | knockoff_fixed | 0.005 | 0.081 | 0.167 | 0.01 | 1.00 | 1.00 | 0.081 |
 | independent | knockoff_modelx | 0.000 | 0.071 | 0.158 | 0.00 | 1.00 | 1.00 | 0.071 |
 | correlated_nulls | bh | 0.029 | 0.066 | 0.112 | 1.00 | 1.00 | 1.00 | 0.066 |
-| correlated_nulls | by | 0.005 | 0.012 | 0.021 | 1.00 | 1.00 | 1.00 | 0.012 |
+| correlated_nulls | by | 0.007 | 0.012 | 0.021 | 1.00 | 1.00 | 1.00 | 0.012 |
 | correlated_nulls | knockoff_fixed | 0.000 | 0.064 | 0.096 | 0.00 | 0.99 | 1.00 | 0.064 |
 | correlated_nulls | knockoff_modelx | 0.000 | 0.054 | 0.096 | 0.00 | 0.98 | 1.00 | 0.054 |
 | shared_factor | bh | 0.000 | 0.000 | 0.000 | 1.00 | 1.00 | 1.00 | 0.900 |
@@ -189,7 +192,7 @@ test addresses, and conditional independence given the other features.
 | beam | knockoff_modelx | 0.000 | 0.000 | 0.000 | 0.00 | 0.03 | 0.15 | — |
 
 **BH tracks its nominal level** (0.051, 0.095, 0.177 for 0.05, 0.10, 0.20 under
-independence) with power at or near 1. **BY is four to five times
+independence) with power at or near 1. **BY is four to six times
 conservative** and costs almost nothing in power, which is what justifies it as
 the default under arbitrary dependence.
 
@@ -210,8 +213,8 @@ knockoffs.
 **The beam regime matches the pipeline** and there BH and BY reach power 1.00
 with zero false discoveries, while knockoffs manage 0.00, 0.03 and 0.15,
 because beam-generated candidates are heavily collinear by construction. They
-cost about twice the p-value route here, and some fifty times as much in the
-two dependent regimes above.
+cost about twice the p-value route here, and some forty times Benjamini–Hochberg's
+cost in the two dependent regimes above.
 
 A second run with a smaller candidate pool shows the detection threshold
 directly: knockoff power at q = 0.10 under independence is 0.03 there against
@@ -224,7 +227,7 @@ directly: knockoff power at q = 0.10 under independence is 0.03 there against
 | independent | knockoff_fixed | 0.000 | 0.016 | 0.142 | 0.00 | 0.03 | 1.00 | 0.016 |
 | independent | knockoff_modelx | 0.000 | 0.015 | 0.164 | 0.00 | 0.03 | 1.00 | 0.015 |
 | correlated_nulls | bh | 0.029 | 0.074 | 0.134 | 1.00 | 1.00 | 1.00 | 0.074 |
-| correlated_nulls | by | 0.009 | 0.013 | 0.034 | 1.00 | 1.00 | 1.00 | 0.013 |
+| correlated_nulls | by | 0.013 | 0.013 | 0.034 | 1.00 | 1.00 | 1.00 | 0.013 |
 | correlated_nulls | knockoff_fixed | 0.000 | 0.011 | 0.091 | 0.00 | 0.02 | 1.00 | 0.011 |
 | correlated_nulls | knockoff_modelx | 0.000 | 0.010 | 0.094 | 0.00 | 0.02 | 1.00 | 0.010 |
 | shared_factor | bh | 0.000 | 0.000 | 0.000 | 1.00 | 1.00 | 1.00 | 0.800 |
@@ -280,15 +283,16 @@ near-equivalence, not instability.
 **Label-permuted controls.** Five permuted replicates of riboflavin, the
 highest-dimensional dataset, selected zero features each.
 
-**Cost profile.** On superconduct, summary statistics account for 32% of a
-fit, standardisation 27% and matrix assembly 17%; linear algebra is 0.5% and
-permutation testing 0.3%. The cost is implementation-dominated, and the
+**Cost profile.** On superconduct, summary statistics account for 34% of a
+fit, standardisation 15% and matrix assembly 10%; linear algebra is 1% and
+permutation testing 0.5%. The cost is implementation-dominated, and the
 dominant terms are vectorisable and parallelisable column-wise without
 touching selection or testing.
 
 **Search/selection split.** The search half carries no inferential role, so
 its size is a free parameter. On superconduct, moving from an even split to
-0.65 and 0.8 reduces fit time from 26.5 s to 19.7 s and 12.5 s while R² rises
-from 0.722 to 0.738 and 0.734: at large n most of the search cost buys little,
+0.65 and 0.8 leaves R² within 0.02, at 0.726, 0.738 and 0.733. Fit times varied
+too much between the two recorded runs (6.8 to 19.6 s per fit) to support a claim
+about speed. At large n most of the search cost buys little,
 and rows moved to the selection side buy testing power instead. The comparison
 uses the default even split throughout.

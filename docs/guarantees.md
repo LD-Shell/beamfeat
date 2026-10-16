@@ -55,9 +55,9 @@ read it as a consistency check rather than a demonstrated BH failure.
 100 trials). BH controls the FDR at `q·m0/m`, here `q·20/25`, and realised
 0.046 ± 0.008, 0.084 ± 0.012 and 0.161 ± 0.016 at nominal 0.05/0.10/0.20
 against ceilings of 0.040/0.080/0.160. BY is stricter by a harmonic factor and
-realised 0.008 ± 0.004, 0.018 ± 0.005 and 0.046 ± 0.008. Power 1.00 throughout.
+realised 0.013 ± 0.005, 0.018 ± 0.005 and 0.046 ± 0.008. Power 1.00 throughout.
 `benchmarks/selector_calibration.py` derives each bound from the design and
-fails if a realised rate sits above one, so these figures cannot drift from the
+fails if a bound falls below a realised rate's whole 95% interval, so these figures cannot drift from the
 behaviour.
 
 **What the marginal null cannot see.** A feature can be jointly essential

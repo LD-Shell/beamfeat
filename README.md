@@ -41,7 +41,7 @@ Python ≥ 3.10. There are **no upper version pins**: the 436 tests pass on
 Python 3.10 to 3.15, from scikit-learn 1.6.1 with numpy 1.26 through
 scikit-learn 1.9.1 with numpy 2.5. Running the test suite or reproducing
 the benchmarks needs a little more setup, described in
-[`docs/installation.md`](https://github.com/LD-Shell/beamFeat/blob/main/docs/installation.md).
+[`docs/installation.md`](https://github.com/LD-Shell/beamfeat/blob/main/docs/installation.md).
 
 ## What it does
 
@@ -113,12 +113,12 @@ carries Monte Carlo error from finite trials.
 
 ## Measured, not assumed
 
-![False features returned on the distractor stress suite](https://raw.githubusercontent.com/LD-Shell/beamFeat/main/paper/figures/fig_false_feature_rate.png)
+![False features returned on the distractor stress suite](https://raw.githubusercontent.com/LD-Shell/beamfeat/main/paper/figures/fig_false_feature_rate.png)
 
 *Signal hidden among ten distractor columns. A false feature is a returned
 formula touching only irrelevant ones; the count is over the five stress
 datasets that declare which columns their formula uses. Regenerate with
-`python` [`benchmarks/make_figures.py`](https://github.com/LD-Shell/beamFeat/blob/main/benchmarks/make_figures.py), which writes six other figures alongside
+`python` [`benchmarks/make_figures.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/make_figures.py), which writes six other figures alongside
 it.*
 
 
@@ -126,23 +126,23 @@ All of the following are measured by the test suite or the committed
 benchmark scripts, not asserted:
 
 - Selector calibration (Gaussian designs, 100 trials,
-  [`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamFeat/blob/main/benchmarks/selector_calibration.py)): BH realised 0.046 ± 0.008,
+  [`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py)): BH realised 0.046 ± 0.008,
   0.084 ± 0.012 and 0.161 ± 0.016 at nominal 0.05/0.10/0.20, against its
   ceiling of `q·m₀/m` = 0.040/0.080/0.160; BY, stricter by a harmonic factor,
-  realised 0.008 ± 0.004, 0.018 ± 0.005 and 0.046 ± 0.008. Power 1.00
+  realised 0.013 ± 0.005, 0.018 ± 0.005 and 0.046 ± 0.008. Power 1.00
   throughout. The bounds are computed from the design and the script fails if
-  a realised rate sits above one.
+  a bound falls below a realised rate's whole 95% interval.
 - End-to-end pipeline (search + holdout selection) at nominal FDR 0.10,
   500 rows and 6 input columns of which 2 carry signal through their product,
   noise at 5% of the signal's standard deviation
-  ([`benchmarks/calibration_study.py`](https://github.com/LD-Shell/beamFeat/blob/main/benchmarks/calibration_study.py)):
+  ([`benchmarks/calibration_study.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/calibration_study.py)):
   no false discovery in 200 replicates, a 95% upper bound of 0.015 on the true
   rate, power 1.000, zero fallbacks; zero selections over 60 global-null
   replicates.
 - Feynman-equation panel (12 physics laws, 0.1% noise): 10/12 solved at the
-  SRBench criterion and 8/12 in exact symbolic form, ~0.6 s per equation; the misses are named boundaries (a depth-3 rational, a literal
+  SRBench criterion and 8/12 in exact symbolic form, ~0.9 s per equation; the misses are named boundaries (a depth-3 rational, a literal
   constant, depth-4 nesting, the Gaussian's exponential).
-- Pure-noise stress ([`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamFeat/blob/main/benchmarks/selector_calibration.py)): over 100
+- Pure-noise stress ([`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py)): over 100
   global-null pipelines, where every selection is false by construction, BH
   returned features in 6 trials and BY in 1 — false discovery proportions of
   0.06 and 0.01, both under the nominal 0.10. The gap is not significant at
@@ -189,7 +189,7 @@ benchmark scripts, not asserted:
   distractor-only features on 2 of the 5 scoreable stress datasets — the
   construction step and the holdout are the delta.
 - Independent 360-fit study across nine datasets and eight methods
-  ([`benchmarks/independent/`](https://github.com/LD-Shell/beamFeat/tree/main/benchmarks/independent)): mean R² 0.803 against random forest 0.810,
+  ([`benchmarks/independent/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/independent)): mean R² 0.803 against random forest 0.810,
   LightGBM 0.798, OpenFE 0.736, ridge 0.704, autofeat −1.561 and
   featuretools −2.478 — and a worst single fit of 0.355, none below zero,
   where autofeat reached −103.2 and featuretools −57.3, at ~60× autofeat's
@@ -216,13 +216,13 @@ expressions on tabular columns.
 
 ## Independent comparison
 
-[`benchmarks/independent/`](https://github.com/LD-Shell/beamFeat/tree/main/benchmarks/independent) holds a 360-fit study (nine datasets, eight
+[`benchmarks/independent/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/independent) holds a 360-fit study (nine datasets, eight
 methods, five splits, average ranks plus a Friedman test) with its harness,
 pinned environment, data, and a notebook that reproduces the analysis. Mean
 held-out R²: beamfeat 0.803, random forest 0.810, LightGBM 0.798, OpenFE
 0.736, ridge 0.704, autofeat −1.561, featuretools −2.478 — and worst single
 fit of 45: beamfeat 0.355, autofeat −103.2, featuretools −57.3, with the FDR
-guarantee delivered on 45/45. Read [`PROVENANCE.md`](https://github.com/LD-Shell/beamFeat/blob/main/benchmarks/independent/PROVENANCE.md) first: it records what is
+guarantee delivered on 45/45. Read [`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md) first: it records what is
 reproducible (beamfeat: selections bit-identically; the fitted model's
 cross-validated penalty can flip on marginal problems) and what is not (autofeat seeds
 no `random_state` and drawing its decoy features from the global NumPy
@@ -230,19 +230,19 @@ generator, swung from +0.952 to −109.8 across six runs on one identical split)
 
 ## Documentation
 
-Tutorial notebooks live in [`notebooks/`](https://github.com/LD-Shell/beamFeat/tree/main/notebooks) (getting started; search and scoring;
+Tutorial notebooks live in [`notebooks/`](https://github.com/LD-Shell/beamfeat/tree/main/notebooks) (getting started; search and scoring;
 selection and units). The statistical guarantees are documented in detail in
-[`docs/guarantees.md`](https://github.com/LD-Shell/beamFeat/blob/main/docs/guarantees.md) and in the module docstrings of [`beamfeat.selection`](https://github.com/LD-Shell/beamFeat/blob/main/src/beamfeat/selection.py). Users coming
+[`docs/guarantees.md`](https://github.com/LD-Shell/beamfeat/blob/main/docs/guarantees.md) and in the module docstrings of [`beamfeat.selection`](https://github.com/LD-Shell/beamfeat/blob/main/src/beamfeat/selection.py). Users coming
 from autofeat will find a full API mapping and version-compatibility notes
-in [`docs/migrating-from-autofeat.md`](https://github.com/LD-Shell/beamFeat/blob/main/docs/migrating-from-autofeat.md).
+in [`docs/migrating-from-autofeat.md`](https://github.com/LD-Shell/beamfeat/blob/main/docs/migrating-from-autofeat.md).
 
 ## Citing
 
-See [`CITATION.cff`](https://github.com/LD-Shell/beamFeat/blob/main/CITATION.cff). If you use the selection procedures, please also cite the
+See [`CITATION.cff`](https://github.com/LD-Shell/beamfeat/blob/main/CITATION.cff). If you use the selection procedures, please also cite the
 underlying statistics: [Benjamini & Hochberg (1995)](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x),
 [Benjamini & Yekutieli (2001)](https://doi.org/10.1214/aos/1013699998), [Barber & Candès (2015)](https://doi.org/10.1214/15-AOS1337),
 [Candès et al. (2018)](https://doi.org/10.1111/rssb.12265), and [Phipson & Smyth (2010)](https://doi.org/10.2202/1544-6115.1585).
 
 ## License
 
-[MIT](https://github.com/LD-Shell/beamFeat/blob/main/LICENSE).
+[MIT](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE).
