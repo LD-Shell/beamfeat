@@ -46,6 +46,7 @@ verify-*.txt
 .vscode/
 *.zip
 beamfeat-paper-build/
+tutorials/
 beamfeat_v0.3.0.patch
 beamfeat.zip
 .ruff_cache/
