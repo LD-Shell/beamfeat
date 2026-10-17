@@ -48,8 +48,10 @@ construction, so PRDS cannot be taken for granted and the estimators take the
 conservative option. Over 100 pure-noise pipelines BH returned features in 6
 trials against BY's 1 (FDP 0.06 and 0.01,
 `benchmarks/selector_calibration.py`), both under the nominal 0.10. The
-difference is not significant at this trial count (Fisher exact p = 0.12), so
-read it as a consistency check rather than a demonstrated BH failure.
+difference is not significant at this trial count: both corrections saw the
+same 100 datasets, the one trial on which BY selected is among BH's six, and
+the exact paired test gives p = 0.06. Read it as a consistency check rather
+than a demonstrated BH failure.
 
 **Measured calibration** (Gaussian designs, 300 rows, 25 candidates, 5 signals,
 100 trials). BH controls the FDR at `q·m0/m`, here `q·20/25`, and realised

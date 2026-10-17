@@ -146,8 +146,10 @@ benchmark scripts, not asserted:
   global-null pipelines, where every selection is false by construction, BH
   returned features in 6 trials and BY in 1 — false discovery proportions of
   0.06 and 0.01, both under the nominal 0.10. The gap is not significant at
-  this trial count (p = 0.12); BY is the estimator default because it is valid
-  under arbitrary dependence, and this is the consistency check.
+  this trial count: both corrections saw the same 100 datasets, the one trial
+  on which BY selected is among BH's six, and the exact paired test gives
+  p = 0.06. BY is the estimator default because it is valid under arbitrary
+  dependence, and this is the consistency check.
 - Stress suite (signal among ten distractor columns): beamfeat's
   false-feature rate — returned formulas touching only irrelevant columns —
   is 0.000 at noise levels from 5% to 50% of the signal scale and at n as

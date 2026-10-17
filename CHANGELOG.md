@@ -102,11 +102,16 @@ the suffix is absent whenever the printed terms *are* the certified ones.
 
 Correctness release for the automatic permutation budget, plus two warning
 fixes. Selections are unchanged everywhere the previous budget was already
-adequate, which is every result in the paper and every benchmark artifact:
-the two widest problems in the high-dimensional study return identical
-formulas, feature counts, flags and held-out scores, with fit times differing
-by less than the run-to-run spread. Thirty-seven tests take the suite to 411 at 95%
-statement coverage. No artifact needed regenerating.
+adequate: the two widest problems in the high-dimensional study (riboflavin
+and superconductivity) return identical formulas, feature counts, flags and
+held-out scores, with fit times differing by less than the run-to-run spread.
+The budget binds in the selector calibration studies, where a small pool at a
+strict level is where the harmonic factor matters: rerun with the fix,
+the Benjamini-Yekutieli figures move in the third decimal (realised FDR at
+q = 0.05 from 0.008 to 0.013; power at that level from 0.988 to 0.989), and
+the figures in the README, the docs and `benchmarks/additional_experiments/REPORT.md`
+come from runs with the fix. Thirty-seven tests take the suite to 411 at 95%
+statement coverage.
 
 ### Added
 
@@ -347,9 +352,10 @@ API, defaults and behaviour are identical to 0.1.0.
 - The end-to-end result is stated as no false discovery in 200 replicates with
   a 95% upper bound of 0.015, rather than as an empirical rate of 0.0000.
 - Pure-noise stress at 100 trials: BH returned features in 6 trials against
-  BY's 1, both under the nominal 0.10 and not significantly different
-  (p = 0.12). BY is the default because it is valid under arbitrary
-  dependence, not because a BH failure was observed.
+  BY's 1, both under the nominal 0.10 and not significantly different (the
+  one BY trial is among BH's six; exact paired test p = 0.06, which replaces
+  an unpaired Fisher p = 0.12 reported earlier). BY is the default because it
+  is valid under arbitrary dependence, not because a BH failure was observed.
 - `autofeat` reproducibility: it exposes no `random_state` and draws decoy
   features from the global NumPy generator, so six runs of one identical split
   returned R² from +0.952 to -109.8 with 17 to 26 selected features. Thread

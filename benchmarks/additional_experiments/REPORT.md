@@ -108,10 +108,12 @@ so equivalent rewritings count as recovered.
 Depth is the minimal search depth required, which differs from the legacy
 target names for three problems.
 
-**Depth.** Recovery is complete at depths 1 and 2, near-complete at depth 3
-(0.90 to 1.00), and degrades at depth 4: nested_ratio reaches 0.90 but
-distance2d peaks at 0.20 and fails entirely under mutual information. Depth 3
-is the practical limit.
+**Depth.** Under correlation, recovery is complete at depth 1, at or above
+0.90 at depth 2 from beam 50 (d3_ratio_of_sum needs that width; d3_prod_of_sums
+sits at 0.90 throughout), between 0.90 and 1.00 at depth 3 from beam 100
+(adv_abcd_p8 needs that width), and degrades at depth 4: distance2d peaks at
+0.20 and fails entirely under mutual information. Depth 3 is the practical
+limit.
 
 **Beam width.** Mean recovery under correlation rises 0.853,
 0.913, 0.933,
@@ -260,9 +262,10 @@ class is selected across splits.
 | riboflavin | 0.550 | 0.157 | 16.8 | 479 | 0.002 | 3/30 | `((x6 / x1515) * (x9 / x1277))` |
 | superconduct | 0.725 | 0.008 | 17.3 | 273 | 0.065 | 23/30 | `((x7 / x72) * (x20 * x62))` |
 
-**Predictive performance is stable; the selected set is not.** R² varies by
-less than 0.01 across thirty splits on communities, tecator and superconduct,
-while Jaccard overlap between selections runs from 0.000 to 0.188 on real data.
+**Predictive performance is stable; the selected set is not.** Held-out R² has
+a standard deviation below 0.01 across thirty splits on communities, tecator
+and superconduct (the range across splits reaches 0.03), while Jaccard overlap
+between selections runs from 0.000 to 0.188 on real data.
 Recurring classes nonetheless exist and are interpretable: the planted
 interaction recurs in 30 of 30 splits on three_way, the combination
 (cement + slag) x log(age) in 27 of 30 on concrete, and one composite of four

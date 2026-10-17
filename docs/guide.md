@@ -172,7 +172,7 @@ is absorbed into the fitted coefficient rather than returned as a symbol.
 
 ## Audit what selection did
 
-Every candidate's exact p-value and q-value is kept:
+Every candidate's permutation p-value and its adjusted q-value is kept:
 
 ```python
 for row in model.selection_report_[:3]:
