@@ -270,8 +270,13 @@ def fig_split_stability(results: pathlib.Path, outdir: pathlib.Path) -> None:
         axes[0].plot([v["r2_min"], v["r2_max"]], [yi, yi], color=ACCENT, linewidth=1.3)
         axes[0].scatter([v["r2_mean"]], [yi], s=22, color=ACCENT, zorder=3)
         axes[1].scatter([v["jaccard_mean"]], [yi], s=22, color=ACCENT, zorder=3)
-        axes[1].annotate(f"  {v['n_classes']} classes", (v["jaccard_mean"], yi),
-                         fontsize=6, color=NEUTRAL, va="center")
+        # Label to the right of the point, except near the axis limit, where
+        # it would straddle the frame; pluralise properly for a single class.
+        label = f"{v['n_classes']} class" + ("" if v["n_classes"] == 1 else "es")
+        right = v["jaccard_mean"] > 0.85
+        axes[1].annotate(f"{label}  " if right else f"  {label}",
+                         (v["jaccard_mean"], yi), fontsize=6, color=NEUTRAL,
+                         va="center", ha="right" if right else "left")
     axes[0].set_yticks(y)
     axes[0].set_yticklabels(names)
     axes[0].set_xlabel("held-out $R^2$ across splits (min-mean-max)")
