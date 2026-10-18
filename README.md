@@ -244,13 +244,15 @@ in [`docs/migrating-from-autofeat.md`](https://github.com/LD-Shell/beamfeat/blob
 If you use beamfeat, please cite the paper:
 
 ```bibtex
-@article{daramola2026symbolic,
-  title   = {Symbolic feature construction with false discovery rate control},
-  author  = {Daramola, Olanrewaju M.},
-  journal = {Transactions on Machine Learning Research},
-  issn    = {2835-8856},
-  year    = {2026},
-  url     = {https://openreview.net/forum?id=UibXoy4h3u}
+@article{
+daramola2026symbolic,
+title={Symbolic feature construction with false discovery rate control},
+author={Olanrewaju M. Daramola},
+journal={Transactions on Machine Learning Research},
+issn={2835-8856},
+year={2026},
+url={https://openreview.net/forum?id=UibXoy4h3u},
+note={}
 }
 ```
 
