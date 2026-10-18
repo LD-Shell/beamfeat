@@ -4,6 +4,18 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.3] - 2026-10-18
+
+### Added
+
+- The TMLR paper, "Symbolic feature construction with false discovery rate
+  control", is the preferred citation in `CITATION.cff` and the README.
+
+### Fixed
+
+- Package metadata links point to the lowercase `LD-Shell/beamfeat` repository
+  and documentation site; the 0.4.2 Documentation link returned 404.
+
 ## [0.4.2] - 2026-10-16
 
 ### Fixed
