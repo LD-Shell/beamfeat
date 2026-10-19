@@ -14,7 +14,17 @@ definitions where they differ. Regimes:
                     conditional FDR separates the procedures.
   beam              candidates from a beam search over an expression DAG;
                     ground truth is marginal, defined against the noiseless
-                    signal on an independent probe draw.
+                    signal on an independent probe draw. The search and the
+                    selectors use the same rows, with no split, and on this
+                    design (y = x0*x1, eight columns, beam width 25) every one
+                    of the 25 candidates is associated with the signal in all
+                    100 trials, so there is no null candidate to select and a
+                    realised FDR of zero is certain. The regime shows power on
+                    searched candidates, not FDR control.
+
+A trial whose selector raises is counted under ``errors``, with the first
+message kept per cell, and is excluded from the means; ``skipped`` counts only
+trials where a procedure does not apply (fixed-X knockoffs with n < 2m).
 
 Run:  python selector_comparison.py --trials 100 --out results/selector_comparison.json
       python selector_comparison.py --trials 100 --m 100 --k 10 --out results/selector_comparison_m100.json
@@ -134,15 +144,17 @@ def main(a):
     for regime, maker in regimes.items():
         for q in levels:
             for kind in selectors:
-                fm, fc, pw, times, skipped = [], [], [], [], 0
+                fm, fc, pw, times, skipped, errors, first_error = [], [], [], [], 0, 0, None
                 for t in range(a.trials):
                     rng = np.random.default_rng(100 * t + 7)
                     F, y, marg, cond = maker(rng)
                     t0 = time.perf_counter()
                     try:
                         mask = run_selector(kind, F, y, q, rng)
-                    except Exception:  # noqa: BLE001
-                        mask = None
+                    except Exception as exc:  # noqa: BLE001
+                        errors += 1
+                        first_error = first_error or f"{type(exc).__name__}: {exc}"[:200]
+                        continue
                     dt = time.perf_counter() - t0
                     if mask is None:
                         skipped += 1
@@ -156,14 +168,17 @@ def main(a):
                     times.append(dt)
                 mean = lambda xs: float(np.mean(xs)) if xs else None  # noqa: E731
                 rows.append(dict(regime=regime, selector=kind, nominal=q,
-                                 trials=a.trials - skipped, skipped=skipped,
+                                 trials=a.trials - skipped - errors, skipped=skipped,
+                                 errors=errors, first_error=first_error,
                                  fdr_marginal=mean(fm), fdr_conditional=mean(fc),
                                  power=mean(pw), seconds=mean(times)))
                 r = rows[-1]
                 fmt = lambda v: "--" if v is None else f"{v:.3f}"  # noqa: E731
                 print(f"{regime:17s} {kind:16s} q={q:.2f} "
                       f"FDRm={fmt(r['fdr_marginal'])} FDRc={fmt(r['fdr_conditional'])} "
-                      f"power={fmt(r['power'])} skipped={skipped}", flush=True)
+                      f"power={fmt(r['power'])} skipped={skipped} errors={errors}", flush=True)
+                if first_error:
+                    print(f"  first error: {first_error}", flush=True)
             with open(a.out, "w") as fh:
                 json.dump(rows, fh, indent=1)
     print("wrote", a.out)
