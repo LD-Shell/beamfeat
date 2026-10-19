@@ -2,15 +2,16 @@
 
 Measures every selector-level number quoted in README.md, docs/guarantees.md
 and the paper, so that none of them is asserted without a script that produces
-it. Three studies, all on Gaussian designs (n=300, 25 candidate features, 5 of
-them signal, effect 3.0, unit noise):
+it. Three studies; the first two on Gaussian designs (n=300, 25 candidate
+features, 5 of them signal, effect 3.0, unit noise):
 
 1. Permutation selector, Benjamini-Hochberg and Benjamini-Yekutieli, at
    nominal FDR 0.05 / 0.10 / 0.20 -- realised FDR and power over 100 trials.
 2. Fixed-X knockoffs at nominal 0.20, with offset=1 (knockoff+, controls FDR)
-   and offset=0 (controls only a modified FDR).
-3. A global-null stress on the full pipeline: 25 pure-noise problems, BH
-   against BY. Under a global null every selection is false, so the mean
+   and offset=0 (controls only a modified FDR), over the same 100 designs.
+3. A global-null stress on the full pipeline: 100 pure-noise problems (500
+   rows, six uniform inputs, a Gaussian target independent of them), fitted
+   by ``BeamFeatRegressor`` at target FDR 0.10, BH against BY. Under a global null every selection is false, so the mean
    false discovery proportion equals the fraction of trials selecting
    anything; this is the measurement behind the BY estimator default.
 

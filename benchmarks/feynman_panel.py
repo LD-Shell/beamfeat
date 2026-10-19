@@ -5,10 +5,12 @@ symbolic feature space can and cannot represent, evaluated the way the
 symbolic-regression community evaluates (SRBench): a problem counts as
 *solved* at held-out R^2 > 0.999 under 0.1% noise. A second, stricter
 criterion is reported alongside: *exact form*, meaning the fitted equation's
-dominant term is the generating expression itself, checked by constructing
-the expected expression through beamfeat's own node API and comparing
-canonical names — so commutative reordering and algebraic rewrites are
-handled by the same normalisation the library applies to its candidates.
+kept terms match the law's terms one-to-one, each proportional to its
+counterpart (or a single kept term is proportional to the whole law). The
+check is algebraic: sympy simplifies the ratio of each fitted term from
+``to_sympy()`` to the expected term and requires a nonzero constant, so
+operand order, association and the leading constant the linear model
+supplies do not matter, while any extra kept term does.
 
 Four problems are included as expected failures, each marking a documented
 boundary: the Gaussian needs ``exp`` and a scale inside the exponent,
