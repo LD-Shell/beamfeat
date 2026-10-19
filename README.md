@@ -11,7 +11,7 @@
 Beam-search feature construction with false-discovery-rate (FDR) controlled
 selection, packaged as scikit-learn estimators.
 
-**Paper: [TMLR 2026](https://openreview.net/forum?id=UibXoy4h3u) · Documentation: [ld-shell.github.io/beamfeat](https://ld-shell.github.io/beamfeat/)**
+**Paper: [TMLR 2026](https://openreview.net/forum?id=UibXoy4h3u)**
 
 beamfeat builds interpretable mathematical expressions from your columns —
 `(x0 / x2) * x1`, `log(a) * log(b)` — searches for the ones that explain the
