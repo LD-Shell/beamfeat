@@ -1,8 +1,12 @@
 """End-to-end FDR calibration study — the paper's headline figures.
 
 200 signal replicates at nominal FDR 0.10 (empirical FDR, power, fallback
-count) and 60 global-null replicates (total selections). Seeds are fixed;
-the run regenerates the published numbers exactly.
+count) and 60 global-null replicates (total selections, and the number of
+trials selecting anything). Seeds are fixed; the run regenerates the
+published numbers exactly.
+
+Each fit uses all 500 rows, so the per-fit ``score`` is in-sample R²: it is
+recorded for the parsimony comparison, not as a measure of predictive fit.
 """
 from __future__ import annotations
 
@@ -59,7 +63,7 @@ def main(n_signal: int = 200, n_null: int = 60, parsimony: str | None = "forward
         )
         recovered += any("x0" in f and "x1" in f for f in model.formulas())
 
-    null_selected = 0
+    null_selected, null_trials_selecting = 0, 0
     for trial in range(n_null):
         rng = np.random.default_rng(50_000 + trial)
         X = rng.uniform(1, 6, (500, 6))
@@ -78,7 +82,9 @@ def main(n_signal: int = 200, n_null: int = 60, parsimony: str | None = "forward
                 else int(model.selection_result_.n_selected)
             ),
         })
-        null_selected += model.n_features_out_ if model.fdr_controlled_ else 0
+        n_out = model.n_features_out_ if model.fdr_controlled_ else 0
+        null_selected += n_out
+        null_trials_selecting += n_out > 0
 
     # A run of zeros is exact as an observation but still bounds the underlying
     # rate only so tightly; report the one-sided 95% limit so the figure is read
@@ -92,7 +98,11 @@ def main(n_signal: int = 200, n_null: int = 60, parsimony: str | None = "forward
         "power": recovered / len(fdps),
         "fallbacks": fallbacks,
         "null_selections": null_selected,
-        "null_upper_95": _upper_bound(null_selected, n_null),
+        # Under the global null every selection is false, so the FDR equals the
+        # probability that a trial selects anything: the binomial count is
+        # trials with at least one selection, not features selected.
+        "null_trials_selecting": null_trials_selecting,
+        "null_upper_95": _upper_bound(null_trials_selecting, n_null),
         "parsimony": parsimony,
         "per_fit": per_fit,
     }
@@ -104,6 +114,7 @@ def main(n_signal: int = 200, n_null: int = 60, parsimony: str | None = "forward
     )
     print(
         f"GLOBAL NULL ({n_null} replicates): selections {result['null_selections']} "
+        f"in {null_trials_selecting} trials "
         f"(95% upper bound on the per-trial rate {result['null_upper_95']:.4f})"
     )
 
@@ -114,7 +125,7 @@ def main(n_signal: int = 200, n_null: int = 60, parsimony: str | None = "forward
         raise AssertionError(
             f"empirical FDR {result['empirical_fdr']:.4f} exceeds the nominal {TARGET_FDR}"
         )
-    null_rate = result["null_selections"] / n_null
+    null_rate = null_trials_selecting / n_null
     if null_rate > TARGET_FDR:
         raise AssertionError(
             f"global-null selection rate {null_rate:.4f} exceeds the nominal {TARGET_FDR}"

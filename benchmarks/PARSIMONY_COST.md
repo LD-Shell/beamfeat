@@ -22,8 +22,10 @@ number means the compact equation fits worse.
 | Feynman physics panel (12 laws × 2 configs) | 24 | −0.0009 | −0.0111 | +0.0000 | 30.6× | 0 |
 | Friedman #1 decomposition (6 draws) | 6 | −0.0095 | −0.0192 | +0.0019 | 3.6× | 0 |
 
-Compactness costs about a thousandth of held-out R² on average and at most
+Compactness costs about a thousandth of R² on average and at most
 0.019 on a single fit, and buys an equation roughly twenty-five times shorter.
+R² is held out in every study except end-to-end calibration, which fits and
+scores on the same 500 rows, so its row is an in-sample comparison.
 `fdr_controlled_` never disagreed between the settings on any of the 308 fits.
 
 Two results worth naming separately.

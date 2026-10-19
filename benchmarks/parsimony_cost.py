@@ -9,7 +9,8 @@ Every study whose numbers depend on the setting -- which ones, and why the
 rest do not, is `PARSIMONY_COST.md` -- is run twice, once at each setting, and
 for every fit three quantities are recorded:
 
-    score            held-out score of the fitted model
+    score            R² of the fitted model: held out, except in the
+                     calibration study, which fits and scores on all rows
     n_terms          number of terms in the printed equation
     fdr_controlled   the ``fdr_controlled_`` flag
 
