@@ -1824,3 +1824,34 @@ class TestLatex:
             assert type(raised.value) is type(from_to_sympy.value)
             assert "sympy" in str(raised.value)
 
+
+class TestLambdifyExport:
+    """The export recipe in the guide: ``sympy.lambdify`` on ``to_sympy()``
+    gives functions of the input columns that reproduce the fitted features,
+    in NumPy here and in JAX or PyTorch with ``modules="jax"`` or
+    ``"torch"``."""
+
+    @staticmethod
+    def _lambdified(model, n_columns):
+        sympy = pytest.importorskip("sympy")
+        columns = [sympy.Symbol(f"x{i}", real=True) for i in range(n_columns)]
+        return sympy.lambdify(columns, model.to_sympy(), modules="numpy")
+
+    def test_features_reproduce_transform(self, regression_data, rng):
+        X, y = regression_data
+        model = _fast(BeamFeatTransformer, selector="permutation", beam_width=25,
+                      parsimony=None).fit(X, y)
+        features = self._lambdified(model, X.shape[1])
+        X_new = rng.uniform(1.0, 6.0, (200, X.shape[1]))
+        exported = np.column_stack(features(*X_new.T))
+        np.testing.assert_allclose(exported, model.transform(X_new), rtol=1e-10, atol=1e-12)
+
+    def test_equation_reproduces_predict(self, regression_data, rng):
+        X, y = regression_data
+        model = _fast(BeamFeatRegressor, selector="permutation", beam_width=25).fit(X, y)
+        features = self._lambdified(model, X.shape[1])
+        X_new = rng.uniform(1.0, 6.0, (200, X.shape[1]))
+        raw = model.coef_ / model.scaler_.scale_
+        offset = model.intercept_ - raw @ model.scaler_.mean_
+        exported = np.column_stack(features(*X_new.T)) @ raw + offset
+        np.testing.assert_allclose(exported, model.predict(X_new), rtol=1e-10, atol=1e-10)

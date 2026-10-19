@@ -178,6 +178,15 @@ set is returned rather than a pruned subset — the pruned subset is the one
 thing a caller asking for certification did not want. The two-stage procedure
 has not been FDR-calibrated; it is offered as an option, not a measured result.
 
+**The equation list.** `equations()` and `equations_` record the forward path
+through the whole screened set, one equation per number of terms, at every
+setting above. Each line is a subset of the screened set chosen on the rows
+screening used, the same kind of selection as the default fitted equation, so
+the guarantee covers none of them but the last, which is the screened set
+itself, and, under `parsimony_holdout`, the re-tested fitted equation. An
+equation picked from the list after reading it is not covered; the list says
+so in its last line.
+
 ### What the default costs
 
 The exchange above is stated rather than assumed elsewhere in this page, so it

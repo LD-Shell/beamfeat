@@ -4,6 +4,23 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `equations()` and `equations_` on all three estimators: the forward
+  parsimony step continued through the whole screened set, one equation per
+  number of terms, with its complexity (expression-tree nodes plus one per
+  coefficient), in-sample R² and the R² each term adds, and the fitted one
+  marked. The model fitted is unchanged, and the path is recorded at
+  `parsimony=None` too. The output states that the FDR guarantee covers the
+  screened set, not an equation chosen from the list.
+- `latex()` on `BeamFeatRegressor` and `BeamFeatClassifier`, the equation of
+  `equation()` typeset through sympy with the same options and note, and
+  `latex_formulas()` for the features on all three estimators.
+- The guide shows how to export the features to NumPy, JAX or PyTorch with
+  `sympy.lambdify` on `to_sympy()`.
+
 ## [0.4.5] - 2026-10-19
 
 Bug fixes. The default path (correlation scoring, permutation screening with

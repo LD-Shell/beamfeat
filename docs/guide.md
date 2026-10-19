@@ -105,6 +105,99 @@ false discovery proportion. The measurement is
 the guarantee: see `parsimony_holdout` on the
 [guarantees page](guarantees.md).
 
+## The equation at every size
+
+The forward step adds terms one at a time and stops when the next adds less
+than `parsimony_tol` to R². `equations()` shows the step continued through the
+whole screened set, one equation per number of terms, so you can see what the
+stopping point traded away:
+
+```python
+print(model.equations(max_n_terms=3))
+```
+
+```text
+Forward path through the 25 screened terms. R^2 is in-sample, on the rows screening used; gain is the R^2 the line's last term adds.
+  k complexity    R^2      gain equation
+* 1          4 0.9999    0.9999 y ~ (x0 * x1)
+  2         10 0.9999 1.159e-06 y ~ (x0 * x1) + ((x0 + x3) * x1)
+  3         18 0.9999 1.103e-06 y ~ (x0 * x1) + ((x0 + x3) * x1) + ((x0 * x1) * (x1 * x2))
+  ...
+* the fitted model (the forward step stops before the first gain below parsimony_tol=0.001).
+The FDR guarantee covers the screened set of 25 terms (line 25), not an equation chosen from this list.
+```
+
+Complexity counts the nodes in each term's expression tree — operators and
+input columns, `(x0 * x1)` being 3 — plus one per term for its coefficient.
+The lines are written `y ~ a + b`, without coefficients, because only the
+marked one has been fitted; `equation()` prints its coefficients. For a
+classifier the R² is that of the integer-coded labels, the heuristic the
+forward step ranks by, not a classification metric.
+
+The last line of the output is the one to keep in mind. Every line is a subset of the
+screened set chosen on the rows screening used, so picking line 3 because it
+looks better is the same kind of choice the forward step makes, and the
+guarantee covers it no more than it covers the fitted line. Recording the path
+changes nothing that is fitted, and it is recorded at `parsimony=None` as
+well, where the marked line is the last.
+
+The records behind the text are in `equations_`, one dict per line with
+`n_terms`, `complexity`, `r2`, `formulas`, the `features` as expression
+nodes, and `model`, which marks the fitted line. It is `None` without a
+selector and empty when nothing passed screening.
+
+## LaTeX
+
+`latex()` typesets `equation()`: the same terms, coefficients and options
+(`precision`, `max_terms`, `style`), and the same note when the guarantee
+covers more terms than are printed. It needs sympy (`pip install
+"beamfeat[display]"`), as `to_sympy()` does.
+
+```python
+print(model.latex())
+print(model.latex_formulas())
+```
+
+```text
+y = 0.9999 x_{0} x_{1} - 0.003943 \quad \text{[1 of 25 certified terms; parsimony=None prints all 25]}
+['x_{0} x_{1}']
+```
+
+The string has no math delimiters; wrap it in `$...$`, or in a notebook use
+`IPython.display.Math(model.latex())`. The classifier's `latex()` gives the
+log-odds of the positive class, or one softmax score per class in an
+`aligned` block, as its `equation()` does.
+
+## Export to NumPy, JAX or PyTorch
+
+`to_sympy()` returns each feature as a sympy expression in real symbols named
+after the input columns, so `sympy.lambdify` turns the features into a
+function for any array library sympy can print to. No extra dependency is
+involved beyond sympy and the target library:
+
+```python
+import sympy
+
+columns = sympy.symbols("x0:4", real=True)  # one symbol per input column, in order
+features = sympy.lambdify(columns, model.to_sympy(), modules="numpy")
+
+raw = model.coef_ / model.scaler_.scale_
+offset = model.intercept_ - raw @ model.scaler_.mean_
+prediction = np.column_stack(features(*X.T)) @ raw + offset  # model.predict(X), to rounding
+```
+
+`modules="jax"` or `modules="torch"` gives the same function on JAX or
+PyTorch arrays, with `jnp.stack(..., axis=1)` or `torch.stack(..., dim=1)` in
+place of `np.column_stack`; the coefficients and offset are plain arrays to
+convert once. Columns of a DataFrame keep their names as symbols when the
+names are valid identifiers, and are sanitised otherwise; read the symbols
+from `free_symbols` of the expressions in that case.
+
+Two differences from `transform` remain. sympy may rewrite an expression into
+an equivalent form, so a value can overflow in one and not the other. And a
+row outside a formula's domain gives whatever the array library gives there,
+with no warning from beamfeat.
+
 ## Column names flow into formulas
 
 Fit on a DataFrame and formulas use your names:
