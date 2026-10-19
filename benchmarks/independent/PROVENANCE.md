@@ -88,6 +88,13 @@ rather than −57.320, and one fit below zero rather than six; its average rank
 and the paired tests against it in `REPORT.md` move with it. Every other
 method's row, and every conclusion about `beamfeat`, is unaffected.
 
+The TMLR paper's comparison-study table reports the archived zero-fill run
+for `featuretools` (mean R² −2.48, worst −57.3, six fits below zero). With
+the training-median fill these read 0.461, −12.882 and one. `beamfeat`
+still beats it in the paired test: Wilcoxon p = 0.0005 (paper: p < 0.0001),
+median difference +0.0046 rather than +0.0080, `beamfeat` ahead on 32 of 45
+fits rather than 33.
+
 ## Data
 
 `data/` holds the three CSVs that are not bundled with scikit-learn, with
