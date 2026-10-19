@@ -1719,6 +1719,11 @@ class TestLatex:
         else:
             assert r"\text{[" not in latex
 
+    def test_note_false_returns_the_bare_equation(self, model):
+        bare = model.latex(note=False)
+        assert r"\quad" not in bare and r"\text{" not in bare
+        assert model.latex().startswith(bare)
+
     def test_no_note_when_parsimony_is_off(self, regression_data):
         pytest.importorskip("sympy")
         X, y = regression_data
@@ -1769,6 +1774,7 @@ class TestLatex:
                 max_depth=2, beam_width=15, target_fdr=0.05, random_state=3
             ).fit(X, rng.standard_normal(400))
         assert model.latex().endswith(r"\quad \text{(no feature passed selection)}")
+        assert r"\text{" not in model.latex(note=False)
 
     def test_binary_classifier(self, classification_data):
         pytest.importorskip("sympy")
@@ -1797,6 +1803,7 @@ class TestLatex:
         assert latex.count(r"\operatorname{score}(") == 3
         assert latex.count(" &= ") == 3
         assert "argmax of the softmax scores" in latex
+        assert model.latex(note=False).endswith("\\end{aligned}")
         if model.fdr_scope_ == "screened set":
             assert latex.count("certified terms") == 1
 

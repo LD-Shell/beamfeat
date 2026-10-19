@@ -1933,6 +1933,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         precision: int = 4,
         max_terms: int | None = None,
         style: str = "significant",
+        note: bool = True,
     ) -> str:
         """Return the fitted model as a LaTeX equation.
 
@@ -1948,6 +1949,9 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             max_terms: As in :meth:`equation`.
             style: As in :meth:`equation`. E-notation is written as a power
                 of ten.
+            note: Whether to append the bracketed note. ``False`` returns the
+                bare equation, for pasting into a document; the guarantee
+                still covers the screened set, not the printed subset.
 
         Returns:
             A string such as ``y = 2.104 a b - 0.512 \\log{\\left(c \\right)} + 3.991``.
@@ -1957,11 +1961,13 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         expressions = self.to_sympy()
         if self.model_ is None:
             intercept = _latex_number(_format_coefficient(self.intercept_, precision, style))
+            if not note:
+                return f"y = {intercept}"
             return rf"y = {intercept} \quad {_latex_text('(no feature passed selection)')}"
         return "y = " + _render_linear_latex(
             self.coef_, float(self.intercept_), self.scaler_,
             expressions, precision, max_terms, style,
-        ) + self._latex_parsimony_note()
+        ) + (self._latex_parsimony_note() if note else "")
 
 
 class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
@@ -2187,6 +2193,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         precision: int = 4,
         max_terms: int | None = None,
         style: str = "significant",
+        note: bool = True,
     ) -> str:
         """Return the fitted classifier as a LaTeX log-odds equation.
 
@@ -2203,6 +2210,9 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             max_terms: As in :meth:`equation`.
             style: As in :meth:`equation`. E-notation is written as a power
                 of ten.
+            note: Whether to append the bracketed notes. ``False`` returns the
+                bare equations, for pasting into a document; the guarantee
+                still covers the screened set, not the printed subset.
         """
         check_is_fitted(self, ["model_"])
         _check_equation_format(precision, style)
@@ -2214,13 +2224,15 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
                     + _latex_number(_format_coefficient(p, precision, style))
                     for klass, p in zip(self.classes_, self.class_prior_, strict=True)
                 )
-                note = _latex_text("(class priors only; no feature passed selection)")
-                return rf"{prior} \quad {note}"
-            return rf"y = {_latex_label(self.classes_[0])} \quad {_latex_text('(constant prediction)')}"
+                if not note:
+                    return prior
+                return rf"{prior} \quad {_latex_text('(class priors only; no feature passed selection)')}"
+            constant = f"y = {_latex_label(self.classes_[0])}"
+            return rf"{constant} \quad {_latex_text('(constant prediction)')}" if note else constant
 
         coefficients = np.atleast_2d(self.coef_)
         intercepts = np.atleast_1d(self.intercept_)
-        note = self._latex_parsimony_note()
+        suffix = self._latex_parsimony_note() if note else ""
         if coefficients.shape[0] == 1:
             return (
                 rf"\operatorname{{logit}} P(y = {_latex_label(self.classes_[1])}) = "
@@ -2228,7 +2240,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
                     coefficients[0], float(intercepts[0]), self.scaler_,
                     expressions, precision, max_terms, style,
                 )
-                + note
+                + suffix
             )
         lines = [
             rf"\operatorname{{score}}({_latex_label(klass)}) &= "
@@ -2240,8 +2252,8 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         ]
         return (
             "\\begin{aligned}\n" + " \\\\\n".join(lines) + "\n\\end{aligned}"
-            + rf" \quad {_latex_text('(predicted class = argmax of the softmax scores)')}"
-            + note
+            + (rf" \quad {_latex_text('(predicted class = argmax of the softmax scores)')}" if note else "")
+            + suffix
         )
 
     def _path_lhs(self) -> str:

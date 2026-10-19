@@ -16,8 +16,9 @@ Notable changes to `beamfeat`. Format follows
   `parsimony=None` too. The output states that the FDR guarantee covers the
   screened set, not an equation chosen from the list.
 - `latex()` on `BeamFeatRegressor` and `BeamFeatClassifier`, the equation of
-  `equation()` typeset through sympy with the same options and note, and
-  `latex_formulas()` for the features on all three estimators.
+  `equation()` typeset through sympy with the same options and note
+  (`note=False` drops it), and `latex_formulas()` for the features on all
+  three estimators.
 - The guide shows how to export the features to NumPy, JAX or PyTorch with
   `sympy.lambdify` on `to_sympy()`.
 

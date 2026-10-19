@@ -163,8 +163,10 @@ y = 0.9999 x_{0} x_{1} - 0.003943 \quad \text{[1 of 25 certified terms; parsimon
 ['x_{0} x_{1}']
 ```
 
-The string has no math delimiters; wrap it in `$...$`, or in a notebook use
-`IPython.display.Math(model.latex())`. The classifier's `latex()` gives the
+`latex(note=False)` leaves the note off, for pasting into a document; the
+guarantee still covers the screened set, so say so where the equation
+appears. The string has no math delimiters; wrap it in `$...$`, or in a
+notebook use `IPython.display.Math(model.latex())`. The classifier's `latex()` gives the
 log-odds of the positive class, or one softmax score per class in an
 `aligned` block, as its `equation()` does.
 
