@@ -444,7 +444,7 @@ def run_knockpy(dataset: Dataset, X_train, X_test, y_train, y_test) -> Outcome:
         return Outcome(
             dataset=dataset.name, method="knockpy", r2=r2, fit_seconds=elapsed,
             n_features=len(selected), complexity=0.0,
-            recovered=False if dataset.tokens else None,
+            recovered=_recovered(formulas, dataset.tokens),
             false_feature_rate=_false_feature_rate(formulas, dataset.tokens),
             formulas=formulas,
         )
