@@ -336,6 +336,19 @@ class BeamSearch:
 
         return candidates, n_unit_rejected
 
+    def _can_reach_ceiling(self, leaves: list[Node]) -> bool:
+        """Whether proposing from ``leaves`` alone can reach the depth ceiling.
+
+        Counts every operator application, and each unordered pair once for a
+        commutative operator, so the count bounds the distinct candidates.
+        """
+        n = len(leaves)
+        n_proposals = n * len(self.unary_ops)
+        for op in self.binary_ops:
+            n_pairs = n * (n - 1)
+            n_proposals += n_pairs // 2 if OPERATORS[op].commutative else n_pairs
+        return n_proposals >= self.max_candidates_per_depth
+
     # -- redundancy --------------------------------------------------------- #
 
     def _prune_redundant(
@@ -455,17 +468,23 @@ class BeamSearch:
         for depth in range(1, self.max_depth + 1):
             depth_started = time.perf_counter()
 
-            candidates, n_unit_rejected = self._propose(beam, pool, seen)
-            if depth == 1 and len(candidates) >= self.max_candidates_per_depth:
-                # Later beams come out of _prune_redundant in score order, but
-                # the leaves are in column order, so a ceiling that binds here
-                # would cut the last columns of the table rather than the
-                # weakest. Proposal order also decides between exact ties such
-                # as (a - b) and (b - a), so a round the ceiling does not reach
-                # keeps column order and only a truncated one is rebuilt.
-                seen.difference_update(candidates)
+            # Later beams come out of _prune_redundant in score order, but the
+            # leaves are in column order, so a ceiling that binds at depth 1
+            # would cut the last columns of the table rather than the weakest.
+            # Proposal order also decides between exact ties such as (a - b)
+            # and (b - a), so a round the ceiling does not reach keeps column
+            # order and only a truncated one is proposed in score order. Both
+            # orders propose the same set, so whether the ceiling binds does
+            # not depend on which is tried first; the score order is tried
+            # first when the ceiling can bind, which it usually then does.
+            if depth == 1 and self._can_reach_ceiling(beam):
                 ranked = [beam[i] for i in _rank(beam, beam_scores)]
                 candidates, n_unit_rejected = self._propose(ranked, ranked, seen)
+                if len(candidates) < self.max_candidates_per_depth:
+                    seen.difference_update(candidates)
+                    candidates, n_unit_rejected = self._propose(beam, pool, seen)
+            else:
+                candidates, n_unit_rejected = self._propose(beam, pool, seen)
             n_proposed_total += len(candidates)
             if not candidates:
                 report(self.verbose, 2, f"  depth {depth}: no new candidates; stopping")

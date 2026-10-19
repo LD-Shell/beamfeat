@@ -169,6 +169,24 @@ class TestScaling:
         assert result.trace[1].n_proposed == 20
         assert "(x10 * x11)" in result.names
 
+    def test_ceiling_that_could_bind_but_does_not_keeps_column_order(self, rng, ureg):
+        """Units reject enough pairs that the ceiling, though reachable on a count, is not reached."""
+        n = 200
+        names = ["m1", "m2", "l1", "l2", "t1", "t2"]
+        data = {name: rng.uniform(1.0, 5.0, n) for name in names}
+        units = {name: 1.0 * {"m": ureg.kilogram, "l": ureg.meter, "t": ureg.second}[name[0]] for name in names}
+        target = data["m1"] - data["m2"] + data["l2"] * data["t1"] + rng.normal(0, 0.05, n)
+        # One depth: a ceiling at the bound would truncate the next one.
+        search_kwargs = {"max_depth": 1, "beam_width": 15}
+        bound = 6 * 5 + 3 * 6 * 5
+
+        unbounded = BeamSearch(**search_kwargs).run(data, target, units=units)
+        assert unbounded.trace[1].n_proposed < bound
+        at_bound = BeamSearch(max_candidates_per_depth=bound, **search_kwargs).run(data, target, units=units)
+        assert at_bound.names == unbounded.names
+        assert at_bound.scores.tolist() == unbounded.scores.tolist()
+        assert at_bound.trace[1].n_rejected_units == unbounded.trace[1].n_rejected_units
+
     def test_depth_zero_returns_originals_only(self, rng):
         data = _positive_data(rng)
         target = data["a"] + rng.normal(0, 0.1, len(data["a"]))
