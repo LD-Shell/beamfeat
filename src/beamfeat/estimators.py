@@ -175,27 +175,22 @@ def _format_coefficient(value: float, precision: int, style: str) -> str:
     return text
 
 
-def _render_linear_equation(
-    lhs: str,
-    coefficients: np.ndarray,
-    intercept: float,
-    scaler,
-    formulas: list[str],
-    precision: int,
-    max_terms: int | None,
-    style: str,
-) -> str:
-    """Render a fitted standardised linear model as an equation on raw features.
+def _linear_terms(
+    coefficients: np.ndarray, intercept: float, scaler, max_terms: int | None
+) -> tuple[list[tuple[int, float]], float]:
+    """The terms of a fitted standardised linear model, on raw features.
 
-    Undoes the scaler so the printed coefficients apply to the raw feature
-    values. Terms are ordered by standardised coefficient magnitude — the
-    scale-free measure of importance — since raw magnitude reflects the
+    Undoes the scaler so the coefficients apply to the raw feature values.
+    Terms are ordered by standardised coefficient magnitude -- the
+    scale-free measure of importance -- since raw magnitude reflects the
     feature's units: a raw coefficient of 3e-07 on a large-valued feature
     can carry the whole model. For the same reason only exactly-zero terms
-    are omitted, and no ``style`` displays a nonzero coefficient as zero
-    (see ``_format_coefficient``). Shared by the regressor's ``equation``
-    and the classifier's log-odds ``equation`` so the two cannot drift in
-    formatting or in the de-standardisation arithmetic.
+    are omitted. Shared by the text and LaTeX renderings of the regressor
+    and the classifier so they cannot drift in the de-standardisation
+    arithmetic.
+
+    Returns ``(index, raw coefficient)`` pairs in display order and the
+    constant.
     """
     standardised = np.asarray(coefficients, dtype=np.float64)
     scale = np.where(scaler.scale_ == 0, 1.0, scaler.scale_)
@@ -209,12 +204,35 @@ def _render_linear_equation(
     # a term such as 5*log(x) with mean 8 would otherwise shift every value
     # the shortened equation gives by 40.
     offset = float(intercept - np.sum(raw_coefficients[order] * scaler.mean_[order]))
+    terms = [
+        (int(index), float(raw_coefficients[index]))
+        for index in order
+        if raw_coefficients[index] != 0.0
+    ]
+    return terms, offset
 
+
+def _render_linear_equation(
+    lhs: str,
+    coefficients: np.ndarray,
+    intercept: float,
+    scaler,
+    formulas: list[str],
+    precision: int,
+    max_terms: int | None,
+    style: str,
+) -> str:
+    """Render a fitted standardised linear model as an equation on raw features.
+
+    The terms and constant are those of :func:`_linear_terms`, and no
+    ``style`` displays a nonzero coefficient as zero (see
+    ``_format_coefficient``). Shared by the regressor's ``equation`` and the
+    classifier's log-odds ``equation`` so the two cannot drift in
+    formatting.
+    """
+    terms, offset = _linear_terms(coefficients, intercept, scaler, max_terms)
     parts = []
-    for index in order:
-        coefficient = raw_coefficients[index]
-        if coefficient == 0.0:
-            continue
+    for index, coefficient in terms:
         sign = "-" if coefficient < 0 else "+"
         parts.append(
             f" {sign} {_format_coefficient(abs(coefficient), precision, style)}"
@@ -230,6 +248,77 @@ def _render_linear_equation(
         if body
         else f"{lhs} = {_format_coefficient(offset, precision, style)}"
     )
+
+
+_LATEX_TEXT_ESCAPES = str.maketrans({
+    "\\": r"\textbackslash{}", "{": r"\{", "}": r"\}", "$": r"\$", "&": r"\&",
+    "#": r"\#", "%": r"\%", "_": r"\_", "~": r"\textasciitilde{}",
+    "^": r"\textasciicircum{}",
+})
+
+
+def _latex_text(text: str) -> str:
+    """Set plain text in LaTeX math, escaping the characters LaTeX reserves."""
+    return r"\text{" + text.translate(_LATEX_TEXT_ESCAPES) + "}"
+
+
+def _latex_number(text: str) -> str:
+    """Rewrite a number formatted by ``_format_coefficient`` as LaTeX.
+
+    E-notation becomes a power of ten, so ``3.2e-07`` reads
+    ``3.2 \\times 10^{-7}``; other numbers are already valid LaTeX.
+    """
+    mantissa, marker, exponent = text.partition("e")
+    if not marker or not exponent.lstrip("+-").isdigit():
+        return text
+    return rf"{mantissa} \times 10^{{{int(exponent)}}}"
+
+
+def _latex_label(value: Any) -> str:
+    """A class label in LaTeX: numbers as they are, anything else as text."""
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, numbers.Number) and not isinstance(value, bool):
+        return repr(value)
+    return _latex_text(str(value))
+
+
+def _render_linear_latex(
+    coefficients: np.ndarray,
+    intercept: float,
+    scaler,
+    expressions: list[Any],
+    precision: int,
+    max_terms: int | None,
+    style: str,
+) -> str:
+    """The right-hand side of :func:`_render_linear_equation`, in LaTeX.
+
+    The terms, their order and the formatted coefficients are the same as
+    in the text equation; each feature is rendered by ``sympy.latex`` from
+    its sympy form in ``expressions``, and parenthesised when it is a sum or
+    starts with a sign, so the coefficient multiplies all of it.
+    """
+    import sympy
+
+    terms, offset = _linear_terms(coefficients, intercept, scaler, max_terms)
+    parts = []
+    for index, coefficient in terms:
+        sign = "-" if coefficient < 0 else "+"
+        feature = sympy.latex(expressions[index])
+        if isinstance(expressions[index], sympy.Add) or feature.startswith("-"):
+            feature = rf"\left({feature}\right)"
+        # A feature that starts with a digit would run into the coefficient.
+        joiner = r" \cdot " if feature[:1].isdigit() else " "
+        number = _latex_number(_format_coefficient(abs(coefficient), precision, style))
+        parts.append(f" {sign} {number}{joiner}{feature}")
+
+    body = "".join(parts).lstrip()
+    body = body.removeprefix("+ ")
+    if not body:
+        return _latex_number(_format_coefficient(offset, precision, style))
+    offset_sign = "-" if offset < 0 else "+"
+    return f"{body} {offset_sign} {_latex_number(_format_coefficient(abs(offset), precision, style))}"
 
 
 def _project_out(basis: np.ndarray, values: np.ndarray) -> np.ndarray:
@@ -651,6 +740,11 @@ class _BeamFeatBase(BaseEstimator):
             f"; parsimony=None prints all {screened}" if self.parsimony is not None else ""
         )
         return f"   [{kept} of {screened} certified terms{remedy}]"
+
+    def _latex_parsimony_note(self) -> str:
+        """:meth:`_parsimony_note` as LaTeX text, or empty when it is."""
+        note = self._parsimony_note().strip()
+        return rf" \quad {_latex_text(note)}" if note else ""
 
     def _certify_subset(self, X, y, rows, feature_names, units, nodes, keep_order):
         """Re-screen the terms kept after parsimony on rows not yet used for them.
@@ -1308,6 +1402,17 @@ class _BeamFeatBase(BaseEstimator):
         symbols = _sympy_symbols(set().union(*(node.columns() for node in self.features_)))
         return [node.to_sympy(symbols) for node in self.features_]
 
+    def latex_formulas(self) -> list[str]:
+        """Return the selected expressions as LaTeX strings.
+
+        Rendered by ``sympy.latex`` from :meth:`to_sympy`, so sympy is
+        required, as it is there; the formulas are in the order of
+        :attr:`feature_formulas_`.
+        """
+        import sympy
+
+        return [sympy.latex(expression) for expression in self.to_sympy()]
+
     def _path_lhs(self) -> str:
         """Left-hand side naming the modelled quantity in :meth:`equations`."""
         return "y"
@@ -1823,6 +1928,41 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             self.feature_formulas_, precision, max_terms, style,
         ) + self._parsimony_note()
 
+    def latex(
+        self,
+        precision: int = 4,
+        max_terms: int | None = None,
+        style: str = "significant",
+    ) -> str:
+        """Return the fitted model as a LaTeX equation.
+
+        The same equation as :meth:`equation`, with the same terms, order and
+        coefficients, and the same note when the parsimony step dropped terms
+        from the screened set, set as ``\\text``. Each feature is rendered
+        by ``sympy.latex`` from :meth:`to_sympy`, so sympy is required, as it
+        is there. The string has no math delimiters; in a notebook,
+        ``IPython.display.Math(model.latex())`` renders it.
+
+        Args:
+            precision: As in :meth:`equation`.
+            max_terms: As in :meth:`equation`.
+            style: As in :meth:`equation`. E-notation is written as a power
+                of ten.
+
+        Returns:
+            A string such as ``y = 2.104 a b - 0.512 \\log{\\left(c \\right)} + 3.991``.
+        """
+        check_is_fitted(self, ["model_"])
+        _check_equation_format(precision, style)
+        expressions = self.to_sympy()
+        if self.model_ is None:
+            intercept = _latex_number(_format_coefficient(self.intercept_, precision, style))
+            return rf"y = {intercept} \quad {_latex_text('(no feature passed selection)')}"
+        return "y = " + _render_linear_latex(
+            self.coef_, float(self.intercept_), self.scaler_,
+            expressions, precision, max_terms, style,
+        ) + self._latex_parsimony_note()
+
 
 class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
     """Constructs features, then fits a logistic model on them.
@@ -2041,6 +2181,68 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         # One note for the whole block: the terms are shared across the lines.
         return ("\n".join(lines)
                 + "\n(predicted class = argmax of the softmax scores)" + note)
+
+    def latex(
+        self,
+        precision: int = 4,
+        max_terms: int | None = None,
+        style: str = "significant",
+    ) -> str:
+        """Return the fitted classifier as a LaTeX log-odds equation.
+
+        The same equations as :meth:`equation`: for a binary problem the
+        log-odds of ``classes_[1]``, for a multiclass problem one softmax
+        score per class in an ``aligned`` block, followed by the same note
+        when the parsimony step dropped terms from the screened set. Each
+        feature is rendered by ``sympy.latex`` from :meth:`to_sympy`, so
+        sympy is required, as it is there. The string has no math
+        delimiters.
+
+        Args:
+            precision: As in :meth:`equation`.
+            max_terms: As in :meth:`equation`.
+            style: As in :meth:`equation`. E-notation is written as a power
+                of ten.
+        """
+        check_is_fitted(self, ["model_"])
+        _check_equation_format(precision, style)
+        expressions = self.to_sympy()
+        if self.model_ is None:
+            if hasattr(self, "class_prior_"):
+                prior = r",\; ".join(
+                    f"P(y = {_latex_label(klass)}) = "
+                    + _latex_number(_format_coefficient(p, precision, style))
+                    for klass, p in zip(self.classes_, self.class_prior_, strict=True)
+                )
+                note = _latex_text("(class priors only; no feature passed selection)")
+                return rf"{prior} \quad {note}"
+            return rf"y = {_latex_label(self.classes_[0])} \quad {_latex_text('(constant prediction)')}"
+
+        coefficients = np.atleast_2d(self.coef_)
+        intercepts = np.atleast_1d(self.intercept_)
+        note = self._latex_parsimony_note()
+        if coefficients.shape[0] == 1:
+            return (
+                rf"\operatorname{{logit}} P(y = {_latex_label(self.classes_[1])}) = "
+                + _render_linear_latex(
+                    coefficients[0], float(intercepts[0]), self.scaler_,
+                    expressions, precision, max_terms, style,
+                )
+                + note
+            )
+        lines = [
+            rf"\operatorname{{score}}({_latex_label(klass)}) &= "
+            + _render_linear_latex(
+                coefficients[row], float(intercepts[row]), self.scaler_,
+                expressions, precision, max_terms, style,
+            )
+            for row, klass in enumerate(self.classes_)
+        ]
+        return (
+            "\\begin{aligned}\n" + " \\\\\n".join(lines) + "\n\\end{aligned}"
+            + rf" \quad {_latex_text('(predicted class = argmax of the softmax scores)')}"
+            + note
+        )
 
     def _path_lhs(self) -> str:
         """Left-hand side naming the modelled quantity in :meth:`equations`.

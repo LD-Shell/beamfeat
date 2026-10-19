@@ -1678,3 +1678,149 @@ class TestEquationList:
         with pytest.raises(NotFittedError):
             BeamFeatRegressor().equations()
 
+
+class TestLatex:
+    """``latex()`` is ``equation()`` typeset: the same terms, order,
+    coefficients and note, with each feature rendered by sympy."""
+
+    @pytest.fixture
+    def model(self, regression_data):
+        pytest.importorskip("sympy")
+        X, y = regression_data
+        return _fast(BeamFeatRegressor, selector="permutation", beam_width=25,
+                     parsimony_tol=1e-4).fit(X, y)
+
+    def test_same_coefficients_as_the_equation(self, model):
+        equation, latex = model.equation(), model.latex()
+        assert latex.startswith("y = ")
+        coefficients = [
+            match.group(1)
+            for match in re.finditer(r"(\d+(?:\.\d+)?(?:e[+-]\d+)?)\*", equation)
+        ]
+        assert coefficients
+        for coefficient in coefficients:
+            assert coefficient in latex
+        assert equation.split("   [")[0].rsplit(" ", 1)[-1] in latex
+
+    def test_contains_every_feature(self, model):
+        latex = model.latex()
+        for formula in model.latex_formulas():
+            assert formula in latex
+
+    def test_latex_formulas_come_from_sympy(self, model):
+        sympy = pytest.importorskip("sympy")
+        assert model.latex_formulas() == [sympy.latex(e) for e in model.to_sympy()]
+
+    def test_carries_the_parsimony_note(self, model):
+        latex = model.latex()
+        if model.fdr_scope_ == "screened set":
+            assert r"\quad \text{[" in latex
+            assert "certified terms; parsimony=None prints all" in latex
+        else:
+            assert r"\text{[" not in latex
+
+    def test_no_note_when_parsimony_is_off(self, regression_data):
+        pytest.importorskip("sympy")
+        X, y = regression_data
+        model = _fast(BeamFeatRegressor, selector="permutation", beam_width=25,
+                      parsimony=None).fit(X, y)
+        assert "certified terms" not in model.latex(max_terms=3)
+
+    def test_options_follow_equation(self, model):
+        scientific = model.latex(style="scientific", precision=2)
+        assert r"\times 10^{" in scientific
+        assert "e+" not in scientific and "e-" not in scientific
+        assert model.latex(max_terms=1).count(r"\quad") <= 1
+        with pytest.raises(ValueError, match="precision"):
+            model.latex(precision=0)
+        with pytest.raises(ValueError, match="style"):
+            model.latex(style="roman")
+
+    def test_sums_are_parenthesised(self):
+        sympy = pytest.importorskip("sympy")
+        from beamfeat.estimators import _render_linear_latex
+
+        class Scaler:
+            mean_ = np.array([0.0, 0.0])
+            scale_ = np.array([1.0, 1.0])
+
+        a, b = sympy.symbols("a b", real=True)
+        rhs = _render_linear_latex(
+            np.array([2.0, -0.5]), 1.0, Scaler(), [a + b, a * b], 4, None, "significant"
+        )
+        assert rhs == r"2 \left(a + b\right) - 0.5 a b + 1"
+
+    def test_numbers_and_text(self):
+        from beamfeat.estimators import _latex_label, _latex_number, _latex_text
+
+        assert _latex_number("3.2e-07") == r"3.2 \times 10^{-7}"
+        assert _latex_number("1.50e+03") == r"1.50 \times 10^{3}"
+        assert _latex_number("0.003943") == "0.003943"
+        assert _latex_text("a_b & 50%") == r"\text{a\_b \& 50\%}"
+        assert _latex_label(np.int64(1)) == "1"
+        assert _latex_label("yes") == r"\text{yes}"
+
+    def test_null_model(self):
+        pytest.importorskip("sympy")
+        rng = np.random.default_rng(3)
+        X = rng.uniform(1, 6, (400, 4))
+        with pytest.warns(NoDiscoveriesWarning):
+            model = BeamFeatRegressor(
+                max_depth=2, beam_width=15, target_fdr=0.05, random_state=3
+            ).fit(X, rng.standard_normal(400))
+        assert model.latex().endswith(r"\quad \text{(no feature passed selection)}")
+
+    def test_binary_classifier(self, classification_data):
+        pytest.importorskip("sympy")
+        X, y = classification_data
+        model = _fast(BeamFeatClassifier).fit(X, y)
+        latex = model.latex()
+        assert latex.startswith(r"\operatorname{logit} P(y = 1) = ")
+        for formula in model.latex_formulas():
+            assert formula in latex
+
+    def test_classifier_with_string_labels(self, rng):
+        pytest.importorskip("sympy")
+        X = rng.uniform(1.0, 6.0, (300, 3))
+        labels = np.where(X[:, 0] * X[:, 1] > 9, "yes", "no")
+        model = _fast(BeamFeatClassifier, max_depth=1).fit(X, labels)
+        assert model.latex().startswith(r"\operatorname{logit} P(y = \text{yes}) = ")
+
+    def test_multiclass_classifier(self, rng):
+        pytest.importorskip("sympy")
+        X = rng.uniform(1.0, 6.0, (400, 4))
+        score = X[:, 0] * X[:, 1]
+        y = np.digitize(score, np.quantile(score, [1 / 3, 2 / 3]))
+        model = _fast(BeamFeatClassifier, selector="permutation", beam_width=25).fit(X, y)
+        latex = model.latex()
+        assert latex.startswith("\\begin{aligned}\n")
+        assert latex.count(r"\operatorname{score}(") == 3
+        assert latex.count(" &= ") == 3
+        assert "argmax of the softmax scores" in latex
+        if model.fdr_scope_ == "screened set":
+            assert latex.count("certified terms") == 1
+
+    def test_classifier_null_model(self):
+        pytest.importorskip("sympy")
+        rng = np.random.default_rng(3)
+        X = rng.uniform(1, 6, (400, 4))
+        with pytest.warns(NoDiscoveriesWarning):
+            model = BeamFeatClassifier(
+                max_depth=2, beam_width=15, target_fdr=0.05, random_state=3
+            ).fit(X, rng.integers(0, 2, 400))
+        latex = model.latex()
+        assert latex.startswith("P(y = 0) = ")
+        assert "no feature passed selection" in latex
+
+    def test_missing_sympy_fails_as_to_sympy_does(self, model, monkeypatch):
+        import sys
+
+        monkeypatch.setitem(sys.modules, "sympy", None)
+        with pytest.raises(ImportError) as from_to_sympy:
+            model.to_sympy()
+        for method in (model.latex, model.latex_formulas):
+            with pytest.raises(ImportError) as raised:
+                method()
+            assert type(raised.value) is type(from_to_sympy.value)
+            assert "sympy" in str(raised.value)
+
