@@ -55,3 +55,15 @@ not comparable to the paper's pinned machine. Regenerate all records locally
 before citing any number, and note that `bench.py` runs each fit in a
 spawned subprocess when `FIT_BUDGET_S` > 0, which adds a small constant to
 recorded times.
+
+Two harness changes postdate the records in `results/`:
+
+- `bench.py` used to fill non-finite test cells of the `featuretools` and
+  `OpenFE` features with 0, while the training cells got the training median;
+  both now get the training median (see `../independent/PROVENANCE.md` for the
+  effect there). `results/highdim_fast.json` holds no `featuretools` or
+  `OpenFE` rows and is unaffected.
+- `depth_ladder.py` seeded each problem's data with `hash(name)`, which Python
+  randomises per process unless `PYTHONHASHSEED` is set, so the draws behind
+  `results/depth_ladder.json` cannot be regenerated exactly. It now seeds with
+  `zlib.crc32(name)`; a rerun reproduces itself, but not the archived draws.

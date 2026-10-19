@@ -62,6 +62,32 @@ dataset fall between 0.938 and 0.955). A rerun will give something else. Any
 single `autofeat` figure here is one draw; the instability is the citable
 finding.
 
+## Non-finite test cells
+
+The archived records were produced by a harness that filled non-finite
+engineered cells with the training-column median on the training rows but
+with 0 on the test rows. `bench.py` now fills both from the training medians.
+The archive is left as run; the change touches only the `featuretools` and
+`OpenFE` rows, whose ratio features divide by columns that contain zeros.
+
+Rerunning those rows on the archived splits with each fill:
+
+| fits | zero fill (archived) | training-median fill |
+|---|---|---|
+| `featuretools`, Boston (ratios over `chas`, 0 on 471 of 506 rows), splits 0-4 | −2.368, −15.680, −57.320, −27.085, −25.684 | 0.564, 0.890, 0.816, 0.870, 0.869 |
+| `featuretools`, Concrete, splits 0-4 | 0.743, 0.819, 0.841, 0.871, 0.816 | 0.797, 0.829, 0.855, 0.880, 0.831 |
+| `OpenFE`, Concrete, splits 1 and 4 | 0.7422, 0.7975 | 0.7420, 0.7962 |
+
+On wine, measured on the current 1,599-row loader and so against a rerun
+rather than the archive, the fill moves `featuretools` by at most 0.0003 and
+`OpenFE` split 1 by 0.0022. Every other `featuretools` and `OpenFE` fit is
+unchanged to four decimals. Read with the median fill, `featuretools`
+has a mean R² of about 0.461 rather than −2.478, a worst fit of −12.882
+(Friedman #1 split 2, which has no non-finite cells and is unaffected)
+rather than −57.320, and one fit below zero rather than six; its average rank
+and the paired tests against it in `REPORT.md` move with it. Every other
+method's row, and every conclusion about `beamfeat`, is unaffected.
+
 ## Data
 
 `data/` holds the three CSVs that are not bundled with scikit-learn, with

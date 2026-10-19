@@ -6,9 +6,12 @@ Protocol (following Horn et al. 2019 / standard tabular practice):
 - The four feature-construction tools feed the SAME downstream model
   (RidgeCV on standardized features) so the comparison isolates the
   engineered features, not the estimator.  beamfeat appears twice: as
-  `beamfeat`, the estimator as shipped, whose internal ridge is fixed at
-  alpha=1; and as `beamfeat_ridge`, the transformer feeding the shared
-  RidgeCV, which is the strict like-for-like row.
+  `beamfeat`, the estimator as shipped, whose internal ridge chooses its
+  penalty by cross-validation (alpha="auto", the default since 0.3.0); and
+  as `beamfeat_ridge`, the transformer feeding the shared RidgeCV, which is
+  the strict like-for-like row.
+- Non-finite engineered cells are filled with the training-column median, on
+  the training and the test rows alike.
 - The three `*_raw` entries are reference points on unengineered features,
   not part of that controlled comparison.
 - Metrics: out-of-sample R^2 (mean +/- std over splits), wall-clock fit
@@ -140,6 +143,9 @@ def ridge():
     return make_pipeline(StandardScaler(), RidgeCV(alphas=ALPHAS))
 
 def clean(M):
+    """Drop all-non-finite training columns and fill the remaining non-finite
+    cells with the column's training median. Returns the cleaned matrix and the
+    `fill` statistics that `clean_test` applies to held-out rows."""
     M = np.asarray(M, float)
     M[~np.isfinite(M)] = np.nan
     col_ok = ~np.all(np.isnan(M), axis=0)
@@ -147,7 +153,17 @@ def clean(M):
     med = np.nanmedian(M, axis=0)
     idx = np.where(np.isnan(M))
     M[idx] = np.take(med, idx[1])
-    return M, col_ok
+    return M, (col_ok, med)
+
+def clean_test(M, fill):
+    """Apply training-set cleaning to test rows: keep the training columns and
+    fill non-finite cells with the training medians, never with a constant
+    (a 0 in a ratio feature is far outside its training range)."""
+    col_ok, med = fill
+    M = np.asarray(M, float)[:, col_ok]
+    idx = np.where(~np.isfinite(M))
+    M[idx] = np.take(med, idx[1])
+    return M
 
 # ---------------------------------------------------------------- methods
 def run_ridge(Xtr, ytr, Xte):
@@ -187,9 +203,8 @@ def run_featuretools(Xtr, ytr, Xte):
                          n_jobs=FT_N_JOBS)
         return F.reindex(sorted(F.columns), axis=1)
     Ftr, Fte = dfs(Xtr), dfs(Xte)
-    Mtr, ok = clean(Ftr.to_numpy())
-    Mte = np.asarray(Fte.to_numpy(), float)[:, ok]
-    Mte[~np.isfinite(Mte)] = 0.0
+    Mtr, fill = clean(Ftr.to_numpy())
+    Mte = clean_test(Fte.to_numpy(), fill)
     m = ridge().fit(Mtr, ytr)
     return m.predict(Mte), {"n_new": Mtr.shape[1] - Xtr.shape[1], "n_jobs": FT_N_JOBS}
 
@@ -202,9 +217,8 @@ def run_openfe(Xtr, ytr, Xte):
     feats = ofe.fit(data=dtr, label=pd.Series(ytr.astype(float)), task="regression",
                     n_jobs=N_JOBS, verbose=False)
     ttr, tte = transform(dtr, dte, feats[:20], n_jobs=N_JOBS)
-    Mtr, ok = clean(ttr.to_numpy())
-    Mte = np.asarray(tte.to_numpy(), float)[:, ok]
-    Mte[~np.isfinite(Mte)] = 0.0
+    Mtr, fill = clean(ttr.to_numpy())
+    Mte = clean_test(tte.to_numpy(), fill)
     m = ridge().fit(Mtr, ytr)
     return m.predict(Mte), {"n_new": ttr.shape[1] - Xtr.shape[1], "n_jobs": N_JOBS}
 
@@ -214,7 +228,7 @@ PARSIMONY = os.environ.get("BEAMFEAT_PARSIMONY") or "forward"
 PARSIMONY = None if PARSIMONY == "none" else PARSIMONY
 
 def run_beamfeat(Xtr, ytr, Xte):
-    """beamfeat as shipped: its own estimator, an internal ridge at alpha=1."""
+    """beamfeat as shipped: its own estimator and internal ridge, at defaults."""
     from beamfeat import BeamFeatRegressor
     m = BeamFeatRegressor(random_state=0, parsimony=PARSIMONY).fit(Xtr, ytr)
     info = {"n_new": len(m.formulas()), "formulas": m.formulas(),

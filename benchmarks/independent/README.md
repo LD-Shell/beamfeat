@@ -112,7 +112,11 @@ Documented in full in `PROVENANCE.md`; in brief:
    comparability despite its removal from scikit-learn over documented
    ethical concerns; the repository's own six-dataset real panel contains
    no contested data.
-3. **The protocol favours linear consumers.** Every construction tool feeds
+3. **`featuretools`' negative R² on Boston is a harness artefact.** The
+   archived run filled non-finite test cells with 0 instead of the training
+   median; with the median fill its five Boston fits score 0.56 to 0.89, not
+   −57.32 to −2.37. The archive is unchanged; see `PROVENANCE.md`.
+4. **The protocol favours linear consumers.** Every construction tool feeds
    the same ridge model, which understates `OpenFE` in its intended
    gradient-boosted setting and `featuretools` outside its relational use
    case. `beamfeat` does not win real-tabular prediction against tuned tree
