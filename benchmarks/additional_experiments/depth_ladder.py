@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+import zlib
 
 import numpy as np
 
@@ -102,7 +103,10 @@ def main(a):
         for scorer in grid_scorers:
             for beam in grid_beams:
                 for seed in range(a.seeds):
-                    rng = np.random.default_rng(1000 * seed + hash(name) % 1000)
+                    # crc32 rather than hash(): Python randomises string
+                    # hashing per process, so hash(name) reseeded the data on
+                    # every run unless PYTHONHASHSEED was fixed.
+                    rng = np.random.default_rng(1000 * seed + zlib.crc32(name.encode()) % 1000)
                     X = draw(a.n, p, positive, rng)
                     y = target_fn(X)
                     y = y + rng.normal(0, a.noise * (np.std(y) or 1.0), a.n)
