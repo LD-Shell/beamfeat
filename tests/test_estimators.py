@@ -1450,3 +1450,231 @@ def test_estimator_exports_are_in_the_module_all():
         if getattr(getattr(beamfeat, name), "__module__", None) == estimators.__name__
     }
     assert exported <= set(estimators.__all__)
+
+
+def _reference_forward_path(matrix, target):
+    """The forward step re-solved by least squares at every step, to the end."""
+    n_rows, n_columns = matrix.shape
+    total_variance = float(np.var(target))
+    chosen, remaining, scores = [], list(range(n_columns)), []
+    while remaining:
+        step = []
+        for index in remaining:
+            design = np.column_stack([np.ones(n_rows)] + [matrix[:, j] for j in chosen + [index]])
+            coefficients, *_ = np.linalg.lstsq(design, target, rcond=None)
+            step.append(1.0 - float(np.var(target - design @ coefficients)) / total_variance)
+        best = int(np.argmax(step))
+        chosen.append(remaining.pop(best))
+        scores.append(step[best])
+    return chosen, scores
+
+
+class TestEquationList:
+    """``equations_`` records the forward path through the whole screened set.
+
+    The fitted model must be exactly the one the forward step picks at
+    ``parsimony_tol``; the path only adds a record of the sizes it did not
+    pick."""
+
+    SCOPE = "not an equation chosen from this list"
+
+    @pytest.fixture
+    def model(self, regression_data):
+        X, y = regression_data
+        return _fast(BeamFeatRegressor, selector="permutation", beam_width=25).fit(X, y)
+
+    def test_one_record_per_screened_size(self, model):
+        records = model.equations_
+        assert len(records) == model.selection_result_.n_selected
+        assert [record["n_terms"] for record in records] == list(range(1, len(records) + 1))
+        screened = {row["formula"] for row in model.selection_report_ if row["screened"]}
+        assert set(records[-1]["formulas"]) == screened
+
+    def test_records_are_nested_and_monotone(self, model):
+        records = model.equations_
+        for shorter, longer in zip(records, records[1:]):
+            assert longer["formulas"][:-1] == shorter["formulas"]
+            assert longer["complexity"] > shorter["complexity"]
+            assert longer["r2"] >= shorter["r2"] - 1e-9
+        assert all(0.0 <= record["r2"] <= 1.0 + 1e-12 for record in records)
+
+    def test_complexity_counts_nodes_and_coefficients(self, model):
+        def tree_size(node):
+            return 1 + sum(tree_size(child) for child in node.children)
+
+        for record in model.equations_:
+            assert record["complexity"] == sum(tree_size(node) + 1 for node in record["features"])
+            assert [node.name for node in record["features"]] == record["formulas"]
+
+    def test_the_marked_record_is_the_fitted_model(self, model):
+        marked = [record for record in model.equations_ if record["model"]]
+        assert len(marked) == 1
+        assert sorted(marked[0]["formulas"]) == sorted(model.feature_formulas_)
+        assert marked[0]["n_terms"] == model._forward_stop_
+
+    def test_the_marked_record_is_where_the_forward_step_stops(self, model):
+        records = model.equations_
+        stop = next(record["n_terms"] for record in records if record["model"])
+        if stop < len(records):
+            assert records[stop]["r2"] - records[stop - 1]["r2"] < model.parsimony_tol + 1e-9
+        for record, previous in zip(records[1:stop], records[: stop - 1]):
+            assert record["r2"] - previous["r2"] >= model.parsimony_tol
+
+    def test_matches_a_path_re_solved_at_every_step(self, rng):
+        """The steps past the forward step's stopping point are taken by
+        projection rather than re-solving; they must agree with re-solving,
+        including around an exactly collinear column."""
+        latent = rng.standard_normal((150, 4))
+        matrix = np.column_stack(
+            [latent @ rng.standard_normal(4) + 0.3 * rng.standard_normal(150) for _ in range(12)]
+        )
+        matrix[:, 5] = 2.0 * matrix[:, 1] + 1.0
+        target = matrix[:, :3] @ np.array([1.0, -0.5, 0.25]) + rng.standard_normal(150)
+        reference, reference_scores = _reference_forward_path(matrix, target)
+
+        estimator = BeamFeatRegressor(parsimony_tol=0.05)
+        order, scores, stop = estimator._forward_path(matrix, target, list(range(12)))
+        assert 1 <= stop < 12
+        assert order[:stop] == reference[:stop]
+        assert scores[:stop] == reference_scores[:stop]
+        np.testing.assert_allclose(scores, reference_scores, atol=1e-10)
+        assert sorted(order) == list(range(12))
+        assert estimator._parsimonious_subset(matrix, target, list(range(12))) == sorted(order[:stop])
+
+    def test_does_not_change_the_fitted_model(self, regression_data):
+        """The path is the same whatever ``parsimony`` is, and only the
+        marked record moves."""
+        X, y = regression_data
+        forward = _fast(BeamFeatRegressor, selector="permutation", beam_width=25).fit(X, y)
+        full = _fast(BeamFeatRegressor, selector="permutation", beam_width=25,
+                     parsimony=None).fit(X, y)
+        assert [r["formulas"] for r in forward.equations_] == [r["formulas"] for r in full.equations_]
+        assert [r["r2"] for r in forward.equations_] == [r["r2"] for r in full.equations_]
+        assert full.equations_[-1]["model"]
+        assert sorted(full.equations_[-1]["formulas"]) == sorted(full.feature_formulas_)
+
+    def test_parsimony_none_marks_the_screened_set(self, regression_data):
+        X, y = regression_data
+        model = _fast(BeamFeatRegressor, selector="permutation", beam_width=25,
+                      parsimony=None).fit(X, y)
+        text = model.equations()
+        assert "parsimony=None keeps the whole screened set" in text
+        assert self.SCOPE in text
+        assert [r["model"] for r in model.equations_].count(True) == 1
+
+    def test_text_marks_the_model_and_states_the_scope(self, model):
+        text = model.equations()
+        lines = text.splitlines()
+        stop = next(record["n_terms"] for record in model.equations_ if record["model"])
+        marked = [line for line in lines if line.startswith("*") and " ~ " in line]
+        assert len(marked) == 1
+        assert marked[0].split()[1] == str(stop)
+        assert lines[-1].startswith("The FDR guarantee covers the screened set of "
+                                    f"{len(model.equations_)} terms")
+        assert self.SCOPE in lines[-1]
+        assert f"parsimony_tol={model.parsimony_tol:g}" in text
+        for formula in model.equations_[0]["formulas"]:
+            assert formula in text
+
+    def test_text_can_be_shortened(self, model):
+        records = model.equations_
+        if len(records) < 4:
+            pytest.skip("too few screened terms to shorten the list")
+        text = model.equations(max_n_terms=2)
+        rows = [line for line in text.splitlines() if " ~ " in line]
+        sizes = [int(line.lstrip("* ").split()[0]) for line in rows]
+        stop = next(record["n_terms"] for record in records if record["model"])
+        assert sizes == sorted({1, 2, stop})
+        assert "..." in text
+        assert text.splitlines()[-1].endswith(self.SCOPE + ".")
+
+    def test_rejects_a_bad_precision(self, model):
+        with pytest.raises(ValueError, match="precision"):
+            model.equations(precision=0)
+
+    def test_none_without_a_selector(self, regression_data):
+        X, y = regression_data
+        model = _fast(BeamFeatRegressor, selector=None).fit(X, y)
+        assert model.equations_ is None
+        assert "no selector was configured" in model.equations()
+
+    def test_empty_when_nothing_passed_selection(self):
+        rng = np.random.default_rng(3)
+        X = rng.uniform(1, 6, (400, 4))
+        with pytest.warns(NoDiscoveriesWarning):
+            model = BeamFeatRegressor(
+                max_depth=2, beam_width=15, target_fdr=0.05, random_state=3
+            ).fit(X, rng.standard_normal(400))
+        assert model.equations_ == []
+        assert model.equations() == "no equation list: no feature passed selection"
+
+    def test_a_single_screened_feature(self, rng):
+        X = rng.uniform(1.0, 6.0, (300, 1))
+        y = 2 * X[:, 0] + rng.normal(0, 0.1, 300)
+        model = BeamFeatRegressor(max_depth=0, random_state=0).fit(X, y)
+        assert len(model.equations_) == 1
+        record = model.equations_[0]
+        assert record["formulas"] == ["x0"]
+        assert record["complexity"] == 2
+        assert record["model"]
+        assert record["r2"] > 0.99
+        text = model.equations()
+        assert "the screened set of 1 term (line 1)" in text
+        assert "the forward step keeps every screened term" in text
+
+    def test_classification(self, classification_data):
+        X, y = classification_data
+        model = _fast(BeamFeatClassifier, selector="permutation").fit(X, y)
+        records = model.equations_
+        assert len(records) == model.selection_result_.n_selected
+        assert [record["model"] for record in records].count(True) == 1
+        marked = next(record for record in records if record["model"])
+        assert sorted(marked["formulas"]) == sorted(model.feature_formulas_)
+        text = model.equations()
+        assert "logit P(y = 1) ~ " in text
+        assert "integer-coded labels" in text
+
+    def test_multiclass_and_string_labels(self, rng):
+        X = rng.uniform(1.0, 6.0, (400, 4))
+        score = X[:, 0] * X[:, 1]
+        labels = np.array(["low", "mid", "high"])[np.digitize(score, np.quantile(score, [1 / 3, 2 / 3]))]
+        model = _fast(BeamFeatClassifier, selector="permutation", beam_width=25).fit(X, labels)
+        assert model.equations_
+        assert "scores ~ " in model.equations()
+
+    def test_transformer_records_it_too(self, regression_data):
+        X, y = regression_data
+        model = _fast(BeamFeatTransformer, selector="permutation", beam_width=25).fit(X, y)
+        assert len(model.equations_) == model.selection_result_.n_selected
+        assert "* the returned features" in model.equations()
+
+    def test_same_data_selection_claims_no_guarantee(self, regression_data):
+        X, y = regression_data
+        with pytest.warns(UserWarning, match="same rows"):
+            model = _fast(BeamFeatRegressor, selector="permutation",
+                          selection_holdout=None).fit(X, y)
+        text = model.equations()
+        assert "No line carries the FDR guarantee" in text
+        assert "The FDR guarantee covers" not in text
+
+    def test_re_certified_model(self, regression_data):
+        X, y = regression_data
+        model = _fast(BeamFeatRegressor, selector="permutation",
+                      parsimony_holdout=0.5).fit(X, y)
+        if model.certification_result_ is None:
+            pytest.skip("the rows did not support a second split")
+        text = model.equations()
+        marked = [record for record in model.equations_ if record["model"]]
+        if marked:
+            assert sorted(marked[0]["formulas"]) == sorted(model.feature_formulas_)
+        else:
+            assert "No line is the fitted model" in text
+        assert "re-test" in text
+        assert "does not cover another equation chosen from this list" in text
+
+    def test_unfitted_raises(self):
+        from sklearn.exceptions import NotFittedError
+
+        with pytest.raises(NotFittedError):
+            BeamFeatRegressor().equations()
+

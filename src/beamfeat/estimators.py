@@ -232,6 +232,115 @@ def _render_linear_equation(
     )
 
 
+def _project_out(basis: np.ndarray, values: np.ndarray) -> np.ndarray:
+    """Remove from ``values`` its component in the span of ``basis``.
+
+    ``basis`` has orthonormal columns. The projection is applied twice,
+    which keeps the result orthogonal to the basis in floating point where
+    a single pass loses it on nearly collinear columns.
+    """
+    for _ in range(2):
+        values = values - basis @ (basis.T @ values)
+    return values
+
+
+def _extend_forward_path(
+    matrix: np.ndarray,
+    numeric: np.ndarray,
+    chosen: list[int],
+    remaining: list[int],
+    total_variance: float,
+) -> tuple[list[int], list[float]]:
+    """Continue a greedy forward path from ``chosen`` through ``remaining``.
+
+    Each step adds the column that most increases the in-sample R^2 of a
+    least-squares fit with intercept, as the forward step does, but the
+    columns already added are kept as an orthonormal basis and every other
+    column as its residual against that basis. A column's R^2 gain is then
+    the squared projection of the target's residual on it, so a step costs
+    one pass over the remaining columns rather than one least-squares solve
+    per column: of order ``n * k^2`` operations for a path through ``k``
+    columns on ``n`` rows, against ``n * k^4`` for re-solving.
+
+    A column within rounding of the span of those already added gains
+    nothing, so it comes after every column that gains something.
+
+    Returns the order in which ``remaining`` is added and the R^2 after
+    each addition.
+    """
+    n_rows = matrix.shape[0]
+    basis = np.full((n_rows, 1), 1.0 / np.sqrt(n_rows))
+    for index in chosen:
+        column = matrix[:, index]
+        reduced = _project_out(basis, column)
+        norm = float(np.linalg.norm(reduced))
+        if norm > 1e-10 * float(np.linalg.norm(column - column.mean())):
+            basis = np.column_stack([basis, reduced / norm])
+    residual = _project_out(basis, numeric)
+
+    remaining = list(remaining)
+    candidates = matrix[:, remaining]
+    floor = 1e-10 * np.linalg.norm(candidates - candidates.mean(axis=0), axis=0)
+    candidates = _project_out(basis, candidates)
+
+    order: list[int] = []
+    scores: list[float] = []
+    while remaining:
+        norms = np.linalg.norm(candidates, axis=0)
+        live = norms > floor
+        safe = np.where(live, norms, 1.0)
+        gains = np.where(live, (residual @ candidates / safe) ** 2, 0.0)
+        position = int(np.argmax(gains))
+        if live[position]:
+            direction = candidates[:, position] / norms[position]
+            residual = _project_out(direction[:, None], residual)
+            candidates = _project_out(direction[:, None], candidates)
+        order.append(remaining.pop(position))
+        candidates = np.delete(candidates, position, axis=1)
+        floor = np.delete(floor, position)
+        scores.append(1.0 - float(np.var(residual)) / total_variance)
+    return order, scores
+
+
+def _equation_list(
+    nodes: list[Node], path: tuple[list[int], list[float], int], fitted: list[Node]
+) -> list[dict]:
+    """Build the records of :attr:`equations_` from a forward path.
+
+    ``nodes`` are the screening candidates the path indexes, and ``fitted``
+    the features the model was fitted on; the record whose terms are exactly
+    those is marked as the model, and no record is when none matches.
+    """
+    order, scores, _ = path
+    fitted_keys = {node.key for node in fitted}
+    terms = [nodes[index] for index in order]
+    names = [node.name for node in terms]
+    records: list[dict] = []
+    complexity = 0
+    for size, (node, score) in enumerate(zip(terms, scores), start=1):
+        complexity += _tree_size(node) + 1
+        records.append({
+            "n_terms": size,
+            "complexity": complexity,
+            "r2": float(score),
+            "formulas": names[:size],
+            "features": tuple(terms[:size]),
+            "model": size == len(fitted_keys)
+            and {term.key for term in terms[:size]} == fitted_keys,
+        })
+    return records
+
+
+def _tree_size(node: Node) -> int:
+    """Number of nodes in the expression tree of ``node``.
+
+    Operators and input columns each count one, and a subexpression counts
+    each time it appears, as it does in the printed formula. Unlike
+    :attr:`~beamfeat.expression.Node.size`, which counts a shared node once.
+    """
+    return 1 + sum(_tree_size(child) for child in node.children)
+
+
 class NoDiscoveriesError(RuntimeError):
     """Raised in ``on_no_discoveries="raise"`` mode when selection passes nothing."""
 
@@ -312,7 +421,11 @@ class _BeamFeatBase(BaseEstimator):
     # -- fitting ------------------------------------------------------------ #
 
     def _parsimonious_subset(
-        self, matrix: np.ndarray, target: np.ndarray, screened: list[int]
+        self,
+        matrix: np.ndarray,
+        target: np.ndarray,
+        screened: list[int],
+        path: tuple[list[int], list[float], int] | None = None,
     ) -> list[int]:
         """Greedy forward selection among the FDR-screened features.
 
@@ -344,10 +457,30 @@ class _BeamFeatBase(BaseEstimator):
         Features are added while the incremental in-sample R^2 (on integer-
         coded labels for classification, as a ranking heuristic) improves by
         at least ``parsimony_tol``; at least one feature is always kept.
+
+        ``path`` is the result of :meth:`_forward_path` on the same
+        arguments, when the caller has already computed it.
         """
         if self.parsimony is None or len(screened) <= 1:
             return list(screened)
+        if path is None:
+            path = self._forward_path(matrix, target, screened)
+        order, _, stop = path
+        return sorted(order[:stop])
 
+    def _forward_path(
+        self, matrix: np.ndarray, target: np.ndarray, screened: list[int]
+    ) -> tuple[list[int], list[float], int]:
+        """The greedy forward path through the whole screened set.
+
+        Returns the screened indices in the order the forward step adds
+        them, the in-sample R^2 after each addition, and the number of them
+        :meth:`_parsimonious_subset` keeps at ``parsimony_tol``. The path
+        runs past that point to the full screened set, so the fit at every
+        size is on record; the steps up to it are the forward step itself,
+        computed exactly as it computes them, so the subset it keeps does not
+        depend on how far the path is followed.
+        """
         # Labels are encoded before any numeric cast: the transformer passes
         # its target through unencoded, and string labels cannot be cast.
         if self._problem_type == "classification":
@@ -357,9 +490,10 @@ class _BeamFeatBase(BaseEstimator):
             numeric = np.asarray(target, dtype=np.float64)
         total_variance = float(np.var(numeric))
         if total_variance < 1e-12:  # pragma: no cover - defensive
-            return list(screened)
+            return list(screened), [float("nan")] * len(screened), len(screened)
 
         chosen: list[int] = []
+        scores_kept: list[float] = []
         remaining = list(screened)
         best_r2 = 0.0
         intercept = np.ones((matrix.shape[0], 1))
@@ -375,7 +509,14 @@ class _BeamFeatBase(BaseEstimator):
                 break
             best_r2 = scores[best_position]
             chosen.append(remaining.pop(best_position))
-        return sorted(chosen)
+            scores_kept.append(best_r2)
+        stop = len(chosen)
+        if remaining:
+            rest, rest_scores = _extend_forward_path(
+                matrix, numeric, chosen, remaining, total_variance
+            )
+            chosen, scores_kept = chosen + rest, scores_kept + rest_scores
+        return chosen, scores_kept, stop
 
     def _validate_params(self) -> None:
         """Reject option values that would otherwise be ignored or misread.
@@ -769,6 +910,8 @@ class _BeamFeatBase(BaseEstimator):
         self.fdr_scope_: str | None = None
         self.certification_result_ = None
         self.fdp_inflation_: float | None = None
+        self.equations_: list[dict] | None = None
+        forward_path = None
 
         if self.selector is not None:
             if use_holdout:
@@ -792,6 +935,7 @@ class _BeamFeatBase(BaseEstimator):
                     candidate_columns.append(values)
 
             selector = self._make_selector(warn=True)
+            self.equations_ = []
             # A single candidate is screened like any other set: only the
             # multiplicity correction is trivial for it, not the test.
             if candidate_nodes:
@@ -828,8 +972,11 @@ class _BeamFeatBase(BaseEstimator):
                 screened = set(int(i) for i in selection_result.selected)
 
                 if selection_result.n_selected > 0:
-                    keep_order = self._parsimonious_subset(
+                    forward_path = self._forward_path(
                         matrix, selection_target, list(selection_result.selected)
+                    )
+                    keep_order = self._parsimonious_subset(
+                        matrix, selection_target, list(selection_result.selected), forward_path
                     )
                     report(
                         self.verbose,
@@ -936,6 +1083,10 @@ class _BeamFeatBase(BaseEstimator):
         self.feature_formulas_ = [node.name for node in kept_nodes]
         self.n_features_out_ = len(kept_nodes)
         self._resolve_fdr_scope()
+        self._forward_stop_ = None
+        if forward_path is not None:
+            self.equations_ = _equation_list(candidate_nodes, forward_path, kept_nodes)
+            self._forward_stop_ = forward_path[2]
         # |S|/|S'| for the set actually returned, so it is measured after the
         # parsimony re-test or its fallback rather than on the forward subset.
         # A re-certified set is its own S.
@@ -1157,6 +1308,146 @@ class _BeamFeatBase(BaseEstimator):
         symbols = _sympy_symbols(set().union(*(node.columns() for node in self.features_)))
         return [node.to_sympy(symbols) for node in self.features_]
 
+    def _path_lhs(self) -> str:
+        """Left-hand side naming the modelled quantity in :meth:`equations`."""
+        return "y"
+
+    def equations(self, precision: int = 4, max_n_terms: int | None = None) -> str:
+        """Return the forward path through the screened set, one equation per size.
+
+        Line ``k`` holds the ``k`` terms the greedy forward step of
+        ``parsimony="forward"`` would fit if it stopped there, with its
+        complexity, the in-sample R^2 of a least-squares fit of those terms
+        on the rows screening used, and the R^2 its last term added. The
+        line the model was fitted on is marked ``*``; at the default
+        settings it is the first line whose successor adds less than
+        ``parsimony_tol``. The records behind the text are
+        :attr:`equations_`.
+
+        Each line is written ``y ~ a + b``: a linear model in those terms,
+        without coefficients, since only the marked line has fitted ones and
+        :meth:`equation` prints them. For classification the R^2 is that of
+        the integer-coded labels, the ranking heuristic the forward step
+        uses, and not a classification metric.
+
+        The FDR guarantee covers the screened set, the last line, and not an
+        equation chosen from this list: every line is a subset of the
+        screened set chosen on the rows screening used, as the default
+        fitted model is. The output says so in its last line.
+
+        Args:
+            precision: Decimal places for R^2, and significant figures for
+                its gain.
+            max_n_terms: If set, show only the equations with at most this
+                many terms, and the marked line whatever its size. The
+                remaining lines are elided as ``...``.
+
+        Returns:
+            The list as text, or a one-line explanation when nothing was
+            screened.
+        """
+        check_is_fitted(self, ["equations_"])
+        _check_equation_format(precision, "significant")
+        if self.equations_ is None:
+            return "no equation list: no selector was configured, so no set was screened"
+        if not self.equations_:
+            return "no equation list: no feature passed selection"
+
+        screened = len(self.equations_)
+        rows = [
+            (
+                "*" if record["model"] else "",
+                str(record["n_terms"]),
+                str(record["complexity"]),
+                f"{record['r2']:.{precision}f}",
+                f"{record['r2'] - previous:.{precision}g}",
+                f"{self._path_lhs()} ~ " + " + ".join(record["formulas"]),
+            )
+            for record, previous in zip(
+                self.equations_,
+                [0.0] + [record["r2"] for record in self.equations_[:-1]],
+            )
+            if max_n_terms is None
+            or record["n_terms"] <= max_n_terms
+            or record["model"]
+        ]
+        header = ("", "k", "complexity", "R^2", "gain", "equation")
+        widths = [max(len(row[column]) for row in [header, *rows]) for column in range(5)]
+        measure = (
+            "R^2 is of the integer-coded labels, a ranking heuristic rather than a "
+            "classification metric"
+            if self._problem_type == "classification"
+            else "R^2 is in-sample"
+        )
+
+        def line(row: tuple[str, ...]) -> str:
+            cells = [cell.rjust(width) for cell, width in zip(row[1:5], widths[1:])]
+            return " ".join([row[0].ljust(widths[0]), *cells, row[5]]).rstrip()
+
+        lines = [
+            f"Forward path through the {screened} screened term{'' if screened == 1 else 's'}. "
+            f"{measure}, on the rows screening used; gain is the R^2 the line's last "
+            "term adds.",
+            line(header),
+        ]
+        elided = " " * widths[0] + " " + "...".rjust(widths[1])
+        previous = 0
+        for row in rows:
+            if int(row[1]) > previous + 1:
+                lines.append(elided)
+            previous = int(row[1])
+            lines.append(line(row))
+        if previous < screened:
+            lines.append(elided)
+        lines.append(self._path_model_note())
+        lines.append(self._path_scope_note(screened))
+        return "\n".join(lines)
+
+    def _path_model_note(self) -> str:
+        """Footer line of :meth:`equations` saying which line is the model."""
+        returned = "fitted model" if hasattr(self, "equation") else "returned features"
+        marked = [record["n_terms"] for record in self.equations_ if record["model"]]
+        retested = self.certification_result_ is not None
+        if not marked:
+            reason = (
+                "its terms were re-tested on held-back rows (parsimony_holdout)"
+                if retested
+                else "some screened terms could not be evaluated on the full training data"
+            )
+            return f"No line is the {returned}: {reason}."
+        if self.parsimony is None:
+            how = "parsimony=None keeps the whole screened set"
+        elif retested and self.certification_result_.n_selected:
+            how = "the forward subset, as re-tested on held-back rows"
+        elif retested:
+            how = "no term survived the re-test on held-back rows, so the screened set is kept"
+        elif marked[0] == self._forward_stop_ == len(self.equations_):
+            how = "the forward step keeps every screened term"
+        elif marked[0] == self._forward_stop_:
+            how = (
+                "the forward step stops before the first gain below "
+                f"parsimony_tol={self.parsimony_tol:g}"
+            )
+        else:
+            how = "parsimony_holdout could not split the selection rows, so the screened set is kept"
+        return f"* the {returned} ({how})."
+
+    def _path_scope_note(self, screened: int) -> str:
+        """Footer line of :meth:`equations` stating what the guarantee covers."""
+        if not self.fdr_controlled_:
+            return (
+                "No line carries the FDR guarantee: fdr_controlled_ is False, since "
+                "selection did not run on rows held out of the search."
+            )
+        last = f"the screened set of {screened} term{'' if screened == 1 else 's'} (line {screened})"
+        if self.certification_result_ is not None and self.certification_result_.n_selected:
+            return (
+                f"The FDR guarantee covers {last} and, after its re-test, the "
+                f"{'fitted model' if hasattr(self, 'equation') else 'returned features'}; "
+                "it does not cover another equation chosen from this list."
+            )
+        return f"The FDR guarantee covers {last}, not an equation chosen from this list."
+
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
         tags.input_tags.allow_nan = False
@@ -1215,7 +1506,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             :meth:`equation` marks this whenever terms were dropped. ``None``
             returns the screened set entire, so the returned features are
             exactly the set the guarantee covers; ``parsimony_holdout`` buys
-            both, for rows.
+            both, for rows. Either way :attr:`equations_` records the forward
+            path through the whole screened set.
         parsimony_tol: Minimum incremental R^2 a feature must add to be kept by
             ``parsimony="forward"``. Ignored when ``parsimony`` is ``None``.
         random_state: Seed. Fitting is deterministic given this.
@@ -1237,6 +1529,26 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             ``"printed equation"`` when the guarantee covers the returned
             features, ``"screened set"`` when it covers a larger set they were
             drawn from, ``None`` when the flag is not ``True``.
+        equations_: The greedy forward path through the screened set, one
+            record per size ``k`` from 1 to the size of the screened set,
+            in order of ``k``. Each record is a dict with ``"n_terms"``
+            (``k``); ``"formulas"`` and ``"features"``, the ``k`` terms as
+            formula strings and :class:`~beamfeat.expression.Node`
+            expressions in the order the path adds them; ``"r2"``, the
+            in-sample R^2 of a least-squares fit of them on the rows
+            screening used (of the integer-coded labels for
+            classification, a ranking heuristic); ``"complexity"``, the
+            number of nodes in their expression trees plus one per term for
+            its coefficient; and ``"model"``, whether they are the returned
+            features. At most one record is marked, and none is when the
+            returned features are not on the path, after a
+            ``parsimony_holdout`` re-test for instance. The path is recorded
+            whatever ``parsimony`` is, and the steps up to the returned
+            subset are those the forward step takes, so recording it changes
+            nothing that is returned. ``None`` without a selector, and empty
+            when nothing passed screening. The FDR guarantee covers the
+            screened set, the last record, and not a record chosen from the
+            list; :meth:`equations` renders it and says so.
         n_features_out_: Number of features produced.
 
     A row on which a fitted expression cannot be evaluated at transform time
@@ -1341,6 +1653,9 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         fdr_scope_: Which set :attr:`fdr_controlled_` is a statement about;
             see :class:`BeamFeatTransformer`. ``"screened set"`` is what
             :meth:`equation` marks in its output.
+        equations_: The forward path through the screened set, one record
+            per number of terms, with the record of the fitted model marked;
+            see :class:`BeamFeatTransformer` and :meth:`equations`.
     """
 
     _problem_type = "regression"
@@ -1524,6 +1839,11 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         fdr_scope_: Which set :attr:`fdr_controlled_` is a statement about;
             see :class:`BeamFeatTransformer`. ``"screened set"`` is what
             :meth:`equation` marks in its output.
+        equations_: The forward path through the screened set, one record
+            per number of terms, with the record of the fitted model marked;
+            see :class:`BeamFeatTransformer` and :meth:`equations`. Its R^2
+            is of the integer-coded labels, the forward step's ranking
+            heuristic.
     """
 
     _problem_type = "classification"
@@ -1721,6 +2041,17 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         # One note for the whole block: the terms are shared across the lines.
         return ("\n".join(lines)
                 + "\n(predicted class = argmax of the softmax scores)" + note)
+
+    def _path_lhs(self) -> str:
+        """Left-hand side naming the modelled quantity in :meth:`equations`.
+
+        The log-odds of ``classes_[1]`` for a binary problem, as in
+        :meth:`equation`; the per-class scores, which share their terms,
+        otherwise.
+        """
+        if len(self.classes_) == 2:
+            return f"logit P(y = {_label(self.classes_[1])})"
+        return "scores"
 
     def predict_proba(self, X) -> np.ndarray:
         """Predict class probabilities.
