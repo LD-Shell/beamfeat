@@ -29,9 +29,11 @@ from collections import OrderedDict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
+
+from beamfeat.scoring import ColumnStats, column_stats
 
 __all__ = [
     "EvaluationLog",
@@ -1207,16 +1209,7 @@ class Evaluator:
             try:
                 values = spec.fn(*operands)
             except FloatingPointError as exc:
-                message = str(exc).lower()
-                if "overflow" in message:
-                    reason = ExclusionReason.OVERFLOW
-                elif "underflow" in message:
-                    reason = ExclusionReason.UNDERFLOW
-                elif "divide" in message or "invalid" in message:
-                    reason = ExclusionReason.DOMAIN_ERROR
-                else:  # pragma: no cover - rare numpy conditions
-                    reason = ExclusionReason.NON_FINITE
-                self._reject(node, reason, str(exc))
+                self._reject(node, _floating_point_reason(exc), str(exc))
                 return None
 
         values = np.asarray(values, dtype=self._dtype)
@@ -1283,9 +1276,7 @@ class Evaluator:
         """
         with np.errstate(all="ignore"):
             scale = float(np.mean(np.abs(values)))
-        if math.isfinite(scale) and scale > 0.0:
-            return variance <= self.variance_tol * scale * scale
-        return variance <= self.variance_tol
+        return _is_constant(variance, scale, self.variance_tol)
 
     def _store(self, key: str, values: np.ndarray, filtered: bool) -> None:
         """Insert into the LRU cache, evicting the oldest entry if full."""
@@ -1316,5 +1307,206 @@ class Evaluator:
             return [], np.empty((self._n_rows, 0), dtype=self._dtype)
         return kept, np.column_stack(arrays)
 
+    # -- batches ------------------------------------------------------------ #
+
+    def plan_batch(self, nodes: Sequence[Node]) -> EvaluationBatch:
+        """Prepare distinct nodes for evaluation away from this evaluator.
+
+        Evaluating a wide round of candidates one :meth:`evaluate` call at a
+        time spends most of its time on per-column overhead, and cannot be
+        shared between workers because the cache and the log are mutable. A
+        batch splits the work in three: this method resolves each node's
+        operands (and settles leaves, cached values and known failures) here;
+        :meth:`EvaluationBatch.run` then applies the search-time filters and
+        computes the values with no access to the evaluator, so batches can
+        run concurrently; :meth:`commit_batch` records the rejections, in node
+        order.
+
+        Operands are resolved through :meth:`evaluate`, so a failing operand
+        is recorded when the batch is planned, ahead of the batch's own
+        rejections. Computed values are not cached: a round's candidates are
+        each evaluated once, and the few kept are cached when next evaluated.
+
+        Args:
+            nodes: Expressions to evaluate. Each should appear once.
+
+        Returns:
+            An :class:`EvaluationBatch` for :meth:`EvaluationBatch.run`.
+        """
+        entries: list[Any] = []
+        resolved: dict[str, np.ndarray | None] = {}
+        self._sync_failures()
+        for node in nodes:
+            if node.is_leaf:
+                entries.append(self.evaluate(node))
+                continue
+            key = node.key
+            cached = self._cache.get(key)
+            if cached is not None and cached[1]:
+                self._cache.move_to_end(key)
+                entries.append(cached[0])
+                continue
+            # With the filters on, every remembered failure holds.
+            if key in self._failed:
+                entries.append(None)
+                continue
+            spec = OPERATORS.get(node.op)
+            if spec is None:  # pragma: no cover - defensive
+                raise NodeError(f"unknown operator {node.op!r}")
+            operands: list[np.ndarray] = []
+            for child in node.children:
+                if child.key not in resolved:
+                    resolved[child.key] = self.evaluate(child)
+                child_values = resolved[child.key]
+                if child_values is None:
+                    break
+                operands.append(child_values)
+            else:
+                entries.append((spec, tuple(operands)))
+                continue
+            entries.append(None)
+        return EvaluationBatch(entries, self._n_rows, self._dtype, self.variance_tol)
+
+    def commit_batch(self, nodes: Sequence[Node], outcome: BatchOutcome) -> list[Node]:
+        """Record a batch's rejections and return its surviving nodes.
+
+        Args:
+            nodes: The nodes passed to :meth:`plan_batch`, in the same order.
+            outcome: What :meth:`EvaluationBatch.run` returned for them.
+
+        Returns:
+            The surviving nodes, in order, matching the columns of
+            ``outcome.values``.
+        """
+        for position, reason, detail, filtered in outcome.rejections:
+            self._reject(nodes[position], reason, detail, filtered=filtered)
+        return [nodes[position] for position in outcome.kept]
+
     def __repr__(self) -> str:  # pragma: no cover - display only
         return f"Evaluator(n_rows={self._n_rows}, n_columns={len(self._columns)}, cache={len(self._cache)}/{self.cache_size})"
+
+
+def _floating_point_reason(exc: FloatingPointError) -> ExclusionReason:
+    """Classify a floating-point error raised while applying an operator."""
+    message = str(exc).lower()
+    if "overflow" in message:
+        return ExclusionReason.OVERFLOW
+    if "underflow" in message:
+        return ExclusionReason.UNDERFLOW
+    if "divide" in message or "invalid" in message:
+        return ExclusionReason.DOMAIN_ERROR
+    return ExclusionReason.NON_FINITE  # pragma: no cover - rare numpy conditions
+
+
+def _is_constant(variance: float, magnitude: float, variance_tol: float) -> bool:
+    """The :meth:`Evaluator._is_constant` verdict, from precomputed statistics."""
+    if math.isfinite(magnitude) and magnitude > 0.0:
+        return variance <= variance_tol * magnitude * magnitude
+    return variance <= variance_tol
+
+
+class BatchOutcome(NamedTuple):
+    """Result of :meth:`EvaluationBatch.run`.
+
+    Attributes:
+        kept: Positions, within the batch, of the nodes that survived.
+        values: ``(n_rows, len(kept))`` column-major matrix of their values,
+            or ``None`` once a caller has dropped it.
+        stats: :class:`~beamfeat.scoring.ColumnStats` of those columns.
+        rejections: ``(position, reason, detail, filtered)`` for each
+            rejected node, in position order.
+    """
+
+    kept: list[int]
+    values: np.ndarray | None
+    stats: ColumnStats
+    rejections: list[tuple[int, ExclusionReason, str, bool]]
+
+
+@dataclass(slots=True)
+class EvaluationBatch:
+    """Nodes planned by :meth:`Evaluator.plan_batch`, ready to compute.
+
+    Holds no reference to the evaluator, so it can be run in another thread
+    or process.
+
+    Attributes:
+        entries: Per node, either ``None`` (excluded at planning, with any
+            record already made), an array (a value known at planning), or
+            an ``(OperatorSpec, operands)`` pair to compute.
+        n_rows: Rows per column.
+        dtype: Working dtype.
+        variance_tol: Relative constancy threshold, as on :class:`Evaluator`.
+    """
+
+    entries: list[Any]
+    n_rows: int
+    dtype: np.dtype
+    variance_tol: float
+
+    def run(self) -> BatchOutcome:
+        """Apply the search-time filters and compute the surviving columns.
+
+        The checks, their order and the rejection details are those of
+        :meth:`Evaluator.evaluate`. The variance and magnitude behind the
+        constancy check are kept as :class:`~beamfeat.scoring.ColumnStats`,
+        so that a scorer can standardise the columns without computing
+        them again.
+        """
+        matrix = np.empty((self.n_rows, len(self.entries)), dtype=self.dtype, order="F")
+        positions: list[int] = []
+        rejections: list[tuple[int, ExclusionReason, str, bool]] = []
+        for position, entry in enumerate(self.entries):
+            if entry is None:
+                continue
+            if isinstance(entry, np.ndarray):
+                matrix[:, len(positions)] = entry
+                positions.append(position)
+                continue
+            spec, operands = entry
+            if spec.domain is not None and not spec.domain(*operands):
+                rejections.append(
+                    (position, ExclusionReason.DOMAIN_ERROR, f"input outside domain of {spec.name!r}", True)
+                )
+                continue
+            if spec.redundant is not None and spec.redundant(*operands):
+                rejections.append(
+                    (position, ExclusionReason.DUPLICATE, f"{spec.name!r} leaves its operand unchanged", True)
+                )
+                continue
+            with np.errstate(all="raise"):
+                try:
+                    values = spec.fn(*operands)
+                except FloatingPointError as exc:
+                    rejections.append((position, _floating_point_reason(exc), str(exc), False))
+                    continue
+            values = np.asarray(values, dtype=self.dtype)
+            if values.ndim != 1 or values.shape[0] != self.n_rows:  # pragma: no cover - defensive
+                raise NodeError(f"operator {spec.name!r} produced an array of shape {values.shape}")
+            matrix[:, len(positions)] = values
+            positions.append(position)
+
+        matrix = matrix[:, : len(positions)]
+        finite = np.isfinite(matrix).all(axis=0).tolist()
+        stats = column_stats(matrix)
+        variances = stats.variance.tolist()
+        magnitudes = stats.magnitude.tolist()
+
+        survivors: list[int] = []
+        for column, position in enumerate(positions):
+            variance = variances[column]
+            if not finite[column]:
+                n_bad = int(np.count_nonzero(~np.isfinite(matrix[:, column])))
+                rejections.append((position, ExclusionReason.NON_FINITE, f"{n_bad} non-finite value(s)", False))
+            elif not math.isfinite(variance):
+                rejections.append((position, ExclusionReason.OVERFLOW, "variance overflowed", True))
+            elif _is_constant(variance, magnitudes[column], self.variance_tol):
+                rejections.append((position, ExclusionReason.ZERO_VARIANCE, f"variance={variance:.3g}", True))
+            else:
+                survivors.append(column)
+
+        if len(survivors) < len(positions):
+            matrix = matrix[:, survivors]
+            stats = stats.take(survivors)
+        rejections.sort(key=lambda rejection: rejection[0])
+        return BatchOutcome([positions[column] for column in survivors], matrix, stats, rejections)

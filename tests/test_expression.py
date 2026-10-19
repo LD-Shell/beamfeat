@@ -413,6 +413,126 @@ class TestEvaluation:
 
 
 # --------------------------------------------------------------------------- #
+# Batches
+# --------------------------------------------------------------------------- #
+
+
+def _batch_nodes():
+    """Candidates covering every outcome: survivors and each kind of rejection."""
+    a, b, c, d, e = (leaf(name) for name in "abcde")
+    return [
+        combine("mul", a, b),
+        transform("log", e),  # domain: e has negatives
+        transform("reciprocal", d),  # domain: d has zeros
+        transform("abs", a),  # duplicate: a is never negative
+        transform("square", c),  # overflow
+        combine("mul", a, transform("reciprocal", a)),  # constant to rounding
+        transform("sqrt", a),
+        combine("sub", a, b),
+        transform("log", combine("sub", e, a)),  # domain, with a computed operand
+        combine("div", b, a),
+    ]
+
+
+@pytest.fixture
+def batch_data(rng):
+    n = 120
+    d = rng.uniform(1.0, 2.0, n)
+    d[::5] = 0.0
+    return {
+        "a": rng.uniform(1.0, 3.0, n),
+        "b": rng.uniform(1.0, 3.0, n),
+        "c": rng.uniform(1.4e154, 1.5e154, n),
+        "d": d,
+        "e": rng.normal(0.0, 1.0, n),
+    }
+
+
+def _log_entries(evaluator):
+    return [(record.node.name, record.reason, record.detail) for record in evaluator.log]
+
+
+class TestBatches:
+    def test_batch_matches_evaluate_many(self, batch_data):
+        nodes = _batch_nodes()
+        one_by_one = Evaluator(batch_data)
+        kept, matrix = one_by_one.evaluate_many(nodes)
+
+        batched = Evaluator(batch_data)
+        outcome = batched.plan_batch(nodes).run()
+        survivors = batched.commit_batch(nodes, outcome)
+
+        assert survivors == kept
+        np.testing.assert_array_equal(outcome.values, matrix)
+        assert _log_entries(batched) == _log_entries(one_by_one)
+        reasons = {record.reason for record in batched.log}
+        assert reasons >= {
+            ExclusionReason.DOMAIN_ERROR,
+            ExclusionReason.DUPLICATE,
+            ExclusionReason.OVERFLOW,
+            ExclusionReason.ZERO_VARIANCE,
+        }
+
+    def test_statistics_describe_the_survivors(self, batch_data):
+        evaluator = Evaluator(batch_data)
+        outcome = evaluator.plan_batch(_batch_nodes()).run()
+        for column in range(outcome.values.shape[1]):
+            values = outcome.values[:, column]
+            assert outcome.stats.variance[column] == np.var(values)
+            assert outcome.stats.magnitude[column] == np.mean(np.abs(values))
+
+    def test_failing_operand_is_recorded_at_planning(self, batch_data):
+        evaluator = Evaluator(batch_data)
+        bad_operand = transform("log", leaf("e"))
+        nodes = [transform("reciprocal", leaf("d")), transform("sqrt", bad_operand)]
+        batch = evaluator.plan_batch(nodes)
+        assert _log_entries(evaluator) == [("log(e)", ExclusionReason.DOMAIN_ERROR, "input outside domain of 'log'")]
+        assert batch.entries[1] is None
+        evaluator.commit_batch(nodes, batch.run())
+        assert [record.node.name for record in evaluator.log] == ["log(e)", "1/(d)"]
+
+    def test_known_failures_are_not_recorded_twice(self, batch_data):
+        evaluator = Evaluator(batch_data)
+        nodes = _batch_nodes()
+        evaluator.evaluate_many(nodes)
+        n_records = len(evaluator.log)
+        outcome = evaluator.plan_batch(nodes).run()
+        evaluator.commit_batch(nodes, outcome)
+        assert len(evaluator.log) == n_records
+
+    def test_cached_values_are_used(self, batch_data):
+        evaluator = Evaluator(batch_data)
+        node = combine("mul", leaf("a"), leaf("b"))
+        cached = evaluator.evaluate(node)
+        batch = evaluator.plan_batch([node, leaf("a")])
+        assert batch.entries[0] is cached
+        outcome = batch.run()
+        assert evaluator.commit_batch([node, leaf("a")], outcome) == [node, leaf("a")]
+
+    def test_batches_run_concurrently(self, batch_data):
+        """Running touches no evaluator state, so planned batches can share threads."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        evaluator = Evaluator(batch_data)
+        nodes = _batch_nodes()
+        batches = [evaluator.plan_batch(nodes[start : start + 3]) for start in range(0, len(nodes), 3)]
+        serial = [batch.run() for batch in batches]
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            threaded = list(pool.map(lambda batch: batch.run(), batches))
+        for one, other in zip(serial, threaded, strict=True):
+            assert one.kept == other.kept
+            assert one.rejections == other.rejections
+            np.testing.assert_array_equal(one.values, other.values)
+
+    def test_empty_batch(self, batch_data):
+        evaluator = Evaluator(batch_data)
+        outcome = evaluator.plan_batch([]).run()
+        assert outcome.kept == []
+        assert outcome.values.shape == (evaluator.n_rows, 0)
+        assert evaluator.commit_batch([], outcome) == []
+
+
+# --------------------------------------------------------------------------- #
 # Caching
 # --------------------------------------------------------------------------- #
 
