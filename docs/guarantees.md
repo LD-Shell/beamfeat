@@ -18,13 +18,13 @@ above q is not. All documentation and tests in beamfeat use this definition.
 
 **Statistic.** |Pearson correlation| (regression) or eta-squared
 (classification) between each candidate and the target — a fixed function of
-the data, which is the condition for a permutation test to be exact.
+the data, which is the condition for a permutation test to be valid.
 Statistics that re-tune themselves on the observed target (e.g. a
 cross-validated lasso penalty) violate exchangeability unless the tuning is
 repeated inside every permutation; beamfeat deliberately avoids them.
 
 **P-values.** Add-one estimator `(1 + #exceedances)/(B + 1)` (Phipson &
-Smyth, 2010): exact, and never zero. The floor `1/(B+1)` interacts with the
+Smyth, 2010): valid in finite samples, and never zero. The floor `1/(B+1)` interacts with the
 multiplicity correction — Benjamini–Hochberg needs the leading feature to
 reach `q/m`, Benjamini–Yekutieli the smaller `q/(m c(m))` — so B is
 auto-raised to twice the bound belonging to the *configured* correction
@@ -78,15 +78,17 @@ such features but certifies nothing; that trade is the design.
 
 ## Knockoff selector
 
-**Fixed-X** (Barber & Candès, 2015), used when `n ≥ 2p`: no distributional
+**Fixed-X** (Barber & Candès, 2015), used when `n > 2p`: no distributional
 assumption on the features — deterministic engineered columns are fine. The
 guarantee requires the linear model with Gaussian, homoskedastic noise. The
 construction's exchangeability identities `X̃'X̃ = X'X` and
-`X'X̃ = X'X − sI` are verified to numerical precision by the tests. On
+`X'X̃ = X'X − sI` are verified to numerical precision by the tests, also
+after the centring the lasso statistic applies (the knockoffs are built
+orthogonal to the intercept as well, which takes one row more than `2p`). On
 near-singular designs validity holds but `s → 0` and power degrades toward
 zero; a runtime warning says so.
 
-**Model-X Gaussian** (Candès et al., 2018), used only when `n < 2p`: assumes
+**Model-X Gaussian** (Candès et al., 2018), used only when `n ≤ 2p`: assumes
 jointly Gaussian features, which engineered features violate; a warning is
 recorded, and the permutation selector is recommended in this regime.
 

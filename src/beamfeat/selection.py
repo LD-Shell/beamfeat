@@ -8,10 +8,10 @@ spurious — and is explicit about the assumptions under which each guarantee
 holds.
 
 :class:`PermutationSelector` (default)
-    An exact permutation test of marginal association, corrected for
+    A permutation test of marginal association, corrected for
     multiplicity. The test statistic is a fixed function of the data
     (|Pearson correlation| for regression, eta-squared for classification),
-    so permuting the target yields exact p-values for the null hypothesis
+    so permuting the target yields p-values valid in finite samples for the null hypothesis
     that a feature is marginally independent of the target (Phipson & Smyth,
     2010). Multiplicity is handled by Benjamini-Hochberg, valid under
     positive regression dependence, or Benjamini-Yekutieli, valid under
@@ -29,14 +29,14 @@ holds.
     The knockoff filter. Two constructions are provided and routed
     automatically:
 
-    - **Fixed-X** (Barber & Candès, 2015), used when ``n >= 2p``. Treats the
+    - **Fixed-X** (Barber & Candès, 2015), used when ``n > 2p``. Treats the
       design as fixed and makes *no distributional assumption about the
       features* — deterministic engineered columns are fine. The guarantee
       requires the linear model ``y = X beta + noise`` with Gaussian,
       homoskedastic noise. On near-singular designs the construction remains
       valid but its power degrades toward zero, because the knockoffs become
       nearly identical to the originals.
-    - **Model-X Gaussian** (Candès et al., 2018), used when ``n < 2p``.
+    - **Model-X Gaussian** (Candès et al., 2018), used when ``n <= 2p``.
       Requires the features to be jointly Gaussian, which engineered
       features are not; a warning is recorded when the design is visibly
       degenerate.
@@ -101,7 +101,7 @@ class SelectionResult:
         statistics: Importance statistic per feature. For the permutation
             selector this is ``1 - p_value`` so that larger is better; for
             knockoffs it is the antisymmetric statistic W.
-        p_values: Exact permutation p-values, where the method produces them.
+        p_values: Permutation p-values, valid in finite samples, where the method produces them.
         threshold: The data-dependent cut applied to :attr:`statistics`.
             ``inf`` means nothing met the criterion.
         target_fdr: The nominal FDR level requested.
@@ -188,6 +188,17 @@ class Selector(ABC):
             raise ValueError(f"target has {target.shape[0]} rows, features have {features.shape[0]}")
         if not np.all(np.isfinite(features)):
             raise ValueError("features contains non-finite values")
+        # Unchecked, a NaN in the target would make every permutation statistic
+        # NaN: no null draw would count as an exceedance and every candidate
+        # would be selected at the p-value floor. As a class label it would
+        # form a class of its own.
+        if target.dtype.kind in "fc":
+            if not np.all(np.isfinite(target)):
+                raise ValueError("target contains non-finite values")
+        elif target.dtype.kind == "O" and any(
+            value is None or (isinstance(value, float) and not np.isfinite(value)) for value in target
+        ):
+            raise ValueError("target contains missing or non-finite values")
         return features, target
 
     def _lasso_importance(self, design: np.ndarray, target: np.ndarray) -> np.ndarray:
@@ -291,13 +302,13 @@ def _benjamini_yekutieli(p_values: np.ndarray, target_fdr: float) -> np.ndarray:
 
 
 class PermutationSelector(Selector):
-    """Exact permutation test of marginal association, with FDR correction.
+    """Permutation test of marginal association, with FDR correction.
 
     **Statistic.** For regression, the absolute Pearson correlation between
     each feature and the target; for classification, eta-squared (the
     between-class share of each feature's variance). Both are fixed functions
     of ``(X_j, y)``, which is the condition for a permutation test to be
-    exact: comparing the observed statistic to the same statistic computed on
+    valid: comparing the observed statistic to the same statistic computed on
     ``(X_j, pi(y))`` over random permutations ``pi`` yields a valid p-value
     for the null that ``X_j`` is marginally independent of ``y``, via the
     add-one estimator ``(1 + #exceedances) / (B + 1)`` (Phipson & Smyth,
@@ -445,6 +456,15 @@ class PermutationSelector(Selector):
                     "harmonic factor at the cost of assuming positive dependence"
                 )
                 logger.warning("[beamfeat.selection] %s", messages[-1])
+        elif not self.auto_permutations and n_permutations < required:
+            messages.append(
+                f"n_permutations={n_permutations} with auto_permutations=False is below the "
+                f"~{required} that {self.correction.upper()} needs for {n_features} features at "
+                f"target FDR {self.target_fdr}; selection may be impossible, and an empty "
+                "selection would reflect the budget rather than an absent signal. Raise "
+                "n_permutations or set auto_permutations=True"
+            )
+            logger.warning("[beamfeat.selection] %s", messages[-1])
 
         standardised = _standardise(features)
 
@@ -481,7 +501,7 @@ class PermutationSelector(Selector):
                     null_counts += np.sum(null_stats >= observed[:, None], axis=1)
                     remaining -= current
 
-        # Add-one estimator: exact validity, and p-values can never be zero.
+        # Add-one estimator: valid in finite samples, and p-values can never be zero.
         p_values = (null_counts + 1.0) / (n_permutations + 1.0)
 
         correct = _benjamini_hochberg if self.correction == "bh" else _benjamini_yekutieli
@@ -541,7 +561,7 @@ def knockoff_threshold(statistics: np.ndarray, target_fdr: float, offset: Offset
 class KnockoffSelector(Selector):
     """Knockoff filter with automatic fixed-X / model-X routing.
 
-    **Fixed-X** (Barber & Candès, 2015) is used when ``n >= 2p``. The design
+    **Fixed-X** (Barber & Candès, 2015) is used when ``n > 2p``. The design
     is treated as fixed, so no assumption about the distribution of the
     features is required — deterministic engineered columns are admissible.
     The finite-sample FDR guarantee (with ``offset=1``) requires the linear
@@ -550,7 +570,7 @@ class KnockoffSelector(Selector):
     shrinks toward zero, the knockoffs become nearly identical to the
     originals, and power degrades toward zero; a warning records this.
 
-    **Model-X Gaussian** (Candès et al., 2018) is used when ``n < 2p``, where
+    **Model-X Gaussian** (Candès et al., 2018) is used when ``n <= 2p``, where
     the fixed-X construction does not exist. It requires the features to be
     jointly Gaussian, an assumption engineered features violate; a warning is
     recorded when the design is visibly degenerate. Prefer
@@ -635,12 +655,14 @@ class KnockoffSelector(Selector):
                 "knockoff FDR guarantees are stated for the Gaussian linear model; "
                 "the classification path is heuristic"
             )
-        if self.offset == 1 and n_features < 1.0 / self.target_fdr:
+        # knockoff+ needs (1 + #negatives) / #positives <= q, so at least
+        # ceil(1/q) positive statistics; the tolerance keeps 1/0.1 at 10.
+        minimum = int(np.ceil(1.0 / self.target_fdr - 1e-9))
+        if self.offset == 1 and n_features < minimum:
             messages.append(
                 f"offset=1 (knockoff+) with {n_features} features at target FDR "
-                f"{self.target_fdr}: selection requires more than "
-                f"{1.0 / self.target_fdr:.0f} features to be satisfiable; consider "
-                "offset=0 or a higher target_fdr"
+                f"{self.target_fdr}: selection requires at least {minimum} features "
+                "to be satisfiable; consider offset=0 or a higher target_fdr"
             )
         if smallest < 1e-6:
             messages.append(
@@ -656,12 +678,20 @@ class KnockoffSelector(Selector):
     def _fixed_x_knockoffs(self, standardised: np.ndarray) -> np.ndarray:
         """Fixed-X equicorrelated knockoffs (Barber & Candès, 2015).
 
-        Requires ``n >= 2p``. Constructs ``X~ = X (I - Sigma^-1 S) + U C``
+        Requires ``n >= 2p + 1``. Constructs ``X~ = X (I - Sigma^-1 S) + U C``
         where ``S = s I`` with ``s = min(2 lambda_min, 1)``, ``U`` is an
         orthonormal basis of a p-dimensional subspace orthogonal to the
-        column span of ``X``, and ``C' C = 2 S - S Sigma^-1 S``. The result
-        satisfies ``X~' X~ = X' X`` and ``X' X~ = X' X - S``, which is the
-        exchangeability property the filter's guarantee rests on.
+        column span of ``X`` and to the constant vector, and
+        ``C' C = 2 S - S Sigma^-1 S``. The result satisfies ``X~' X~ = X' X``
+        and ``X' X~ = X' X - S``, which is the exchangeability property the
+        filter's guarantee rests on.
+
+        ``U`` is kept orthogonal to the constant vector so the knockoffs are
+        centred like the standardised design. The lasso that computes the
+        statistic fits an intercept, which centres every column; knockoffs
+        with non-zero means would lose part of their norm to that centring
+        and the identities above would no longer hold for what the lasso
+        sees. That extra direction is why one more row than ``2p`` is needed.
         """
         n_samples, n_features = standardised.shape
         covariance, smallest, precision = self._covariance(standardised)
@@ -673,7 +703,8 @@ class KnockoffSelector(Selector):
         gram_c = 2.0 * s_matrix - s_matrix @ precision @ s_matrix
         c_factor = self._matrix_sqrt(gram_c)
 
-        # Orthonormal basis of a p-dimensional subspace orthogonal to col(X).
+        # Orthonormal basis of a p-dimensional subspace orthogonal to col(X)
+        # and to the constant vector (see the docstring).
         # Any valid basis yields a valid knockoff copy; the seed only fixes
         # which one. Two robustness measures matter here:
         #
@@ -687,7 +718,7 @@ class KnockoffSelector(Selector):
         #    projection and re-orthonormalisation, then verified. This turns a
         #    silent geometry failure into an explicit error.
         rng = np.random.default_rng(np.random.SeedSequence(self.random_state).spawn(1)[0])
-        q_x, _ = np.linalg.qr(standardised)
+        q_x, _ = np.linalg.qr(np.column_stack([np.ones(n_samples), standardised]))
         raw = rng.standard_normal((n_samples, n_features))
         raw -= q_x @ (q_x.T @ raw)
         u_basis, _ = np.linalg.qr(raw)
@@ -717,7 +748,11 @@ class KnockoffSelector(Selector):
         conditional_cov = 2.0 * np.diag(s_diag) - np.diag(s_diag) @ precision @ np.diag(s_diag)
         factor = self._matrix_sqrt(conditional_cov)
 
-        rng = np.random.default_rng(self.random_state)
+        # A seed spawned from random_state, as for the fixed-X basis: drawn from
+        # random_state itself, the noise would equal a data matrix generated
+        # from the same seed and shape, and the knockoffs would be a fixed
+        # linear image of the features instead of an independent copy.
+        rng = np.random.default_rng(np.random.SeedSequence(self.random_state).spawn(1)[0])
         noise = rng.standard_normal((n_samples, n_features))
         return conditional_mean + noise @ factor.T
 
@@ -729,18 +764,19 @@ class KnockoffSelector(Selector):
         standardised = _standardise(features)
 
         use_fixed = self.construction == "fixed" or (
-            self.construction == "auto" and n_samples >= 2 * n_features
+            self.construction == "auto" and n_samples > 2 * n_features
         )
-        if self.construction == "fixed" and n_samples < 2 * n_features:
+        if self.construction == "fixed" and n_samples <= 2 * n_features:
             raise ValueError(
-                f"fixed-X knockoffs require n >= 2p; got n={n_samples}, p={n_features}"
+                f"fixed-X knockoffs require n >= 2p + 1 (a complement orthogonal to the "
+                f"p columns and the intercept); got n={n_samples}, p={n_features}"
             )
 
         _, smallest, _ = self._covariance(standardised)
         messages = self._check_common(smallest, n_features) if self.warn_on_violation else []
         if not use_fixed and self.warn_on_violation:
             messages.append(
-                "n < 2p: falling back to model-X Gaussian knockoffs, which assume "
+                "n <= 2p: falling back to model-X Gaussian knockoffs, which assume "
                 "jointly Gaussian features — an assumption engineered features "
                 "violate; prefer the permutation selector in this regime"
             )
@@ -795,6 +831,8 @@ _SELECTORS: dict[str, type[Selector]] = {
 }
 
 _ALIASES = {"knockoffs": "knockoff", "model_x": "knockoff", "fixed_x": "knockoff", "perm": "permutation"}
+# Aliases that name a knockoff construction select it, unless one is passed explicitly.
+_ALIAS_KWARGS = {"model_x": {"construction": "gaussian"}, "fixed_x": {"construction": "fixed"}}
 
 
 def make_selector(
@@ -804,12 +842,17 @@ def make_selector(
     random_state: int | None = 0,
     **kwargs,
 ) -> Selector:
-    """Resolve a selector name or instance into a :class:`Selector`."""
+    """Resolve a selector name or instance into a :class:`Selector`.
+
+    An instance is returned as it is: its own settings (``target_fdr``
+    among them) apply, and the other arguments here are not used.
+    """
     if isinstance(selector, Selector):
         return selector
     if not isinstance(selector, str):
         raise TypeError(f"selector must be a string or Selector, got {type(selector).__name__}")
     key = _ALIASES.get(selector.lower(), selector.lower())
+    kwargs = {**_ALIAS_KWARGS.get(selector.lower(), {}), **kwargs}
     selector_class = _SELECTORS.get(key)
     if selector_class is None:
         known = sorted(set(_SELECTORS) | set(_ALIASES))

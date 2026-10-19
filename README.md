@@ -38,7 +38,7 @@ pip install "beamfeat[units]"   # + pint, for unit-aware search (units as
 pip install "beamfeat[all]"     # + sympy display support and test deps
 ```
 
-Python ≥ 3.10. There are **no upper version pins**: the 436 tests pass on
+Python ≥ 3.10. There are **no upper version pins**: the 456 tests pass on
 Python 3.10 to 3.15, from scikit-learn 1.6.1 with numpy 1.26 through
 scikit-learn 1.9.1 with numpy 2.5. Running the test suite or reproducing
 the benchmarks needs a little more setup, described in
@@ -72,17 +72,17 @@ depends on how many distinct dimensions the columns carry.
 
 ## The guarantees, stated precisely
 
-- **Permutation selector (default).** Tests marginal association with an
-  exact permutation test: the statistic (|Pearson r| for regression,
+- **Permutation selector (default).** Tests marginal association with a
+  permutation test whose p-values are valid in finite samples: the statistic (|Pearson r| for regression,
   eta-squared for classification) is a fixed function of the data, and
   p-values use the add-one estimator of [Phipson & Smyth (2010)](https://doi.org/10.2202/1544-6115.1585). Multiplicity
   is corrected with Benjamini–Yekutieli by default (valid under arbitrary
   dependence); Benjamini–Hochberg is available and is valid under positive
   dependence (PRDS).
 - **Knockoff selector.** Fixed-X knockoffs ([Barber & Candès, 2015](https://doi.org/10.1214/15-AOS1337)) when
-  `n ≥ 2p`: no distributional assumption on the features — engineered columns
+  `n > 2p`: no distributional assumption on the features — engineered columns
   are fine — with the guarantee requiring Gaussian noise in the linear model.
-  Model-X Gaussian knockoffs ([Candès et al., 2018](https://doi.org/10.1111/rssb.12265)) only as an `n < 2p`
+  Model-X Gaussian knockoffs ([Candès et al., 2018](https://doi.org/10.1111/rssb.12265)) only as an `n ≤ 2p`
   fallback, with a warning, since engineered features violate its Gaussianity
   assumption.
 - **Selective inference.** Search retains candidates *because* they correlate
@@ -184,7 +184,7 @@ benchmark scripts, not asserted:
   marginally-quiet quadratic is priced by the guarantee itself) and an
   achieved 0.780 ± 0.013: about 0.086 lost to what marginal screening cannot
   see, 0.094 to the search — stated rather than hidden.
-- Test suite: 436 tests at 95% statement coverage (a 90% floor is enforced
+- Test suite: 456 tests at 95% statement coverage (a 90% floor is enforced
   in CI), including scikit-learn's full estimator-conformance checks.
 - Selection-only baseline (knockpy on raw columns, modified-FDR offset —
   the only satisfiable configuration at these dimensionalities): 0/15

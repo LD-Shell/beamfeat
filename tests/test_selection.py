@@ -60,8 +60,11 @@ class TestCorrections:
         assert _benjamini_hochberg(np.full(5, 0.9), 0.1).size == 0
 
     def test_bh_step_up_exceeds_bonferroni(self):
-        p_values = np.array([0.001, 0.008, 0.02, 0.5, 0.7])
-        assert _benjamini_hochberg(p_values, 0.1).size >= 2
+        # Bonferroni at 0.1/5 = 0.02 keeps only the first; the step-up keeps
+        # three, since 0.05 <= 3 * 0.1 / 5.
+        p_values = np.array([0.001, 0.03, 0.05, 0.5, 0.7])
+        assert np.sum(p_values <= 0.1 / p_values.size) == 1
+        np.testing.assert_array_equal(np.sort(_benjamini_hochberg(p_values, 0.1)), [0, 1, 2])
 
     def test_by_is_never_more_permissive_than_bh(self):
         rng = np.random.default_rng(0)
@@ -289,6 +292,21 @@ class TestFixedXKnockoffs:
             standardised.T @ knockoffs / n - (gram - s_value * np.eye(20))
         ).max() < 1e-4
 
+    def test_identities_survive_the_lasso_intercept(self):
+        """The lasso statistic fits an intercept, which centres every column.
+        The knockoffs must already be centred, or centring changes their Gram
+        matrix and the identities no longer hold for what the lasso sees."""
+        from beamfeat.selection import _standardise
+
+        rng = np.random.default_rng(0)
+        standardised = _standardise(rng.standard_normal((120, 50)))
+        selector = KnockoffSelector(random_state=0)
+        knockoffs = selector._fixed_x_knockoffs(standardised)
+        assert np.abs(knockoffs.mean(axis=0)).max() < 1e-10
+        centred = knockoffs - knockoffs.mean(axis=0)
+        n = standardised.shape[0]
+        assert np.abs(centred.T @ centred / n - standardised.T @ standardised / n).max() < 1e-4
+
     def test_basis_robust_to_seed_collision_with_data(self):
         """A Gaussian draw that coincides with the data matrix must not
         produce a basis inside col(X): QR of the resulting rank-deficient
@@ -340,6 +358,19 @@ class TestFixedXKnockoffs:
                 rng.standard_normal((30, 20)), rng.standard_normal(30)
             )
 
+    def test_n_equal_to_2p_is_one_row_short(self):
+        """The complement must also be orthogonal to the intercept, so fixed-X
+        needs 2p + 1 rows: at exactly 2p, auto routes to model-X and an
+        explicit fixed construction is refused."""
+        rng = np.random.default_rng(9)
+        features, target = rng.standard_normal((40, 20)), rng.standard_normal(40)
+        result = KnockoffSelector().select(features, target)
+        assert any("model-X" in message for message in result.warnings_raised)
+        with pytest.raises(ValueError, match="2p \\+ 1"):
+            KnockoffSelector(construction="fixed").select(features, target)
+        wider = KnockoffSelector().select(rng.standard_normal((41, 20)), rng.standard_normal(41))
+        assert not any("model-X" in message for message in wider.warnings_raised)
+
     def test_near_singular_design_warns_about_power(self):
         rng = np.random.default_rng(10)
         base = rng.uniform(1, 5, (300, 3))
@@ -356,7 +387,37 @@ class TestFixedXKnockoffs:
         rng = np.random.default_rng(12)
         features, target, _ = _gaussian_design(rng, n=200, n_signal=2, n_noise=3)
         result = KnockoffSelector(target_fdr=0.1, offset=1).select(features, target)
-        assert any("offset=1" in message for message in result.warnings_raised)
+        assert any("at least 10 features" in message for message in result.warnings_raised)
+
+    @pytest.mark.parametrize(("target_fdr", "minimum"), [(0.1, 10), (0.3, 4), (0.2, 5)])
+    def test_knockoff_plus_floor_is_ceil_of_one_over_q(self, target_fdr, minimum):
+        """(1 + #negatives) / #positives <= q needs at least ceil(1/q)
+        positives: one feature fewer cannot select, exactly that many can."""
+        rng = np.random.default_rng(14)
+        for p, satisfiable in ((minimum - 1, False), (minimum, True)):
+            features = rng.standard_normal((400, p))
+            target = features @ np.full(p, 2.0) + rng.standard_normal(400)
+            result = KnockoffSelector(target_fdr=target_fdr).select(features, target)
+            warned = any("to be satisfiable" in message for message in result.warnings_raised)
+            assert warned is not satisfiable
+            assert (result.n_selected == p) is satisfiable
+
+    def test_model_x_noise_independent_of_data_from_the_same_seed(self):
+        """Drawn from random_state itself, the model-X noise equalled a data
+        matrix generated from the same seed and shape, making the knockoffs a
+        fixed linear image of the features."""
+        from beamfeat.selection import _standardise
+
+        n, p = 60, 40
+        raw = np.random.default_rng(0).standard_normal((n, p))
+        standardised = _standardise(raw)
+        selector = KnockoffSelector(random_state=0)
+        _, smallest, precision = selector._covariance(standardised)
+        s_diag = np.diag(np.full(p, min(2.0 * max(smallest, 1e-10), 1.0)))
+        mean = standardised - standardised @ precision @ s_diag
+        factor = selector._matrix_sqrt(2.0 * s_diag - s_diag @ precision @ s_diag)
+        noise = np.linalg.lstsq(factor, (selector._model_x_knockoffs(standardised) - mean).T, rcond=None)[0].T
+        assert not np.allclose(noise, raw, atol=1e-3)
 
     def test_classification_records_heuristic_warning(self):
         rng = np.random.default_rng(13)
@@ -382,6 +443,13 @@ class TestFactory:
     )
     def test_resolves_aliases(self, alias, expected):
         assert make_selector(alias).name == expected
+
+    @pytest.mark.parametrize(("alias", "construction"), [("fixed_x", "fixed"), ("model_x", "gaussian"), ("knockoff", "auto")])
+    def test_construction_aliases_select_their_construction(self, alias, construction):
+        assert make_selector(alias).construction == construction
+
+    def test_explicit_construction_overrides_the_alias(self):
+        assert make_selector("fixed_x", construction="auto").construction == "auto"
 
     def test_instance_passes_through(self):
         selector = PermutationSelector()
@@ -443,6 +511,30 @@ class TestValidation:
         features[3, 2] = np.nan
         with pytest.raises(ValueError, match="non-finite"):
             _fast(name).select(features, rng.standard_normal(100))
+
+    @pytest.mark.parametrize("name", ALL_SELECTORS)
+    @pytest.mark.parametrize("bad", [np.nan, np.inf, -np.inf])
+    def test_non_finite_target_rejected(self, name, bad):
+        """A NaN target made every permutation statistic NaN, so no null draw
+        counted as an exceedance and every candidate was selected."""
+        rng = np.random.default_rng(0)
+        target = rng.standard_normal(100)
+        target[7] = bad
+        with pytest.raises(ValueError, match="target contains"):
+            _fast(name).select(rng.standard_normal((100, 5)), target)
+
+    def test_missing_class_label_rejected(self):
+        rng = np.random.default_rng(0)
+        labels = np.array(["a", "b"] * 50, dtype=object)
+        labels[4] = None
+        with pytest.raises(ValueError, match="target contains"):
+            PermutationSelector(problem_type="classification").select(rng.standard_normal((100, 3)), labels)
+
+    def test_string_class_labels_still_accepted(self):
+        rng = np.random.default_rng(0)
+        labels = np.array(["a", "b"] * 50, dtype=object)
+        result = PermutationSelector(problem_type="classification").select(rng.standard_normal((100, 3)), labels)
+        assert result.n_candidates == 3
 
     @pytest.mark.parametrize("name", ALL_SELECTORS)
     def test_constant_column_handled(self, name):
@@ -541,6 +633,23 @@ class TestPermutationResolution:
         was already correct."""
         selector = PermutationSelector(target_fdr=0.1, correction="bh")
         assert selector._required_permutations(500) == int(np.ceil(2 * 500 / 0.1))
+
+    def test_fixed_budget_below_the_bound_warns(self):
+        """With auto_permutations off, a budget whose floor 1/(B+1) cannot
+        clear the correction's threshold used to return an empty selection
+        in silence."""
+        rng = np.random.default_rng(0)
+        features, target = self._single_signal(rng, n=300, m=100)
+        result = PermutationSelector(n_permutations=200, auto_permutations=False).select(features, target)
+        assert result.n_selected == 0
+        assert any("auto_permutations=False" in message for message in result.warnings_raised)
+
+    def test_fixed_budget_above_the_bound_is_silent(self):
+        rng = np.random.default_rng(0)
+        features, target = self._single_signal(rng, n=300, m=100)
+        result = PermutationSelector(n_permutations=3000, auto_permutations=False).select(features, target)
+        assert not result.warnings_raised
+        assert 0 in result.selected
 
     def test_unsatisfiable_budget_names_the_correction(self):
         rng = np.random.default_rng(0)
