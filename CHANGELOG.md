@@ -21,6 +21,37 @@ Notable changes to `beamfeat`. Format follows
   three estimators.
 - The guide shows how to export the features to NumPy, JAX or PyTorch with
   `sympy.lambdify` on `to_sympy()`.
+- `n_jobs` on `BeamSearch`, `BeamFeatTransformer`, `BeamFeatRegressor` and
+  `BeamFeatClassifier` (default 1). A depth's candidates are evaluated and
+  scored in chunks on joblib threads; `GradientBoostingScorer`, whose fits
+  hold the GIL, scores on worker processes, and `MutualInformationScorer`
+  receives `n_jobs` through the joblib backend. Depths under 4096 candidates
+  stay in the calling thread unless the scorer fits models. The result is
+  identical for every value, for the scorers that draw random numbers too: no
+  seed depends on a worker or a chunk.
+- `BeamSearch(chunk_size=...)`, the candidates evaluated and scored together;
+  by default as many as fit in 8 MiB.
+- `Scorer.prepare`, `Scorer.score_prepared`, `Scorer.scores_by_column` and the
+  `separable` flag, set on the correlation, Spearman and gradient-boosting
+  scorers, so that a round can be scored in pieces; `scoring.ColumnStats` and
+  `column_stats`; `Evaluator.plan_batch`, `EvaluationBatch.run` and
+  `Evaluator.commit_batch`.
+
+### Changed
+
+- The search evaluates and scores each depth in chunks and keeps only the
+  scores; the candidates the redundancy pass reaches are evaluated again.
+  Peak memory no longer grows with `max_candidates_per_depth`: a default fit
+  on 1000 columns and 600 rows peaked at 2.6 GB and now at 0.35 GB.
+  `MutualInformationScorer`, whose noise is drawn for the whole batch, and
+  custom scorers that do not declare `separable` still receive a whole depth.
+- A candidate's mean, variance and magnitude are computed once, for the
+  constancy filter and the scorer, and columns are standardised in blocks
+  rather than one at a time. When the depth-1 ceiling can bind, the round is
+  proposed in score order first rather than proposed in column order and
+  rebuilt. The same fit takes 7 s rather than 29 s, and one on 300 columns
+  3.3 s rather than 19 s. Features, p-values and predictions are unchanged,
+  as are search scores and the evaluation log, to the last bit.
 
 ## [0.4.5] - 2026-10-19
 
