@@ -978,7 +978,12 @@ class Evaluator:
         variance_tol: Relative constancy threshold. A column is treated as
             constant when its variance falls below ``variance_tol`` times the
             square of its mean magnitude, so the verdict does not depend on
-            the unit the caller happened to choose.
+            the unit the caller happened to choose. Defaults to 1e-24 for
+            float64, a spread twelve orders below the magnitude: the cut
+            :func:`~beamfeat.scoring.is_constant` applies, so the columns the
+            search drops as constant are the ones the fit-time warning names.
+            Narrower dtypes default to 1e-10, as their rounding noise alone
+            exceeds that cut.
     """
 
     __slots__ = (
@@ -1002,12 +1007,14 @@ class Evaluator:
         units: Mapping[str, Any] | None = None,
         dtype: np.dtype | type = np.float64,
         cache_size: int = 4096,
-        variance_tol: float = 1e-10,
+        variance_tol: float | None = None,
     ) -> None:
         if cache_size < 1:
             raise ValueError("cache_size must be at least 1")
         self._dtype = np.dtype(dtype)
         self.cache_size = int(cache_size)
+        if variance_tol is None:
+            variance_tol = 1e-24 if self._dtype.itemsize >= 8 else 1e-10
         self.variance_tol = float(variance_tol)
         self.log = EvaluationLog()
         # Cached arrays, each with whether it passed the search-time filters.

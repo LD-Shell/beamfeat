@@ -620,6 +620,19 @@ class TestExclusion:
         assert ev.evaluate(constant) is None
         assert len(ev.log) == 1
 
+    def test_default_constancy_cut_matches_is_constant(self, rng):
+        """The search must drop as constant exactly the columns the fit-time
+        warning reports, no more: a temperature held to a millionth of its
+        value still varies."""
+        from beamfeat.scoring import is_constant
+
+        for spread in (1e-15, 1e-13, 1e-11, 1e-6, 1e-3):
+            column = 293.15 * (1.0 + spread * rng.standard_normal(200))
+            ev = Evaluator({"t": column, "x": rng.normal(size=200)})
+            assert (ev.evaluate(leaf("t")) is None) == is_constant(column), spread
+        assert Evaluator({"t": column}).variance_tol == 1e-24
+        assert Evaluator({"t": column}, dtype=np.float32).variance_tol == 1e-10
+
     def test_variance_tolerance_is_configurable(self, rng):
         """The tolerance is relative to the column's magnitude, so the
         verdict survives a change of units."""
