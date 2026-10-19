@@ -33,9 +33,9 @@ holds.
       design as fixed and makes *no distributional assumption about the
       features* — deterministic engineered columns are fine. The guarantee
       requires the linear model ``y = X beta + noise`` with Gaussian,
-      homoskedastic noise. On near-singular designs the construction remains
-      valid but its power degrades toward zero, because the knockoffs become
-      nearly identical to the originals.
+      homoskedastic noise, and a design of full column rank. Columns that
+      are constant or linearly dependent on earlier ones are left out of the
+      construction and cannot be selected (see :class:`KnockoffSelector`).
     - **Model-X Gaussian** (Candès et al., 2018), used when ``n <= 2p``.
       Requires the features to be jointly Gaussian, which engineered
       features are not; a warning is recorded when the design is visibly
@@ -90,6 +90,13 @@ logger = logging.getLogger(__name__)
 
 ProblemType = Literal["regression", "classification"]
 Offset = Literal[0, 1]
+
+# Smallest eigenvalue of the standardised design covariance at which knockoffs
+# are still built for every column. It equals the default covariance
+# shrinkage: below it the shrunken inverse no longer reproduces the
+# exchangeability identities, and in simulation the realised FDR of knockoff+
+# rose from below 0.05 to about 0.3 as the eigenvalue fell past it.
+_SINGULAR_TOL = 1e-6
 
 
 @dataclass(slots=True)
@@ -565,10 +572,21 @@ class KnockoffSelector(Selector):
     is treated as fixed, so no assumption about the distribution of the
     features is required — deterministic engineered columns are admissible.
     The finite-sample FDR guarantee (with ``offset=1``) requires the linear
-    model ``y = X beta + eps`` with i.i.d. Gaussian noise. On a near-singular
-    design the construction is still valid but the equicorrelated ``s``
-    shrinks toward zero, the knockoffs become nearly identical to the
-    originals, and power degrades toward zero; a warning records this.
+    model ``y = X beta + eps`` with i.i.d. Gaussian noise, and a design of
+    full column rank.
+
+    **Rank-deficient designs.** When the design covariance has an eigenvalue
+    below 1e-6 — a constant column, a duplicate, or a column that is a linear
+    combination of others, all common among constructed candidates — every
+    valid knockoff of the columns involved equals the column itself, and the
+    equicorrelated ``s`` makes every knockoff nearly equal its original. The
+    lasso statistic is then decided by its tie-breaking between identical
+    columns, which favours the originals, so knockoff+ selects nulls. The
+    model-X construction fails the same way. Columns are therefore dropped,
+    latest first, until the remaining covariance is well conditioned; the
+    dropped columns get the statistic ``W = 0``, so they cannot be selected,
+    and the warning lists them. The guarantee then covers the retained
+    columns, and the fixed-X / model-X routing uses their count.
 
     **Model-X Gaussian** (Candès et al., 2018) is used when ``n <= 2p``, where
     the fixed-X construction does not exist. It requires the features to be
@@ -648,7 +666,29 @@ class KnockoffSelector(Selector):
         values, vectors = np.linalg.eigh(symmetric)
         return vectors @ np.diag(np.sqrt(np.clip(values, 0.0, None))) @ vectors.T
 
-    def _check_common(self, smallest: float, n_features: int) -> list[str]:
+    @staticmethod
+    def _independent_columns(standardised: np.ndarray) -> np.ndarray:
+        """Indices of the columns knockoffs are built for.
+
+        While the covariance of the retained columns has an eigenvalue below
+        ``_SINGULAR_TOL``, the latest column carrying a substantial share of
+        its eigenvector is dropped. Each drop removes one direction of the
+        (near) null space, so earlier columns are kept in preference to later
+        ones, and a constant column, whose standardised form is zero, is
+        always dropped.
+        """
+        n_samples = standardised.shape[0]
+        gram = standardised.T @ standardised / n_samples
+        keep = np.arange(standardised.shape[1])
+        while keep.size:
+            values, vectors = np.linalg.eigh(gram[np.ix_(keep, keep)])
+            if values[0] >= _SINGULAR_TOL:
+                break
+            weights = np.abs(vectors[:, 0])
+            keep = np.delete(keep, np.flatnonzero(weights >= 0.5 * weights.max())[-1])
+        return keep
+
+    def _check_common(self, n_features: int) -> list[str]:
         messages: list[str] = []
         if self.problem_type == "classification":
             messages.append(
@@ -663,13 +703,6 @@ class KnockoffSelector(Selector):
                 f"offset=1 (knockoff+) with {n_features} features at target FDR "
                 f"{self.target_fdr}: selection requires at least {minimum} features "
                 "to be satisfiable; consider offset=0 or a higher target_fdr"
-            )
-        if smallest < 1e-6:
-            messages.append(
-                f"design covariance is near-singular (min eigenvalue {smallest:.2e}); "
-                "the knockoff construction remains valid for fixed-X but its power "
-                "degrades toward zero, since knockoffs become nearly identical to the "
-                "originals"
             )
         return messages
 
@@ -763,17 +796,33 @@ class KnockoffSelector(Selector):
         n_samples, n_features = features.shape
         standardised = _standardise(features)
 
+        _, smallest, _ = self._covariance(standardised)
+        keep = np.arange(n_features)
+        if smallest < _SINGULAR_TOL:
+            keep = self._independent_columns(standardised)
+        dropped = np.setdiff1d(np.arange(n_features), keep)
+        n_kept = keep.size
+
         use_fixed = self.construction == "fixed" or (
-            self.construction == "auto" and n_samples > 2 * n_features
+            self.construction == "auto" and n_samples > 2 * n_kept
         )
-        if self.construction == "fixed" and n_samples <= 2 * n_features:
+        if self.construction == "fixed" and n_samples <= 2 * n_kept:
+            before = f" ({n_features} before dropping dependent columns)" if dropped.size else ""
             raise ValueError(
                 f"fixed-X knockoffs require n >= 2p + 1 (a complement orthogonal to the "
-                f"p columns and the intercept); got n={n_samples}, p={n_features}"
+                f"p columns and the intercept); got n={n_samples}, p={n_kept}{before}"
             )
 
-        _, smallest, _ = self._covariance(standardised)
-        messages = self._check_common(smallest, n_features) if self.warn_on_violation else []
+        messages = self._check_common(n_kept) if self.warn_on_violation else []
+        if dropped.size and self.warn_on_violation:
+            listed = ", ".join(map(str, dropped[:10])) + (", ..." if dropped.size > 10 else "")
+            messages.append(
+                f"design covariance is near-singular (min eigenvalue {smallest:.2e}): "
+                f"{dropped.size} column(s) are constant or linearly dependent on earlier ones. "
+                "Their knockoffs would equal the originals and the lasso's tie-breaking would "
+                "decide the statistics, so they were left out of the knockoff construction "
+                f"and cannot be selected (columns {listed})"
+            )
         if not use_fixed and self.warn_on_violation:
             messages.append(
                 "n <= 2p: falling back to model-X Gaussian knockoffs, which assume "
@@ -783,11 +832,13 @@ class KnockoffSelector(Selector):
         for message in messages:
             logger.warning("[beamfeat.selection] %s", message)
 
-        knockoffs = self._fixed_x_knockoffs(standardised) if use_fixed else self._model_x_knockoffs(standardised)
-
-        design = np.column_stack([standardised, knockoffs])
-        importance = self._lasso_importance(design, target)
-        statistics = importance[:n_features] - importance[n_features:]
+        statistics = np.zeros(n_features)
+        if n_kept:
+            retained = standardised[:, keep]
+            knockoffs = self._fixed_x_knockoffs(retained) if use_fixed else self._model_x_knockoffs(retained)
+            design = np.column_stack([retained, knockoffs])
+            importance = self._lasso_importance(design, target)
+            statistics[keep] = importance[:n_kept] - importance[n_kept:]
 
         threshold = knockoff_threshold(statistics, self.target_fdr, self.offset)
         selected = np.flatnonzero(statistics >= threshold) if np.isfinite(threshold) else np.empty(0, dtype=int)

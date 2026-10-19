@@ -382,6 +382,60 @@ class TestFixedXKnockoffs:
         target = base[:, 0] + rng.normal(0, 0.1, 300)
         result = KnockoffSelector().select(features, target)
         assert any("near-singular" in message for message in result.warnings_raised)
+        assert result.statistics[3] == 0.0
+
+    @pytest.mark.parametrize("n", [300, 50])
+    def test_duplicated_column_is_left_out(self, n):
+        """A duplicated column forces s = 0, so every knockoff nearly equals
+        its original and the lasso's tie-breaking decided the statistics:
+        knockoff+ selected nulls. The duplicate is now left out, and the rest
+        of the design is treated exactly as it would be without it, under
+        fixed-X (n = 300) and model-X (n = 50) alike."""
+        rng = np.random.default_rng(15)
+        features, target, _ = _gaussian_design(rng, n=n, n_signal=12, n_noise=13)
+        duplicated = np.column_stack([features, features[:, 20]])
+        base = KnockoffSelector(random_state=0).select(features, target)
+        result = KnockoffSelector(random_state=0).select(duplicated, target)
+        assert result.statistics[-1] == 0.0
+        np.testing.assert_array_equal(result.statistics[:-1], base.statistics)
+        np.testing.assert_array_equal(result.selected, base.selected)
+        assert any(
+            "linearly dependent" in message and "(columns 25)" in message
+            for message in result.warnings_raised
+        )
+
+    def test_duplicate_keeps_the_earlier_column(self):
+        rng = np.random.default_rng(16)
+        features, target, truth = _gaussian_design(rng, n_signal=12, n_noise=13)
+        duplicated = np.column_stack([features, features[:, 0]])
+        result = KnockoffSelector(construction="fixed", random_state=0).select(duplicated, target)
+        assert result.statistics[-1] == 0.0
+        assert 0 in result.selected
+        assert _fdp(result.selected, np.append(truth, True)) <= 0.2
+
+    def test_rank_deficient_pool_does_not_select_nulls(self):
+        """Three signals cannot pass knockoff+ at level 0.1, which needs ten
+        positive statistics; with one duplicated null the collapsed
+        construction selected 11 to 15 features on three of these four
+        seeds, most of them nulls."""
+        for seed in range(6210, 6214):
+            rng = np.random.default_rng(seed)
+            features, target, truth = _gaussian_design(rng, n_signal=3, n_noise=27, effect=1.0)
+            duplicated = np.column_stack([features, features[:, 3]])
+            result = KnockoffSelector(random_state=seed - 6200).select(duplicated, target)
+            assert _fdp(result.selected, np.append(truth, False)) == 0.0
+
+    def test_dependent_columns_count_against_n_for_fixed_x(self):
+        """Routing and the fixed-X row requirement use the retained columns."""
+        rng = np.random.default_rng(17)
+        features = rng.standard_normal((41, 20))
+        target = features[:, 0] + rng.standard_normal(41)
+        widened = np.column_stack([features, features[:, :3] @ np.ones(3), np.ones(41)])
+        result = KnockoffSelector(construction="fixed").select(widened, target)
+        np.testing.assert_array_equal(result.statistics[20:], [0.0, 0.0])
+        wider = np.column_stack([features, rng.standard_normal(41), features[:, 0]])
+        with pytest.raises(ValueError, match="p=21 \\(22 before dropping"):
+            KnockoffSelector(construction="fixed").select(wider, target)
 
     def test_narrow_design_warns_for_knockoff_plus(self):
         rng = np.random.default_rng(12)
