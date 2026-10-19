@@ -313,12 +313,12 @@ class TestDeterminism:
 
 
 # --------------------------------------------------------------------------- #
-# Chunking: the chunk size may not change the result
+# Chunking and workers: neither may change the result
 # --------------------------------------------------------------------------- #
 
 
 def _signature(result):
-    """Everything a run returns that chunking could perturb, exactly."""
+    """Everything a run returns that chunking or workers could perturb, exactly."""
     return (
         result.names,
         result.scores.tolist(),
@@ -370,13 +370,39 @@ def _run(scorer, data, target, problem_type="regression", **kwargs):
     return search.run(data, target)
 
 
-class TestChunking:
+class TestChunkingAndWorkers:
     @pytest.mark.parametrize("scorer", _SCORERS)
     def test_chunk_size_does_not_change_the_result(self, rng, scorer):
         data, target = _awkward_data(rng)
         reference = _signature(_run(scorer, data, target, chunk_size=10**9))
         for chunk_size in (1, 7):
             assert _signature(_run(scorer, data, target, chunk_size=chunk_size)) == reference
+
+    @pytest.mark.parametrize("scorer", _SCORERS)
+    def test_n_jobs_does_not_change_the_result(self, rng, scorer, monkeypatch):
+        """Including the scorers that draw random numbers: their seeds do not depend on workers."""
+        monkeypatch.setattr(beamfeat.search, "MIN_PARALLEL_CANDIDATES", 0)
+        data, target = _awkward_data(rng)
+        reference = _signature(_run(scorer, data, target, n_jobs=1, chunk_size=9))
+        for n_jobs in (2, -1):
+            assert _signature(_run(scorer, data, target, n_jobs=n_jobs, chunk_size=9)) == reference
+
+    def test_n_jobs_does_not_change_a_classification_result(self, rng, monkeypatch):
+        monkeypatch.setattr(beamfeat.search, "MIN_PARALLEL_CANDIDATES", 0)
+        data, target = _awkward_data(rng)
+        labels = (target > np.median(target)).astype(int)
+        reference = _signature(_run("correlation", data, labels, "classification", chunk_size=5))
+        assert _signature(_run("correlation", data, labels, "classification", chunk_size=5, n_jobs=2)) == reference
+
+    def test_wide_round_runs_on_workers(self, rng):
+        """Enough candidates to pass MIN_PARALLEL_CANDIDATES with the default chunking."""
+        n, p = 120, 40
+        data = {f"x{i}": rng.uniform(1.0, 6.0, n) for i in range(p)}
+        target = data["x3"] * data["x7"] + rng.normal(0, 0.05, n)
+        serial = BeamSearch(max_depth=1, beam_width=20, chunk_size=500).run(data, target)
+        assert serial.trace[1].n_proposed >= beamfeat.search.MIN_PARALLEL_CANDIDATES
+        parallel = BeamSearch(max_depth=1, beam_width=20, chunk_size=500, n_jobs=2).run(data, target)
+        assert _signature(parallel) == _signature(serial)
 
     def test_scorer_overriding_score_batch_is_scored_whole(self, rng):
         """A subclass that overrides score_batch is never bypassed by chunked scoring."""
@@ -532,6 +558,9 @@ class TestValidation:
             ({"redundancy_threshold": 1.5}, "redundancy_threshold"),
             ({"max_features": 0}, "max_features"),
             ({"max_candidates_per_depth": 0}, "max_candidates_per_depth"),
+            ({"n_jobs": 0}, "n_jobs"),
+            ({"n_jobs": 1.5}, "n_jobs"),
+            ({"n_jobs": True}, "n_jobs"),
             ({"chunk_size": 0}, "chunk_size"),
         ],
     )

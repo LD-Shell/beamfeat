@@ -170,6 +170,11 @@ class Scorer(ABC):
     #: overrides :meth:`score_batch` without declaring it is scored whole.
     separable: bool = False
 
+    # Whether scoring a candidate costs far more than evaluating it, in work
+    # that holds the GIL. The search then scores a few candidates per chunk,
+    # in worker processes when it has more than one.
+    _expensive: bool = False
+
     def __init__(self, problem_type: ProblemType = "regression", random_state: int | None = 0) -> None:
         self.problem_type = _check_problem_type(problem_type)
         self.random_state = random_state
@@ -574,6 +579,7 @@ class GradientBoostingScorer(Scorer):
 
     name = "gradient_boosting"
     separable = True
+    _expensive = True
 
     def __init__(
         self,

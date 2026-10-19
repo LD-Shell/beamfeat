@@ -31,8 +31,10 @@ the returned features and their order are identical across runs.
 from __future__ import annotations
 
 import logging
+import numbers
 import time
 from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -76,9 +78,18 @@ DEFAULT_UNARY = ("log", "sqrt", "reciprocal", "square", "abs")
 DEFAULT_BINARY = ("mul", "div", "add", "sub")
 
 # Candidate values held per chunk when ``chunk_size`` is not given. Peak memory
-# while a depth is scored is a few times this, however many candidates the
-# depth proposes.
+# while a depth is scored is a few times this per worker, however many
+# candidates the depth proposes.
 CHUNK_BYTES = 8 * 2**20
+
+# A depth with fewer candidates than this is scored in the calling thread
+# whatever ``n_jobs`` says: starting workers would cost more than they save.
+# Scorers that fit a model per candidate are exempt.
+MIN_PARALLEL_CANDIDATES = 4096
+
+# Candidates per chunk for a scorer that fits a model per candidate, so that
+# a round of a few hundred still divides between workers.
+EXPENSIVE_CHUNK = 8
 
 
 def report(verbose: int, level: int, message: str) -> None:
@@ -228,9 +239,21 @@ class BeamSearch:
         random_state: Seed passed to the scorer. Search itself is deterministic.
         verbose: Progress reporting to stdout. ``0`` is silent, ``1`` prints a
             single summary line for the search, ``2`` adds a line per depth.
+        n_jobs: Workers that evaluate and score a depth's candidates, chunk
+            by chunk, through joblib. ``1`` (the default) works in the calling
+            thread, ``-1`` uses every core, and ``None`` follows the active
+            ``joblib.parallel_config`` or else means 1. Workers are threads,
+            since numpy releases the GIL, except for
+            :class:`~beamfeat.scoring.GradientBoostingScorer`, whose model fits
+            run in worker processes; a whole-batch scorer such as
+            :class:`~beamfeat.scoring.MutualInformationScorer` receives
+            ``n_jobs`` through the joblib backend instead. Depths of fewer than
+            :data:`MIN_PARALLEL_CANDIDATES` candidates are scored in the
+            calling thread unless the scorer fits models. The result does not
+            depend on this value.
         chunk_size: Candidates evaluated and scored together. Bounds the
-            candidate values held at once to about ``chunk_size * n_rows``,
-            rather than one column per candidate of the whole depth.
+            candidate values held at once to ``chunk_size * n_rows`` per
+            worker, rather than one column per candidate of the whole depth.
             Defaults to as many columns as fit in :data:`CHUNK_BYTES`. Scorers
             whose scores depend on the whole batch, such as
             :class:`~beamfeat.scoring.MutualInformationScorer`, still score a
@@ -255,6 +278,7 @@ class BeamSearch:
         max_candidates_per_depth: int = 200_000,
         random_state: int | None = 0,
         verbose: int = 0,
+        n_jobs: int | None = 1,
         chunk_size: int | None = None,
     ) -> None:
         if max_depth < 0:
@@ -267,6 +291,8 @@ class BeamSearch:
             raise ValueError(f"max_features must be at least 1, got {max_features}")
         if max_candidates_per_depth < 1:
             raise ValueError(f"max_candidates_per_depth must be at least 1, got {max_candidates_per_depth}")
+        if n_jobs is not None and (isinstance(n_jobs, bool) or not isinstance(n_jobs, numbers.Integral) or n_jobs == 0):
+            raise ValueError(f"n_jobs must be a non-zero integer or None, got {n_jobs!r}")
         if chunk_size is not None and chunk_size < 1:
             raise ValueError(f"chunk_size must be at least 1, got {chunk_size}")
 
@@ -292,6 +318,7 @@ class BeamSearch:
         self.max_candidates_per_depth = max_candidates_per_depth
         self.random_state = random_state
         self.verbose = verbose
+        self.n_jobs = n_jobs
         self.chunk_size = chunk_size
 
         self.result_: SearchResult | None = None
@@ -464,12 +491,13 @@ class BeamSearch:
 
     # -- evaluation and scoring --------------------------------------------- #
 
-    def _chunk_columns(self, evaluator: Evaluator) -> int:
+    def _chunk_columns(self, evaluator: Evaluator, scorer: Scorer) -> int:
         """Candidates per chunk: ``chunk_size``, or what fits in :data:`CHUNK_BYTES`."""
         if self.chunk_size is not None:
             return int(self.chunk_size)
         column_bytes = max(1, evaluator.n_rows * evaluator.dtype.itemsize)
-        return int(np.clip(CHUNK_BYTES // column_bytes, 16, 8192))
+        step = int(np.clip(CHUNK_BYTES // column_bytes, 16, 8192))
+        return min(step, EXPENSIVE_CHUNK) if scorer._expensive else step
 
     def _score_round(
         self,
@@ -507,9 +535,17 @@ class BeamSearch:
         if by_column:
             references = (absolute,) if incumbent is None else (absolute, scorer.prepare(target, incumbent))
 
-        step = self._chunk_columns(evaluator)
+        step = self._chunk_columns(evaluator, scorer)
         chunks = [candidates[start : start + step] for start in range(0, len(candidates), step)]
-        outcomes = [_run_chunk(evaluator.plan_batch(chunk), scorer, references) for chunk in chunks]
+        batches = [evaluator.plan_batch(chunk) for chunk in chunks]
+        expensive = by_column and scorer._expensive
+        n_jobs = self.n_jobs if expensive or len(candidates) >= MIN_PARALLEL_CANDIDATES else 1
+        outcomes = _map(
+            _run_chunk,
+            [(batch, scorer, references) for batch in batches],
+            n_jobs,
+            prefer="processes" if expensive else "threads",
+        )
 
         evaluated: list[Node] = []
         score_parts: list[np.ndarray] = []
@@ -534,9 +570,12 @@ class BeamSearch:
         for part in value_parts:
             values[:, start : start + part.shape[1]] = part
             start += part.shape[1]
-        scores = scorer.score_batch(values, target, None)
-        if incumbent is not None:
-            scores = np.maximum(scores, scorer.score_batch(values, target, incumbent))
+        # A scorer that parallelises through joblib, as scikit-learn's mutual
+        # information estimators do, picks up n_jobs from the active backend.
+        with _joblib_threads(self.n_jobs):
+            scores = scorer.score_batch(values, target, None)
+            if incumbent is not None:
+                scores = np.maximum(scores, scorer.score_batch(values, target, incumbent))
         return evaluated, scores, values
 
     # -- main loop ---------------------------------------------------------- #
@@ -866,6 +905,26 @@ def _run_chunk(
     for prepared in references[1:]:
         scores = np.maximum(scores, scorer.score_prepared(values, prepared, stats))
     return outcome._replace(values=None), scores
+
+
+def _joblib_threads(n_jobs: int | None) -> AbstractContextManager[Any]:
+    """A joblib threading backend with ``n_jobs`` workers, or no change for 1 or None."""
+    if n_jobs is None or n_jobs == 1:
+        return nullcontext()
+    from joblib import parallel_backend
+
+    return parallel_backend("threading", n_jobs=n_jobs)
+
+
+def _map(
+    function: Callable[..., Any], arguments: list[tuple[Any, ...]], n_jobs: int | None, prefer: str = "threads"
+) -> list[Any]:
+    """Apply ``function`` to each argument tuple through joblib, returning results in order."""
+    if n_jobs == 1 or len(arguments) <= 1:
+        return [function(*args) for args in arguments]
+    from joblib import Parallel, delayed
+
+    return Parallel(n_jobs=n_jobs, prefer=prefer)(delayed(function)(*args) for args in arguments)
 
 
 def _standardise_columns(values: np.ndarray) -> np.ndarray:

@@ -85,6 +85,10 @@ class TestApiConventions:
         estimator = cls().set_params(max_depth=4)
         assert estimator.max_depth == 4
 
+    def test_n_jobs_is_a_parameter(self, cls):
+        assert cls().get_params()["n_jobs"] == 1
+        assert clone(cls(n_jobs=-1)).n_jobs == -1
+
     def test_clone(self, cls):
         estimator = cls(max_depth=3, beam_width=17)
         cloned = clone(estimator)
@@ -836,6 +840,18 @@ class TestConfiguration:
         X, y = regression_data
         model = _fast(BeamFeatRegressor, max_depth=0).fit(X, y)
         assert all(formula.startswith("x") for formula in model.formulas())
+
+    @pytest.mark.parametrize("cls", [BeamFeatRegressor, BeamFeatClassifier])
+    def test_n_jobs_does_not_change_the_fit(self, cls, regression_data, classification_data, monkeypatch):
+        import beamfeat.search
+
+        monkeypatch.setattr(beamfeat.search, "MIN_PARALLEL_CANDIDATES", 0)
+        X, y = regression_data if cls is BeamFeatRegressor else classification_data
+        fits = [cls(max_depth=2, beam_width=20, n_jobs=n_jobs).fit(X, y) for n_jobs in (1, 2, -1)]
+        for fit in fits[1:]:
+            assert fit.feature_formulas_ == fits[0].feature_formulas_
+            assert fit.selection_report_ == fits[0].selection_report_
+            np.testing.assert_array_equal(fit.predict(X), fits[0].predict(X))
 
     def test_alpha_affects_regressor(self, regression_data):
         X, y = regression_data

@@ -486,6 +486,7 @@ class _BeamFeatBase(BaseEstimator):
         parsimony_tol: float = 1e-3,
         random_state: int | None = 0,
         verbose: int = 0,
+        n_jobs: int | None = 1,
     ) -> None:
         self.scorer = scorer
         self.selector = selector
@@ -506,6 +507,7 @@ class _BeamFeatBase(BaseEstimator):
         self.parsimony_tol = parsimony_tol
         self.random_state = random_state
         self.verbose = verbose
+        self.n_jobs = n_jobs
 
     # -- fitting ------------------------------------------------------------ #
 
@@ -989,6 +991,7 @@ class _BeamFeatBase(BaseEstimator):
             include_originals=self.include_originals,
             random_state=self.random_state,
             verbose=self.verbose,
+            n_jobs=self.n_jobs,
         )
         search_result = search.run(search_data, y[search_index], units=units)
         self.search_result_ = search_result
@@ -1621,6 +1624,13 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             screening, the parsimony step and the fitted result; ``2`` adds
             per-depth search detail and the strongest certified candidates
             with their p- and q-values.
+        n_jobs: Workers that evaluate and score the search's candidates:
+            threads, or processes for ``"gradient_boosting"`` (see
+            :class:`~beamfeat.search.BeamSearch`). ``1`` (default) uses the
+            calling thread only, ``-1`` every core, and ``None`` follows an
+            enclosing ``joblib.parallel_config``. Small searches run in the
+            calling thread regardless. The fitted result is the same for
+            every value.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
@@ -1685,6 +1695,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         parsimony_tol: float = 1e-3,
         random_state: int | None = 0,
         verbose: int = 0,
+        n_jobs: int | None = 1,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1706,6 +1717,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             parsimony_tol=parsimony_tol,
             random_state=random_state,
             verbose=verbose,
+            n_jobs=n_jobs,
         )
         self.problem_type = problem_type
 
@@ -1787,6 +1799,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         parsimony_tol: float = 1e-3,
         random_state: int | None = 0,
         verbose: int = 0,
+        n_jobs: int | None = 1,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1808,6 +1821,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             parsimony_tol=parsimony_tol,
             random_state=random_state,
             verbose=verbose,
+            n_jobs=n_jobs,
         )
         self.alpha = alpha
 
@@ -2016,6 +2030,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         parsimony_tol: float = 1e-3,
         random_state: int | None = 0,
         verbose: int = 0,
+        n_jobs: int | None = 1,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -2037,6 +2052,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             parsimony_tol=parsimony_tol,
             random_state=random_state,
             verbose=verbose,
+            n_jobs=n_jobs,
         )
         self.C = C
 
