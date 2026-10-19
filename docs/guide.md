@@ -250,6 +250,41 @@ pipe = make_pipeline(SimpleImputer(strategy="median"),
                      BeamFeatRegressor(random_state=0))
 ```
 
+## Predicting with the original columns as well
+
+The regressor predicts from the certified features alone, so the fitted model
+is the equation it prints. When accuracy matters more than a readable model,
+fit the final model on the original columns plus the certified features:
+
+```python
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import RidgeCV
+from sklearn.pipeline import make_pipeline, make_union
+from sklearn.preprocessing import StandardScaler
+
+model = make_pipeline(
+    make_union("passthrough", BeamFeatTransformer(random_state=0)),
+    SimpleImputer(strategy="median"),  # rows outside a formula's domain
+    StandardScaler(),
+    RidgeCV(),
+).fit(X, y)
+```
+
+This helps when the signal is spread thinly over many columns, which a few
+certified features cannot capture but a penalised fit on every column can,
+and when the certified features add structure a linear model on the raw
+columns misses. Two things change:
+
+- **The model is no longer interpretable.** It has a coefficient for every
+  input column, so it reads like ridge regression, not like an equation.
+- **The guarantee is unchanged but narrower in scope.** The FDR guarantee
+  covers which constructed features are reported, and those are the same as
+  without the original columns. It says nothing about the coefficients the
+  final model puts on the raw columns.
+
+If the combined model scores no better than ridge on the original columns
+alone, the certified features are adding nothing to prediction on that data.
+
 ## When to reach for something else
 
 If a tree model beats beamfeat by a wide margin, your signal is likely
