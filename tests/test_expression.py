@@ -759,6 +759,31 @@ class TestAlgebraicRewrites:
         x = leaf("x")
         assert transform("sqrt", transform("square", x)) == transform("abs", x)
 
+    def test_reciprocal_div_keeps_depth_when_divisor_is_deeper(self):
+        """Folding (1/a)/b into 1/(a*b) adds a level when b is deeper than a,
+        which would take a node built at the last search depth past it."""
+        a = leaf("a")
+        deep = combine("mul", leaf("b"), leaf("c"))
+        node = combine("div", transform("reciprocal", a), deep)
+        assert node.depth == 2
+        assert node.name == "(1/(a) / (b * c))"
+
+    def test_rewrites_never_deepen(self):
+        """No rewrite may label a node deeper than its spelling."""
+        base = [leaf("a"), leaf("b"), combine("mul", leaf("c"), leaf("d"))]
+        pool = base + [transform(op, x) for x in base for op in ("reciprocal", "square", "abs")]
+        pool += [combine("div", leaf("a"), leaf("b"))]
+        pool += [transform("reciprocal", combine("add", leaf("a"), leaf("c")))]
+        for child in pool:
+            for op in ("reciprocal", "sqrt", "abs"):
+                assert transform(op, child).depth <= child.depth + 1
+        for left in pool:
+            for right in pool:
+                if left == right:
+                    continue
+                for op in ("add", "sub", "mul", "div"):
+                    assert combine(op, left, right).depth <= max(left.depth, right.depth) + 1
+
     def test_rewrites_agree_numerically(self, rng):
         values = {"x": rng.uniform(0.5, 5.0, 200), "y": rng.uniform(0.5, 5.0, 200)}
         evaluator = Evaluator(values)

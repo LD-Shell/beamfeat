@@ -918,8 +918,10 @@ def combine(op: str, left: Node, right: Node) -> Node:
             return transform("square", left) if left == inner else combine("mul", left, inner)
         if op == "div" and left.op == "reciprocal":
             #  (1/a) / b -> 1/(a*b)   (domain equal: a != 0, b != 0)
+            # Only when b is no deeper than a: otherwise the folded form is a
+            # level deeper than the original and can exceed the search depth.
             inner = left.children[0]
-            if inner != right:
+            if inner != right and right.depth <= inner.depth:
                 return transform("reciprocal", combine("mul", inner, right))
         if op == "mul":
             for first, second in ((left, right), (right, left)):
