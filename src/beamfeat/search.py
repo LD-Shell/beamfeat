@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -40,6 +40,8 @@ import numpy as np
 
 from beamfeat.expression import (
     OPERATORS,
+    BatchOutcome,
+    EvaluationBatch,
     EvaluationLog,
     Evaluator,
     Node,
@@ -72,6 +74,11 @@ EXACT_COPY_TOL = 1e-9
 
 DEFAULT_UNARY = ("log", "sqrt", "reciprocal", "square", "abs")
 DEFAULT_BINARY = ("mul", "div", "add", "sub")
+
+# Candidate values held per chunk when ``chunk_size`` is not given. Peak memory
+# while a depth is scored is a few times this, however many candidates the
+# depth proposes.
+CHUNK_BYTES = 8 * 2**20
 
 
 def report(verbose: int, level: int, message: str) -> None:
@@ -221,6 +228,14 @@ class BeamSearch:
         random_state: Seed passed to the scorer. Search itself is deterministic.
         verbose: Progress reporting to stdout. ``0`` is silent, ``1`` prints a
             single summary line for the search, ``2`` adds a line per depth.
+        chunk_size: Candidates evaluated and scored together. Bounds the
+            candidate values held at once to about ``chunk_size * n_rows``,
+            rather than one column per candidate of the whole depth.
+            Defaults to as many columns as fit in :data:`CHUNK_BYTES`. Scorers
+            whose scores depend on the whole batch, such as
+            :class:`~beamfeat.scoring.MutualInformationScorer`, still score a
+            depth at once (see :meth:`~beamfeat.scoring.Scorer.scores_by_column`).
+            The result does not depend on this value.
 
     Attributes:
         result_: :class:`SearchResult` from the most recent :meth:`run`.
@@ -240,6 +255,7 @@ class BeamSearch:
         max_candidates_per_depth: int = 200_000,
         random_state: int | None = 0,
         verbose: int = 0,
+        chunk_size: int | None = None,
     ) -> None:
         if max_depth < 0:
             raise ValueError(f"max_depth must be non-negative, got {max_depth}")
@@ -251,6 +267,8 @@ class BeamSearch:
             raise ValueError(f"max_features must be at least 1, got {max_features}")
         if max_candidates_per_depth < 1:
             raise ValueError(f"max_candidates_per_depth must be at least 1, got {max_candidates_per_depth}")
+        if chunk_size is not None and chunk_size < 1:
+            raise ValueError(f"chunk_size must be at least 1, got {chunk_size}")
 
         unknown = [op for op in (*unary_ops, *binary_ops) if op not in OPERATORS]
         if unknown:
@@ -274,6 +292,7 @@ class BeamSearch:
         self.max_candidates_per_depth = max_candidates_per_depth
         self.random_state = random_state
         self.verbose = verbose
+        self.chunk_size = chunk_size
 
         self.result_: SearchResult | None = None
 
@@ -372,24 +391,153 @@ class BeamSearch:
 
         order = _rank(nodes, scores)
         standardised = _standardise_columns(values)
-        cutoff = min(self.redundancy_threshold, 1.0 - EXACT_COPY_TOL)
+        kept_indices, n_dropped = self._admit(order, lambda index: standardised[:, index], limit, values.shape[0])
+        kept_nodes = [nodes[i] for i in kept_indices]
+        return kept_nodes, values[:, kept_indices], scores[kept_indices], n_dropped
 
+    def _prune_evaluated(
+        self,
+        nodes: list[Node],
+        scores: np.ndarray,
+        limit: int,
+        evaluator: Evaluator,
+    ) -> tuple[list[Node], np.ndarray, np.ndarray, int]:
+        """:meth:`_prune_redundant` for a round whose values were not kept.
+
+        The candidates the greedy pass reaches, usually a small fraction of a
+        round, are evaluated again in rank order and standardised a block at
+        a time, so the round never needs a matrix of all its values.
+        """
+        n_samples = evaluator.n_rows
+        if not nodes:
+            return [], np.empty((n_samples, 0)), np.empty(0), 0
+
+        order = _rank(nodes, scores)
+        columns = _RankedColumns(order, nodes, evaluator, block=max(2, min(limit, 256)))
+        kept_indices, n_dropped = self._admit(order, columns.standardised, limit, n_samples)
+        kept_values = np.empty((n_samples, len(kept_indices)), dtype=evaluator.dtype, order="F")
+        for position, index in enumerate(kept_indices):
+            kept_values[:, position] = columns.raw(index)
+        return [nodes[i] for i in kept_indices], kept_values, scores[kept_indices], n_dropped
+
+    def _admit(
+        self,
+        order: np.ndarray,
+        standardised: Callable[[int], np.ndarray],
+        limit: int,
+        n_samples: int,
+    ) -> tuple[list[int], int]:
+        """Walk candidates in ``order``, admitting each that duplicates none admitted.
+
+        Args:
+            order: Candidate indices, best first.
+            standardised: Returns a candidate's standardised column, given
+                its index. Called in ``order``.
+            limit: Most candidates to admit.
+            n_samples: Rows per column.
+
+        Returns:
+            Tuple of (admitted indices in admission order, count dropped).
+        """
+        cutoff = min(self.redundancy_threshold, 1.0 - EXACT_COPY_TOL)
+        # One row per admitted column: laid out as the transpose of a column
+        # selection from a matrix, which is what the product is computed on.
+        admitted = np.empty((0, n_samples))
         kept_indices: list[int] = []
         n_dropped = 0
-        n_samples = values.shape[0]
 
         for index in order:
             if len(kept_indices) >= limit:
                 break
+            column = standardised(index)
             if kept_indices:
-                correlations = np.abs(standardised[:, kept_indices].T @ standardised[:, index]) / n_samples
+                correlations = np.abs(admitted[: len(kept_indices)] @ column) / n_samples
                 if float(np.max(correlations)) >= cutoff:
                     n_dropped += 1
                     continue
+            else:
+                admitted = np.empty((min(limit, len(order)), n_samples), dtype=column.dtype)
+            admitted[len(kept_indices)] = column
             kept_indices.append(int(index))
 
-        kept_nodes = [nodes[i] for i in kept_indices]
-        return kept_nodes, values[:, kept_indices], scores[kept_indices], n_dropped
+        return kept_indices, n_dropped
+
+    # -- evaluation and scoring --------------------------------------------- #
+
+    def _chunk_columns(self, evaluator: Evaluator) -> int:
+        """Candidates per chunk: ``chunk_size``, or what fits in :data:`CHUNK_BYTES`."""
+        if self.chunk_size is not None:
+            return int(self.chunk_size)
+        column_bytes = max(1, evaluator.n_rows * evaluator.dtype.itemsize)
+        return int(np.clip(CHUNK_BYTES // column_bytes, 16, 8192))
+
+    def _score_round(
+        self,
+        evaluator: Evaluator,
+        candidates: list[Node],
+        scorer: Scorer,
+        target: np.ndarray,
+        absolute: Any,
+        incumbent: np.ndarray | None,
+    ) -> tuple[list[Node], np.ndarray, np.ndarray | None]:
+        """Evaluate and score one depth's candidates, a chunk at a time.
+
+        Every candidate is ranked on the larger of its score against the raw
+        target and its score against the residual left by ``incumbent``.
+
+        A scorer that scores column by column (see
+        :meth:`~beamfeat.scoring.Scorer.scores_by_column`) scores each chunk
+        as it is evaluated, and the chunk's values are then dropped. Any other
+        scorer receives the whole round at once, as one matrix.
+
+        Args:
+            evaluator: Evaluator for the search data.
+            candidates: This depth's candidates.
+            scorer: The scorer.
+            target: Target vector.
+            absolute: ``scorer.prepare(target)``, for a column-by-column scorer.
+            incumbent: Values of the features selected so far, if any.
+
+        Returns:
+            Tuple of (evaluated nodes, their scores, their values as a
+            matrix, or ``None`` when the values were dropped).
+        """
+        by_column = scorer.scores_by_column()
+        references = None
+        if by_column:
+            references = (absolute,) if incumbent is None else (absolute, scorer.prepare(target, incumbent))
+
+        step = self._chunk_columns(evaluator)
+        chunks = [candidates[start : start + step] for start in range(0, len(candidates), step)]
+        outcomes = [_run_chunk(evaluator.plan_batch(chunk), scorer, references) for chunk in chunks]
+
+        evaluated: list[Node] = []
+        score_parts: list[np.ndarray] = []
+        value_parts: list[np.ndarray] = []
+        for chunk, (outcome, chunk_scores) in zip(chunks, outcomes, strict=True):
+            evaluated.extend(evaluator.commit_batch(chunk, outcome))
+            if by_column:
+                score_parts.append(chunk_scores)
+            else:
+                value_parts.append(outcome.values)
+
+        if not evaluated:
+            return evaluated, np.empty(0), None
+        if by_column:
+            scores = np.concatenate(score_parts) if score_parts else np.empty(0)
+            return evaluated, scores, None
+
+        # Row-major, as evaluate_many returns: a scorer that reduces along the
+        # rows sums in an order that depends on the layout.
+        values = np.empty((evaluator.n_rows, len(evaluated)), dtype=evaluator.dtype)
+        start = 0
+        for part in value_parts:
+            values[:, start : start + part.shape[1]] = part
+            start += part.shape[1]
+        scores = scorer.score_batch(values, target, None)
+        if incumbent is not None:
+            scores = np.maximum(scores, scorer.score_batch(values, target, incumbent))
+        return evaluated, scores, values
 
     # -- main loop ---------------------------------------------------------- #
 
@@ -425,6 +573,7 @@ class BeamSearch:
             raise ValueError(f"target has {target.shape[0]} rows, data has {evaluator.n_rows}")
 
         scorer = make_scorer(self.scorer, problem_type=self.problem_type, random_state=self.random_state)
+        absolute = scorer.prepare(target) if scorer.scores_by_column() else None
 
         # Depth 0: the input columns themselves.
         leaf_nodes = evaluator.leaf_nodes()
@@ -434,7 +583,6 @@ class BeamSearch:
 
         beam_scores = scorer.score_batch(beam_values, target, None)
         pool = list(beam)
-        pool_values = beam_values
 
         selected: list[Node] = list(beam) if self.include_originals else []
         selected_values = beam_values if self.include_originals else np.empty((evaluator.n_rows, 0))
@@ -490,13 +638,6 @@ class BeamSearch:
                 report(self.verbose, 2, f"  depth {depth}: no new candidates; stopping")
                 break
 
-            evaluated, values = evaluator.evaluate_many(candidates)
-            n_numeric_rejected = len(candidates) - len(evaluated)
-            n_evaluated_total += len(evaluated)
-            if not evaluated:
-                report(self.verbose, 2, f"  depth {depth}: nothing survived evaluation; stopping")
-                break
-
             # Rank on the larger of the marginal and absolute scores.
             #
             # Marginal scoring alone is subtly wrong for survival decisions: a
@@ -513,16 +654,24 @@ class BeamSearch:
             # this depth; restatements of earlier depths are left to the
             # final ranking.
             incumbent = selected_values if selected_values.shape[1] else None
-            absolute_scores = scorer.score_batch(values, target, None)
-            if incumbent is None:
-                scores = absolute_scores
-            else:
-                marginal_scores = scorer.score_batch(values, target, incumbent)
-                scores = np.maximum(absolute_scores, marginal_scores)
-
-            beam, beam_values, kept_scores, n_redundant = self._prune_redundant(
-                evaluated, values, scores, self.beam_width
+            evaluated, scores, values = self._score_round(
+                evaluator, candidates, scorer, target, absolute, incumbent
             )
+            n_numeric_rejected = len(candidates) - len(evaluated)
+            n_evaluated_total += len(evaluated)
+            if not evaluated:
+                report(self.verbose, 2, f"  depth {depth}: nothing survived evaluation; stopping")
+                break
+
+            if values is None:
+                beam, beam_values, kept_scores, n_redundant = self._prune_evaluated(
+                    evaluated, scores, self.beam_width, evaluator
+                )
+            else:
+                beam, beam_values, kept_scores, n_redundant = self._prune_redundant(
+                    evaluated, values, scores, self.beam_width
+                )
+            del values
             if not beam:
                 report(self.verbose, 2, f"  depth {depth}: beam collapsed after redundancy pruning; stopping")
                 break
@@ -534,7 +683,6 @@ class BeamSearch:
             )
 
             pool = pool + beam
-            pool_values = np.column_stack([pool_values, beam_values])
 
             trace.append(
                 SearchTrace(
@@ -642,6 +790,82 @@ def _rank(nodes: Sequence[Node], scores: np.ndarray) -> np.ndarray:
     sizes = np.array([node.n_operators for node in nodes])
     quantised = np.round(np.asarray(scores, dtype=np.float64) / SCORE_TIE_TOL)
     return np.lexsort((sizes, -quantised))
+
+
+class _RankedColumns:
+    """Candidate columns evaluated again in rank order, a block at a time.
+
+    Serves :meth:`BeamSearch._admit` the standardised columns it walks
+    through, in the order it walks. Each block is standardised as a row-major
+    matrix of at least two columns by :func:`_standardise_columns`, and each
+    column is served as a strided view of it, so that the arithmetic, down
+    to the summation order and the strides handed to BLAS, is that of
+    standardising the whole round at once.
+    """
+
+    def __init__(self, order: np.ndarray, nodes: list[Node], evaluator: Evaluator, block: int) -> None:
+        self._order = order
+        self._nodes = nodes
+        self._evaluator = evaluator
+        self._block = block
+        self._next = 0
+        self._where: dict[int, int] = {}
+        self._raw = np.empty((evaluator.n_rows, 0))
+        self._standardised = self._raw
+
+    def _fetch(self, index: int) -> None:
+        """Evaluate the next block of the ranking, which starts at ``index``."""
+        chosen = [int(i) for i in self._order[self._next : self._next + self._block]]
+        if not chosen or chosen[0] != index:  # pragma: no cover - defensive
+            raise RuntimeError("candidate columns must be requested in rank order")
+        self._next += len(chosen)
+        raw: list[np.ndarray] = []
+        for i in chosen:
+            values = self._evaluator.evaluate(self._nodes[i])
+            if values is None:  # pragma: no cover - defensive
+                raise RuntimeError(f"candidate {self._nodes[i].name} no longer evaluates")
+            raw.append(values)
+        # A lone column would be reduced as a contiguous vector, which sums in
+        # a different order from a column of a wider row-major matrix.
+        self._raw = np.column_stack(raw if len(raw) > 1 else raw * 2)
+        self._standardised = _standardise_columns(self._raw)
+        self._where = {i: column for column, i in enumerate(chosen)}
+
+    def standardised(self, index: int) -> np.ndarray:
+        """Standardised column of a candidate; candidates are requested in rank order."""
+        index = int(index)
+        if index not in self._where:
+            self._fetch(index)
+        return self._standardised[:, self._where[index]]
+
+    def raw(self, index: int) -> np.ndarray:
+        """Values of a candidate already served, if it is in the current block."""
+        column = self._where.get(index)
+        if column is not None:
+            return self._raw[:, column]
+        values = self._evaluator.evaluate(self._nodes[index])
+        if values is None:  # pragma: no cover - defensive
+            raise RuntimeError(f"candidate {self._nodes[index].name} no longer evaluates")
+        return values
+
+
+def _run_chunk(
+    batch: EvaluationBatch, scorer: Scorer, references: tuple[Any, ...] | None
+) -> tuple[BatchOutcome, np.ndarray | None]:
+    """Evaluate one chunk and, given prepared references, score it.
+
+    With references, each candidate's score is the largest against any of
+    them, and the values are dropped from the outcome to keep it small.
+    """
+    outcome = batch.run()
+    if references is None:
+        return outcome, None
+    values = outcome.values
+    stats = outcome.stats if values.dtype == np.float64 else None
+    scores = scorer.score_prepared(values, references[0], stats)
+    for prepared in references[1:]:
+        scores = np.maximum(scores, scorer.score_prepared(values, prepared, stats))
+    return outcome._replace(values=None), scores
 
 
 def _standardise_columns(values: np.ndarray) -> np.ndarray:

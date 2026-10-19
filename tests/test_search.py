@@ -5,8 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import beamfeat.search
 from beamfeat.expression import Evaluator, combine, leaf, transform
-from beamfeat.scoring import CorrelationScorer, GradientBoostingScorer
+from beamfeat.scoring import CorrelationScorer, GradientBoostingScorer, MutualInformationScorer, Scorer
 from beamfeat.search import BeamSearch
 
 
@@ -312,6 +313,104 @@ class TestDeterminism:
 
 
 # --------------------------------------------------------------------------- #
+# Chunking: the chunk size may not change the result
+# --------------------------------------------------------------------------- #
+
+
+def _signature(result):
+    """Everything a run returns that chunking could perturb, exactly."""
+    return (
+        result.names,
+        result.scores.tolist(),
+        [
+            (t.n_proposed, t.n_evaluated, t.n_rejected_units, t.n_rejected_numeric, t.n_rejected_redundant,
+             t.n_kept, t.best_score)
+            for t in result.trace
+        ],
+        [(record.node.name, record.reason, record.detail) for record in result.evaluation_log],
+        result.n_rejected_redundant_final,
+    )
+
+
+def _awkward_data(rng, n=150):
+    """Inputs that trip every evaluation filter somewhere in the search.
+
+    Signs put log and sqrt out of domain, zeros put division out of domain,
+    ``c * e`` is constant to rounding, and ``d`` overflows when squared.
+    """
+    data = {name: rng.uniform(0.5, 4.0, n) for name in "abcdefg"}
+    data["a"] = rng.normal(0.0, 1.0, n)
+    data["b"][::7] = 0.0
+    data["c"] = 1.0 / data["e"]
+    data["d"] = rng.uniform(1e160, 1e170, n)
+    target = data["a"] * data["f"] + np.log(data["g"]) + rng.normal(0, 0.05, n)
+    return data, target
+
+
+_SCORERS = [
+    pytest.param("correlation", id="correlation"),
+    pytest.param("spearman", id="spearman"),
+    pytest.param(lambda: MutualInformationScorer(random_state=3), id="mutual_information"),
+    pytest.param(lambda: GradientBoostingScorer(random_state=3, n_folds=2, max_iter=3), id="gradient_boosting"),
+]
+
+
+def _run(scorer, data, target, problem_type="regression", **kwargs):
+    scorer = scorer() if callable(scorer) else scorer
+    small = isinstance(scorer, GradientBoostingScorer)
+    search = BeamSearch(
+        scorer=scorer,
+        problem_type=problem_type,
+        max_depth=1 if small else 2,
+        beam_width=6 if small else 12,
+        unary_ops=("log", "square") if small else beamfeat.search.DEFAULT_UNARY,
+        binary_ops=("mul",) if small else beamfeat.search.DEFAULT_BINARY,
+        **kwargs,
+    )
+    return search.run(data, target)
+
+
+class TestChunking:
+    @pytest.mark.parametrize("scorer", _SCORERS)
+    def test_chunk_size_does_not_change_the_result(self, rng, scorer):
+        data, target = _awkward_data(rng)
+        reference = _signature(_run(scorer, data, target, chunk_size=10**9))
+        for chunk_size in (1, 7):
+            assert _signature(_run(scorer, data, target, chunk_size=chunk_size)) == reference
+
+    def test_scorer_overriding_score_batch_is_scored_whole(self, rng):
+        """A subclass that overrides score_batch is never bypassed by chunked scoring."""
+
+        class Shifted(CorrelationScorer):
+            calls: list[int] = []
+
+            def score_batch(self, candidates, target, incumbent=None):
+                self.calls.append(np.asarray(candidates).shape[1])
+                return super().score_batch(candidates, target, incumbent) + 1.0
+
+        scorer = Shifted()
+        assert not scorer.scores_by_column()
+        data = _positive_data(rng, k=4)
+        target = data["a"] * data["b"] + rng.normal(0, 0.05, len(data["a"]))
+        BeamSearch(scorer=scorer, max_depth=1, beam_width=10, chunk_size=3).run(data, target)
+        # Depth 0, depth 1 absolute and marginal, and the final ranking: each one call.
+        assert len(scorer.calls) == 4
+        assert max(scorer.calls) > 3
+
+    def test_custom_scorer_without_prepare_is_scored_whole(self, rng):
+        class Variance(Scorer):
+            def score_batch(self, candidates, target, incumbent=None):
+                return np.var(np.asarray(candidates), axis=0)
+
+        assert not Variance().scores_by_column()
+        data = _positive_data(rng, k=3)
+        result = BeamSearch(scorer=Variance(), max_depth=1, beam_width=5, chunk_size=2).run(
+            data, data["a"] * data["b"]
+        )
+        assert len(result) > 0
+
+
+# --------------------------------------------------------------------------- #
 # Units
 # --------------------------------------------------------------------------- #
 
@@ -433,6 +532,7 @@ class TestValidation:
             ({"redundancy_threshold": 1.5}, "redundancy_threshold"),
             ({"max_features": 0}, "max_features"),
             ({"max_candidates_per_depth": 0}, "max_candidates_per_depth"),
+            ({"chunk_size": 0}, "chunk_size"),
         ],
     )
     def test_bad_parameters_rejected(self, kwargs, match):
