@@ -39,7 +39,7 @@ from beamfeat.selection import (
     make_selector,
 )
 
-__version__ = "0.4.3"
+__version__ = "0.4.4"
 
 __all__ = [
     "BeamFeatClassifier", "BeamFeatRegressor", "BeamFeatTransformer",

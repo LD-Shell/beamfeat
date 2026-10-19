@@ -4,6 +4,49 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.4] - 2026-10-18
+
+### Fixed
+
+- `Selector.select` now rejects a target containing NaN or infinity, and a
+  missing class label. A NaN made every permutation statistic NaN, so no null
+  draw counted as an exceedance and `PermutationSelector` selected every
+  candidate at the p-value floor; as a class label it formed a class of its
+  own. The estimators were not affected: scikit-learn's validation rejects
+  such a target before selection.
+- Fixed-X knockoffs are built orthogonal to the intercept as well as to the
+  design, so they are centred like the standardised features. The lasso
+  statistic fits an intercept, which centres every column; uncentred
+  knockoffs lost part of their norm to it, and the exchangeability identities
+  `X~'X~ = X'X` and `X'X~ = X'X - S` held for the constructed columns but not
+  for what the lasso saw (deviation up to about 0.03 at n close to 2p).
+  Simulations at q = 0.1 showed no measurable change in realised FDR, which
+  stayed far below nominal either way. The complement now needs one more
+  row: fixed-X is used when n > 2p (was n >= 2p), and at n = 2p the selector
+  falls back to model-X.
+- Model-X knockoff noise is drawn from a seed spawned from `random_state`, as
+  the fixed-X basis already was. Drawn from `random_state` itself, it equalled
+  a data matrix generated from the same seed and shape, which made the
+  knockoffs a fixed linear image of the features.
+- `PermutationSelector` with `auto_permutations=False` warns when
+  `n_permutations` is below what the correction needs to select anything;
+  an empty selection was previously returned in silence.
+- The `"fixed_x"` and `"model_x"` selector names select that knockoff
+  construction; both previously meant `construction="auto"`. An explicit
+  `construction` argument still takes precedence.
+- The knockoff+ warning states the floor as "at least ceil(1/q)" features;
+  it said "more than 1/q". The condition itself was correct.
+
+### Changed
+
+- Knockoff selections can differ from 0.4.3 for the same `random_state`,
+  since both constructions draw differently. The permutation selector's
+  results are unchanged.
+- Docstrings, `docs/guarantees.md` and the README describe permutation
+  p-values as valid in finite samples rather than exact, as the paper does.
+- A Benjamini-Hochberg test now uses p-values on which Bonferroni selects
+  fewer, so it distinguishes the two procedures. 20 tests added (456 in all).
+
 ## [0.4.3] - 2026-10-18
 
 ### Added
