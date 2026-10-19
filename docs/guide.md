@@ -192,14 +192,21 @@ instead of returning junk:
 
 ```python
 noise = rng.standard_normal(400)
-model = BeamFeatRegressor(random_state=3).fit(X, noise)
+model = BeamFeatRegressor(random_state=0).fit(X, noise)
 # NoDiscoveriesWarning: ... Returning no constructed features ...
 print(model.equation())
 ```
 
 ```text
-y = 0.0353  (no feature passed selection)
+y = 0.03527  (no feature passed selection)
 ```
+
+Not on every draw. Under a global null every selection is false, so the FDR
+is the probability that a fit certifies anything at all: up to `target_fdr`
+of pure-noise fits still certify features, and when one does, correlated
+candidates tend to pass together. The same noise under another search seed
+can certify a dozen formulas with `fdr_controlled_ = True`: that is the error
+the guarantee bounds in expectation, not a breach of it.
 
 Prefer the old behaviour? `on_no_discoveries="fallback"` keeps the
 unfiltered search output (flagged `fdr_controlled_=False`); `"raise"`
