@@ -10,12 +10,14 @@ from beamfeat.scoring import (
     GradientBoostingScorer,
     MutualInformationScorer,
     Scorer,
+    SpearmanScorer,
+    _average_ranks,
     _standardise,
     is_constant,
     make_scorer,
 )
 
-ALL_SCORERS = ["correlation", "mutual_information", "gradient_boosting"]
+ALL_SCORERS = ["correlation", "spearman", "mutual_information", "gradient_boosting"]
 
 
 @pytest.fixture
@@ -47,6 +49,7 @@ class TestFactory:
         [
             ("corr", "correlation"),
             ("pearson", "correlation"),
+            ("rank", "spearman"),
             ("mi", "mutual_information"),
             ("mutual_info", "mutual_information"),
             ("gb", "gradient_boosting"),
@@ -63,6 +66,21 @@ class TestFactory:
     def test_instance_passes_through(self):
         scorer = CorrelationScorer()
         assert make_scorer(scorer) is scorer
+
+    def test_instance_with_other_problem_type_warns(self):
+        """An instance keeps its own problem type; asking for another one
+        must not pass unnoticed."""
+        scorer = CorrelationScorer()
+        with pytest.warns(UserWarning, match="problem_type='regression'"):
+            assert make_scorer(scorer, problem_type="classification") is scorer
+
+    def test_instance_with_matching_problem_type_is_silent(self):
+        import warnings
+
+        scorer = CorrelationScorer(problem_type="classification")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert make_scorer(scorer, problem_type="classification") is scorer
 
     def test_unknown_name_lists_options(self):
         with pytest.raises(ValueError, match="unknown scorer"):
@@ -158,6 +176,17 @@ class TestScorerContract:
         with pytest.raises(ValueError, match="rows"):
             _fast(name).score_batch(rng.normal(size=(100, 2)), rng.normal(size=50))
 
+    def test_1d_incumbent_accepted(self, name, rng):
+        n = 200
+        first, second = rng.normal(size=n), rng.normal(size=n)
+        target = first + second + rng.normal(0, 0.2, n)
+        scorer = _fast(name)
+        candidates = np.column_stack([second, rng.normal(size=n)])
+        np.testing.assert_allclose(
+            scorer.score_batch(candidates, target, first),
+            scorer.score_batch(candidates, target, first.reshape(-1, 1)),
+        )
+
     def test_empty_incumbent_treated_as_none(self, name, rng):
         n = 200
         signal = rng.normal(size=n)
@@ -176,6 +205,20 @@ class TestScorerContract:
         scores = _fast(name, problem_type="classification").score_batch(candidates, labels)
         assert scores.shape == (2,)
         assert scores[1] > scores[0]
+
+    @pytest.mark.parametrize("n_classes", [2, 3])
+    def test_string_class_labels_score_like_their_codes(self, name, rng, n_classes):
+        n = 300
+        signal = rng.normal(size=n)
+        codes = np.digitize(signal, np.quantile(signal, np.linspace(0, 1, n_classes + 1)[1:-1]))
+        names = np.array(["alpha", "beta", "gamma"])[:n_classes]
+        candidates = np.column_stack([rng.normal(size=n), signal])
+        incumbent = rng.normal(size=n)
+        scorer = _fast(name, problem_type="classification")
+        np.testing.assert_allclose(
+            scorer.score_batch(candidates, names[codes], incumbent),
+            scorer.score_batch(candidates, codes, incumbent),
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -214,13 +257,25 @@ class TestMarginalScoring:
         given = scorer.score(signal, target, incumbent=signal.reshape(-1, 1))
         assert alone > given
 
-    def test_saturated_incumbent_scores_zero(self, rng):
+    @pytest.mark.parametrize("scorer_class", [CorrelationScorer, SpearmanScorer])
+    def test_saturated_incumbent_scores_zero(self, scorer_class, rng):
         """When the incumbent explains the target exactly, nothing adds value."""
         n = 200
         signal = rng.normal(size=n)
         target = signal.copy()
-        scores = CorrelationScorer().score_batch(rng.normal(size=(n, 3)), target, signal.reshape(-1, 1))
+        scores = scorer_class().score_batch(rng.normal(size=(n, 3)), target, signal.reshape(-1, 1))
         assert np.all(scores < 1e-6)
+
+    @pytest.mark.parametrize("scorer_class", [CorrelationScorer, SpearmanScorer])
+    def test_classification_discounts_incumbent_duplicate(self, scorer_class, rng):
+        n = 400
+        signal = rng.normal(size=n)
+        labels = np.where(signal + rng.normal(0, 0.5, n) > 0, "yes", "no")
+        scorer = scorer_class(problem_type="classification")
+        alone = scorer.score(signal, labels)
+        given = scorer.score(signal, labels, incumbent=signal)
+        assert alone > 0.6
+        assert given < 0.1
 
 
 # --------------------------------------------------------------------------- #
@@ -256,20 +311,28 @@ class TestScorerDifferentiation:
         assert CorrelationScorer().score(transformed, target) > 0.8
 
     def test_correlation_is_faster_than_alternatives(self, rng):
-        """Documents the cost ordering the docstrings claim."""
+        """Documents the cost ordering the docstrings claim.
+
+        Each scorer is timed as the best of several runs, since a single
+        wall-clock reading on a shared runner can be inflated by anything
+        else the machine is doing; the minimum is the reading least affected.
+        The gap being checked is one to two orders of magnitude."""
         import time
 
         n, k = 500, 30
         candidates = rng.normal(size=(n, k))
         target = candidates[:, 0] + rng.normal(0, 0.3, n)
 
-        def elapsed(scorer):
-            start = time.perf_counter()
-            scorer.score_batch(candidates, target)
-            return time.perf_counter() - start
+        def best_of(scorer, repeats):
+            times = []
+            for _ in range(repeats):
+                start = time.perf_counter()
+                scorer.score_batch(candidates, target)
+                times.append(time.perf_counter() - start)
+            return min(times)
 
-        corr_time = elapsed(CorrelationScorer())
-        mi_time = elapsed(MutualInformationScorer())
+        corr_time = best_of(CorrelationScorer(), 7)
+        mi_time = best_of(MutualInformationScorer(), 3)
         assert corr_time < mi_time
 
 
@@ -384,6 +447,65 @@ class TestSpearmanScorer:
 
         assert isinstance(make_scorer("spearman"), SpearmanScorer)
         assert isinstance(make_scorer("rank"), SpearmanScorer)
+
+    def test_ties_do_not_depend_on_row_order(self, rng):
+        """Ordinal ranks broke ties by row position, so reordering the rows
+        changed the score of a column with tied values."""
+        n = 300
+        candidate = rng.integers(0, 3, n).astype(np.float64)
+        target = candidate + rng.normal(0, 1.0, n)
+        scorer = SpearmanScorer()
+        expected = scorer.score(candidate, target)
+        for _ in range(3):
+            order = rng.permutation(n)
+            assert scorer.score(candidate[order], target[order]) == pytest.approx(expected, rel=1e-12)
+
+    def test_matches_spearman_rho_with_ties(self, rng):
+        stats = pytest.importorskip("scipy.stats")
+        n = 200
+        candidate = rng.integers(0, 4, n).astype(np.float64)
+        target = np.round(candidate + rng.normal(0, 1.5, n))
+        expected = abs(stats.spearmanr(candidate, target)[0])
+        assert SpearmanScorer().score(candidate, target) == pytest.approx(expected, rel=1e-10)
+
+    def test_average_ranks_match_rankdata(self, rng):
+        stats = pytest.importorskip("scipy.stats")
+        matrix = rng.integers(0, 5, size=(60, 6)).astype(np.float64)
+        matrix[:, 0] = 2.0
+        matrix[:, 1] = rng.normal(size=60)
+        np.testing.assert_array_equal(_average_ranks(matrix), stats.rankdata(matrix, axis=0))
+
+    def test_non_finite_candidate_scores_zero(self, rng):
+        n = 100
+        signal = rng.normal(size=n)
+        candidates = np.column_stack([signal, signal, signal])
+        candidates[0, 1] = np.inf
+        candidates[0, 2] = np.nan
+        scores = SpearmanScorer().score_batch(candidates, signal)
+        assert scores[0] == pytest.approx(1.0)
+        np.testing.assert_array_equal(scores[1:], [0.0, 0.0])
+        with np.errstate(invalid="ignore"):
+            pearson = CorrelationScorer().score_batch(candidates, signal)
+        np.testing.assert_array_equal(pearson[1:], [0.0, 0.0])
+
+
+class TestStringLabelsThroughTheTransformer:
+    def test_classification_transformer_accepts_string_labels(self, rng):
+        """The scorers cast the target to float, so a string-labelled
+        classification target failed in the search."""
+        from beamfeat import BeamFeatTransformer
+
+        n = 300
+        data = rng.normal(size=(n, 3))
+        codes = (data[:, 0] * data[:, 1] + rng.normal(0, 0.2, n) > 0).astype(int)
+        labels = np.array(["no", "yes"])[codes]
+
+        def fit(target):
+            return BeamFeatTransformer(
+                problem_type="classification", parsimony=None, max_depth=1, beam_width=10, random_state=0
+            ).fit(data, target)
+
+        assert fit(labels).feature_formulas_ == fit(codes).feature_formulas_
 
 
 class TestIsConstant:

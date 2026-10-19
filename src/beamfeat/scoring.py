@@ -6,13 +6,18 @@ already selected" part is what keeps a beam from filling with near-duplicates
 of the same underlying signal, which is the dominant failure mode of scoring
 candidates in isolation.
 
-Three strategies are provided, trading signal quality against cost:
+Four strategies are provided, trading signal quality against cost:
 
 :class:`CorrelationScorer`
     Absolute Pearson correlation against the residual left by the incumbent
     features. Cheapest by a wide margin; detects only monotone-linear
     relationships to the residual, but that is often enough to *find* a feature
     whose nonlinearity is already baked into its expression.
+
+:class:`SpearmanScorer`
+    Absolute rank correlation against the same residual. One sort per column
+    dearer than Pearson; sees any monotone relationship and is insensitive to
+    outlying values.
 
 :class:`MutualInformationScorer`
     Nearest-neighbour mutual information between candidate and residual.
@@ -42,6 +47,8 @@ __all__ = [
     "GradientBoostingScorer",
     "MutualInformationScorer",
     "Scorer",
+    "SpearmanScorer",
+    "is_constant",
     "make_scorer",
 ]
 
@@ -156,7 +163,12 @@ class Scorer(ABC):
             if incumbent.shape[1] == 0:
                 incumbent = None
 
-        if self.problem_type == "regression":
+        if self.problem_type == "classification":
+            # Labels are categories, so they are scored through integer codes:
+            # string and object labels then behave like their numeric
+            # equivalents, and no path casts a label to float.
+            target = _as_codes(target)
+        else:
             target = target.astype(np.float64)
 
         return candidates, target, incumbent
@@ -171,8 +183,8 @@ class Scorer(ABC):
         well it explains what the incumbent logistic model cannot. A linear
         least-squares residual of a 0/1 target underweights multiplicative
         boundaries such as ``x0*x1 > x2*x3``; the working residual does not.
-        Multiclass targets fall back to the numeric projection, documented as
-        a heuristic.
+        Multiclass targets fall back to the numeric projection of the integer
+        class codes, documented as a heuristic.
         """
         numeric_target = target.astype(np.float64)
 
@@ -226,8 +238,9 @@ class Scorer(ABC):
 class CorrelationScorer(Scorer):
     """Absolute Pearson correlation with the residualised target.
 
-    The cheapest scorer, and the default. Scoring a full candidate batch is a
-    single matrix product, so this handles beam widths in the thousands without
+    The cheapest scorer, and the default. Each candidate costs one
+    standardisation and one dot product against the residual, so scoring is
+    linear in the batch size and handles beam widths in the thousands without
     difficulty.
 
     The apparent weakness — that Pearson correlation sees only linear
@@ -259,13 +272,39 @@ class CorrelationScorer(Scorer):
             # The incumbent set explains the target completely; nothing to add.
             return np.zeros(candidates.shape[1])
 
-        scores = np.empty(candidates.shape[1])
-        n_samples = candidates.shape[0]
-        for index in range(candidates.shape[1]):
-            scaled_candidate = _standardise(candidates[:, index])
-            scores[index] = abs(float(scaled_candidate @ scaled_residual) / n_samples)
+        return _absolute_correlations(candidates, scaled_residual)
 
-        return np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
+
+def _absolute_correlations(candidates: np.ndarray, scaled_residual: np.ndarray) -> np.ndarray:
+    """|Pearson correlation| of each candidate column with a standardised residual."""
+    scores = np.empty(candidates.shape[1])
+    n_samples = candidates.shape[0]
+    for index in range(candidates.shape[1]):
+        scaled_candidate = _standardise(candidates[:, index])
+        scores[index] = abs(float(scaled_candidate @ scaled_residual) / n_samples)
+
+    return np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
+
+
+def _average_ranks(matrix: np.ndarray) -> np.ndarray:
+    """Rank each column from 1, giving tied values the mean of the ranks they span.
+
+    Ordinal ranks would break ties by row order, so a column with ties would
+    score differently depending on how the rows happen to be arranged.
+    """
+    n_rows = matrix.shape[0]
+    order = np.argsort(matrix, axis=0, kind="stable")
+    ordered = np.take_along_axis(matrix, order, axis=0)
+    positions = np.broadcast_to(np.arange(n_rows)[:, None], matrix.shape)
+    starts = np.ones(matrix.shape, dtype=bool)
+    starts[1:] = ordered[1:] != ordered[:-1]
+    ends = np.ones(matrix.shape, dtype=bool)
+    ends[:-1] = starts[1:]
+    first = np.maximum.accumulate(np.where(starts, positions, 0), axis=0)
+    last = np.minimum.accumulate(np.where(ends, positions, n_rows - 1)[::-1], axis=0)[::-1]
+    ranks = np.empty(matrix.shape)
+    np.put_along_axis(ranks, order, (first + last) / 2.0 + 1.0, axis=0)
+    return ranks
 
 
 # --------------------------------------------------------------------------- #
@@ -286,7 +325,7 @@ class MutualInformationScorer(Scorer):
     directly rather than against a residual, since a least-squares residual of
     a categorical target is not meaningful. This means the classification path
     scores absolute rather than marginal relevance, so redundancy control falls
-    to the search layer's diversity penalty.
+    to the search layer's redundancy pass (``redundancy_threshold``).
 
     Args:
         problem_type: ``"regression"`` or ``"classification"``.
@@ -510,10 +549,8 @@ def _as_codes(target: np.ndarray) -> np.ndarray:
 
 
 # --------------------------------------------------------------------------- #
-# Factory
+# Rank correlation
 # --------------------------------------------------------------------------- #
-
-
 
 
 class SpearmanScorer(CorrelationScorer):
@@ -529,7 +566,17 @@ class SpearmanScorer(CorrelationScorer):
 
     Residualisation follows :class:`CorrelationScorer`; ranks are taken after
     residualising, so the score measures monotone association with what the
-    incumbent set has not explained.
+    incumbent set has not explained. Tied values share their average rank, so
+    a score never depends on row order; a constant candidate, or an incumbent
+    set that explains the target exactly, scores zero, and a candidate with a
+    non-finite value scores zero, as under :class:`CorrelationScorer`.
+
+    For classification only the candidates are ranked. A classification
+    residual is a label minus a fitted function of the incumbents, so within
+    each class its order is set by the incumbents alone; ranking it would
+    turn that order into signal, and a copy of an incumbent would score well.
+    Without incumbents the two coincide, since the ranks of a binary residual
+    are an affine function of it.
 
     Leverage caveat: rank transformation hides magnitudes, so a feature with
     a near-singularity (a reciprocal or logarithm evaluated close to its
@@ -542,27 +589,35 @@ class SpearmanScorer(CorrelationScorer):
 
     name = "spearman"
 
-    @staticmethod
-    def _to_ranks(matrix: np.ndarray) -> np.ndarray:
-        order = np.argsort(matrix, axis=0, kind="stable")
-        ranks = np.empty_like(order, dtype=np.float64)
-        rows = np.arange(matrix.shape[0], dtype=np.float64)
-        np.put_along_axis(ranks, order, rows[:, None] if matrix.ndim == 2 else rows, axis=0)
-        return ranks
-
     def score_batch(
         self,
         candidates: np.ndarray,
         target: np.ndarray,
         incumbent: np.ndarray | None = None,
     ) -> np.ndarray:
-        candidates = np.atleast_2d(np.asarray(candidates, dtype=np.float64))
-        if candidates.shape[0] == 1 and candidates.shape[1] == len(target):
-            candidates = candidates.T
-        residual = self._residualise(np.asarray(target), incumbent)
-        ranked_candidates = self._to_ranks(candidates)
-        ranked_residual = self._to_ranks(residual.reshape(-1, 1))[:, 0]
-        return super().score_batch(ranked_candidates, ranked_residual, None)
+        candidates, target, incumbent = self._validate(candidates, target, incumbent)
+        residual = self._residualise(target, incumbent)
+        if not np.all(np.isfinite(residual)):  # pragma: no cover - defensive
+            return np.zeros(candidates.shape[1])
+
+        # An exactly explained target leaves a zero residual, whose ranks are
+        # all tied: the standardised ranks are then zero, as for Pearson.
+        if self.problem_type == "regression":
+            residual = _average_ranks(residual.reshape(-1, 1))[:, 0]
+        scaled_residual = _standardise(residual)
+        if not np.any(scaled_residual):
+            return np.zeros(candidates.shape[1])
+
+        scores = _absolute_correlations(_average_ranks(candidates), scaled_residual)
+        # Ranks would order an infinite or NaN value like any other; Pearson
+        # scores such a column zero, and so does this scorer.
+        scores[~np.all(np.isfinite(candidates), axis=0)] = 0.0
+        return scores
+
+
+# --------------------------------------------------------------------------- #
+# Factory
+# --------------------------------------------------------------------------- #
 
 
 _SCORERS: dict[str, type[Scorer]] = {
@@ -592,10 +647,13 @@ def make_scorer(
     """Resolve a scorer name or instance into a :class:`Scorer`.
 
     Args:
-        scorer: A scorer name (``"correlation"``, ``"mutual_information"``,
-            ``"gradient_boosting"``, or an alias such as ``"mi"``), or an
-            already-constructed :class:`Scorer`, which is returned unchanged.
-        problem_type: Passed to the constructed scorer.
+        scorer: A scorer name (``"correlation"``, ``"spearman"``,
+            ``"mutual_information"``, ``"gradient_boosting"``, or an alias
+            such as ``"mi"`` or ``"rank"``), or an already-constructed
+            :class:`Scorer`, which is returned unchanged.
+        problem_type: Passed to the constructed scorer. An instance keeps its
+            own problem type; a warning is issued when it differs from this
+            one.
         random_state: Passed to the constructed scorer.
         **kwargs: Additional scorer-specific arguments.
 
@@ -603,10 +661,20 @@ def make_scorer(
         A :class:`Scorer` instance.
 
     Raises:
-        ValueError: If ``scorer`` names no known strategy.
+        ValueError: If ``scorer`` names no known strategy, or
+            ``problem_type`` is not recognised.
         TypeError: If ``scorer`` is neither a string nor a :class:`Scorer`.
     """
+    problem_type = _check_problem_type(problem_type)
     if isinstance(scorer, Scorer):
+        if scorer.problem_type != problem_type:
+            warnings.warn(
+                f"{type(scorer).__name__} instance has problem_type={scorer.problem_type!r}, but "
+                f"{problem_type!r} was requested; the instance is used unchanged. Construct it with "
+                f"problem_type={problem_type!r} to score a {problem_type} target as one",
+                UserWarning,
+                stacklevel=2,
+            )
         return scorer
     if not isinstance(scorer, str):
         raise TypeError(f"scorer must be a string or Scorer, got {type(scorer).__name__}")
