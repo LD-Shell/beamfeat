@@ -43,7 +43,9 @@ from beamfeat.expression import (
     EvaluationLog,
     Evaluator,
     Node,
+    NodeError,
     UnitError,
+    UnitRegistryError,
     combine,
     transform,
 )
@@ -303,6 +305,8 @@ class BeamSearch:
                     return candidates, n_unit_rejected
                 try:
                     candidate = transform(op, node)
+                except UnitRegistryError:
+                    raise
                 except UnitError:
                     n_unit_rejected += 1
                     continue
@@ -319,10 +323,12 @@ class BeamSearch:
                         return candidates, n_unit_rejected
                     try:
                         candidate = combine(op, node, partner)
+                    except UnitRegistryError:
+                        raise
                     except UnitError:
                         n_unit_rejected += 1
                         continue
-                    except ValueError:
+                    except NodeError:
                         continue
                     if candidate not in seen:
                         seen.add(candidate)

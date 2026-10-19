@@ -357,10 +357,6 @@ class TestTransformer:
         encoded = (labels == "low").astype(int)
         assert kept == transformer._parsimonious_subset(matrix, encoded, [0, 1, 2])
 
-    @pytest.mark.xfail(
-        raises=ValueError, strict=False,
-        reason="needs the scorer to encode string labels as well (scoring.py)",
-    )
     def test_string_labels_at_default_parsimony(self, rng):
         X = rng.uniform(1.0, 5.0, (300, 3))
         labels = np.where(X[:, 0] * X[:, 1] > 9.0, "high", "low")

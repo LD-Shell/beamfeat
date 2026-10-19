@@ -88,8 +88,12 @@ construction's exchangeability identities `X̃'X̃ = X'X` and
 `X'X̃ = X'X − sI` are verified to numerical precision by the tests, also
 after the centring the lasso statistic applies (the knockoffs are built
 orthogonal to the intercept as well, which takes one row more than `2p`). On
-near-singular designs validity holds but `s → 0` and power degrades toward
-zero; a runtime warning says so.
+a near-singular design (smallest covariance eigenvalue below 1e-6) valid
+knockoffs of the dependent columns would equal the originals, and the lasso's
+tie-breaking would then favour the originals; constant and linearly dependent
+columns are therefore left out of the construction, get `W = 0`, and are
+named in a runtime warning. Routing and the `n > 2p` requirement count the
+retained columns.
 
 **Model-X Gaussian** (Candès et al., 2018), used only when `n ≤ 2p`: assumes
 jointly Gaussian features, which engineered features violate; a warning is

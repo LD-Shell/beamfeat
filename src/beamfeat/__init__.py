@@ -17,6 +17,7 @@ from beamfeat.expression import (
     OperatorSpec,
     RejectedNode,
     UnitError,
+    UnitRegistryError,
     combine,
     leaf,
     transform,
@@ -50,7 +51,8 @@ __all__ = [
     "ExclusionReason", "GradientBoostingScorer", "KnockoffSelector",
     "MutualInformationScorer", "Node", "NodeError", "OperatorSpec",
     "PermutationSelector", "RejectedNode", "Scorer", "SearchResult",
-    "SearchTrace", "SelectionResult", "Selector", "UnitError", "combine",
+    "SearchTrace", "SelectionResult", "Selector", "UnitError",
+    "UnitRegistryError", "combine",
     "is_constant", "knockoff_threshold", "leaf", "make_scorer", "make_selector",
     "transform",
 ]

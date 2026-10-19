@@ -35,7 +35,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin, Transfo
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted
 
-from beamfeat.expression import OPERATORS, Evaluator, Node
+from beamfeat.expression import OPERATORS, Evaluator, Node, _sympy_symbols
 from beamfeat.scoring import Scorer, is_constant
 from beamfeat.search import DEFAULT_BINARY, DEFAULT_UNARY, BeamSearch, report
 from beamfeat.selection import Selector, make_selector  # noqa: F401
@@ -1152,7 +1152,10 @@ class _BeamFeatBase(BaseEstimator):
     def to_sympy(self) -> list[Any]:
         """Return the selected expressions as sympy objects."""
         check_is_fitted(self, ["features_"])
-        return [node.to_sympy() for node in self.features_]
+        # One symbol map for every feature, so a column keeps its symbol
+        # across features even when its sanitised name needs a suffix.
+        symbols = _sympy_symbols(set().union(*(node.columns() for node in self.features_)))
+        return [node.to_sympy(symbols) for node in self.features_]
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
