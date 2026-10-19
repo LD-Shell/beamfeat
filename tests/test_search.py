@@ -147,6 +147,28 @@ class TestScaling:
         for record in result.trace[1:]:
             assert record.n_proposed <= 50
 
+    def test_max_features_defaults_to_beam_width(self, rng):
+        data = _positive_data(rng, k=4)
+        target = data["a"] * data["b"] + rng.normal(0, 0.1, len(data["a"]))
+        result = BeamSearch(max_depth=2, beam_width=6).run(data, target)
+        assert len(result) == 6
+
+    def test_ceiling_truncates_the_weakest_columns(self, rng):
+        """A binding ceiling at depth 1 must not cut the last columns of the table.
+
+        Column order would propose only the pairs of x0 and x1 before reaching
+        the ceiling; ranking the leaves by score reaches the planted pair.
+        """
+        n, p = 200, 12
+        data = {f"x{i}": rng.uniform(1.0, 6.0, n) for i in range(p)}
+        target = data["x10"] * data["x11"] + rng.normal(0, 0.05, n)
+        search = BeamSearch(
+            max_depth=1, beam_width=10, unary_ops=(), binary_ops=("mul",), max_candidates_per_depth=20
+        )
+        result = search.run(data, target)
+        assert result.trace[1].n_proposed == 20
+        assert "(x10 * x11)" in result.names
+
     def test_depth_zero_returns_originals_only(self, rng):
         data = _positive_data(rng)
         target = data["a"] + rng.normal(0, 0.1, len(data["a"]))
@@ -167,6 +189,31 @@ class TestRedundancy:
         target = base * 3.0 + rng.normal(0, 0.05, n)
         result = BeamSearch(max_depth=1, beam_width=20).run(data, target)
         assert not ("a" in result.names and "a_copy" in result.names)
+
+    def test_copy_of_small_scale_column_not_selected_twice(self, rng):
+        """Redundancy must not depend on the units a column is expressed in."""
+        n = 300
+        base = rng.uniform(1, 5, n) * 1e-14
+        data = {"a": base, "a_copy": base.copy(), "b": rng.uniform(1, 5, n)}
+        target = base * 3e14 + rng.normal(0, 0.05, n)
+        result = BeamSearch(max_depth=0).run(data, target)
+        assert not ("a" in result.names and "a_copy" in result.names)
+
+    @pytest.mark.parametrize("seed", range(8))
+    def test_threshold_one_drops_sign_flipped_copies(self, seed):
+        """At threshold 1, (a - b) and (b - a) correlate at exactly 1.
+
+        The computed correlation lands either side of 1 depending on rounding,
+        so without a tolerance some seeds keep both.
+        """
+        rng = np.random.default_rng(seed)
+        data = _positive_data(rng, n=300)
+        target = data["a"] - data["b"] + rng.normal(0, 0.05, 300)
+        search = BeamSearch(
+            max_depth=1, beam_width=30, unary_ops=(), binary_ops=("sub",), redundancy_threshold=1.0
+        )
+        result = search.run(data, target)
+        assert not ("(a - b)" in result.names and "(b - a)" in result.names)
 
     def test_threshold_controls_strictness(self, rng):
         data = _positive_data(rng, k=4)
@@ -315,6 +362,28 @@ class TestReporting:
         assert result.evaluation_log is not None
         assert len(result.evaluation_log) > 0
 
+    def test_totals_match_the_trace(self, rng):
+        data = _positive_data(rng, k=4)
+        target = data["a"] * data["b"] + rng.normal(0, 0.1, len(data["a"]))
+        result = BeamSearch(max_depth=2, beam_width=20).run(data, target)
+        assert result.n_proposed_total == sum(record.n_proposed for record in result.trace[1:])
+        assert result.n_evaluated_total == sum(record.n_evaluated for record in result.trace[1:])
+
+    def test_final_redundant_drops_are_counted(self, rng):
+        n = 300
+        base = rng.uniform(1, 5, n)
+        data = {"a": base, "a_copy": base * 2.0 + 1.0, "b": rng.uniform(1, 5, n)}
+        target = base * 3.0 + rng.normal(0, 0.05, n)
+        result = BeamSearch(max_depth=0).run(data, target)
+        assert result.n_rejected_redundant_final == 1
+        assert len(result) == 2
+
+    def test_progress_reports_depth_reached(self, rng, capsys):
+        data = {"a": rng.uniform(1, 5, 200)}
+        target = data["a"] + rng.normal(0, 0.1, 200)
+        BeamSearch(max_depth=3, unary_ops=(), binary_ops=("mul",), verbose=1).run(data, target)
+        assert "search: depth 0 of 3," in capsys.readouterr().out
+
     def test_summary_renders(self, rng):
         data = _positive_data(rng)
         target = data["a"] * data["b"] + rng.normal(0, 0.1, len(data["a"]))
@@ -345,6 +414,7 @@ class TestValidation:
             ({"redundancy_threshold": 0.0}, "redundancy_threshold"),
             ({"redundancy_threshold": 1.5}, "redundancy_threshold"),
             ({"max_features": 0}, "max_features"),
+            ({"max_candidates_per_depth": 0}, "max_candidates_per_depth"),
         ],
     )
     def test_bad_parameters_rejected(self, kwargs, match):
