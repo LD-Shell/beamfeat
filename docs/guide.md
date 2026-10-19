@@ -90,8 +90,12 @@ print(full.equation(max_terms=3))
 
 ```text
 25
-y = 1.077*(x0 * x1) - 0.2264*(x0 * sqrt(x1)) - 0.5879*(sqrt(x1) - 1/(x0)) + 0.09804
+y = 1.077*(x0 * x1) - 0.2264*(x0 * sqrt(x1)) - 0.5879*(sqrt(x1) - 1/(x0)) + 1.369
 ```
+
+`max_terms` shortens the display, not the model: the terms it leaves out are
+held at their training mean, and their average contribution moves into the
+constant, which is why it differs from the full equation's.
 
 What the default costs you in fit is small, and measured rather than asserted:
 about a thousandth of held-out R² across 308 paired fits, for an equation some
@@ -221,6 +225,18 @@ labels = (X[:, 0] * X[:, 1] > X[:, 2] * X[:, 3]).astype(int)
 clf = BeamFeatClassifier(max_depth=2, random_state=0).fit(X, labels)
 print(clf.equation())          # log-odds form; boundary = zero level set
 ```
+
+## Rows outside a formula's domain
+
+A fitted formula can be undefined on new data that the training data never
+reached: `log(x0)` at a negative `x0`, or `1/(x0)` at zero. Such a row is NaN
+in that formula's column of `transform`, and `predict` returns NaN for it; every
+other row gets exactly the value it would get on its own, whatever else is in
+the batch. A `UserWarning` names the formula and counts the rows. The
+classifier's `predict` cannot return NaN as a label, so it assigns those rows
+the most frequent training class, while `predict_proba` and
+`decision_function` return NaN for them, which is how to find them. The
+regressor's `score` raises rather than scoring the remaining rows.
 
 ## Real data with missing values or categoricals
 

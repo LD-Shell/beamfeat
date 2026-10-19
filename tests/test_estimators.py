@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 import warnings
 
@@ -164,6 +163,24 @@ class TestRegressor:
 
         assert n_terms(short) <= 2
         assert n_terms(short) < n_terms(full)
+
+    def test_max_terms_holds_omitted_terms_at_their_mean(self, regression_data):
+        """The shortened equation's constant absorbs the omitted terms' mean
+        contribution, so on the training rows it agrees with the model on
+        average instead of being off by the omitted terms' whole mean."""
+        X, y = regression_data
+        model = _fast(BeamFeatRegressor, beam_width=30).fit(X, y)
+        assert model.n_features_out_ > 1
+        short = model.equation(precision=12, max_terms=1).split("   [")[0]
+        sign, constant = re.search(r"([+-]) ([0-9.e+-]+)$", short).groups()
+        constant = float(constant) * (-1 if sign == "-" else 1)
+
+        top = int(np.argmax(np.abs(model.coef_)))
+        scale = np.where(model.scaler_.scale_ == 0, 1.0, model.scaler_.scale_)
+        raw = model.coef_[top] / scale[top]
+        features = model._apply(X)
+        shortened = raw * features[:, top] + constant
+        assert np.mean(shortened) == pytest.approx(np.mean(model.predict(X)), rel=1e-9)
 
     def test_equation_reproduces_predictions(self, rng):
         """The printed equation must be the model, not a decoration.
@@ -327,6 +344,32 @@ class TestTransformer:
         transformer = _fast(BeamFeatTransformer, problem_type="classification").fit(X, y)
         assert transformer.n_features_out_ > 0
 
+    def test_parsimony_accepts_string_labels(self, rng):
+        """The transformer passes its labels through unencoded, so the forward
+        step must encode them before casting to float."""
+        X = rng.uniform(1.0, 5.0, (200, 3))
+        labels = np.where(X[:, 0] * X[:, 1] > 9.0, "high", "low")
+        transformer = BeamFeatTransformer(problem_type="classification")
+        transformer._problem_type = "classification"
+        matrix = np.column_stack([X[:, 0] * X[:, 1], X[:, 0], X[:, 2]])
+        kept = transformer._parsimonious_subset(matrix, labels, [0, 1, 2])
+        assert 0 in kept
+        encoded = (labels == "low").astype(int)
+        assert kept == transformer._parsimonious_subset(matrix, encoded, [0, 1, 2])
+
+    @pytest.mark.xfail(
+        raises=ValueError, strict=False,
+        reason="needs the scorer to encode string labels as well (scoring.py)",
+    )
+    def test_string_labels_at_default_parsimony(self, rng):
+        X = rng.uniform(1.0, 5.0, (300, 3))
+        labels = np.where(X[:, 0] * X[:, 1] > 9.0, "high", "low")
+        transformer = _fast(
+            BeamFeatTransformer, problem_type="classification", selector="permutation"
+        ).fit(X, labels)
+        assert transformer.n_features_out_ > 0
+        assert transformer.transform(X).shape == (300, transformer.n_features_out_)
+
 
 # --------------------------------------------------------------------------- #
 # Transform-time behaviour
@@ -356,18 +399,100 @@ class TestTransformSemantics:
         model.predict(X)
         assert set(model.__dict__) == set(before)
 
-    def test_out_of_domain_data_is_handled(self, rng, caplog):
-        """Training data admits log; test data does not."""
+    def test_out_of_domain_data_is_handled(self, rng):
+        """Training data admits log; half the test rows do not. Those rows
+        have no prediction, and the others keep theirs."""
         n = 300
         X_train = rng.uniform(1.0, 5.0, (n, 2))
         y_train = np.log(X_train[:, 0]) + rng.normal(0, 0.05, n)
         model = _fast(BeamFeatRegressor, max_depth=1, beam_width=10).fit(X_train, y_train)
+        assert any("log(x0)" in formula for formula in model.formulas())
 
-        X_test = np.column_stack([np.full(20, -5.0), rng.uniform(1.0, 5.0, 20)])
-        with caplog.at_level(logging.WARNING, logger="beamfeat.estimators"):
+        X_test = rng.uniform(1.0, 5.0, (20, 2))
+        X_test[::2, 0] = -5.0
+        with pytest.warns(UserWarning, match=r"log\(x0\).* 10 of 20 rows"):
             predictions = model.predict(X_test)
         assert predictions.shape == (20,)
-        assert np.all(np.isfinite(predictions))
+        assert np.all(np.isnan(predictions[::2]))
+        np.testing.assert_allclose(predictions[1::2], model.predict(X_test[1::2]), rtol=1e-12)
+
+    @staticmethod
+    def _log_fit():
+        rng = np.random.default_rng(0)
+        X = rng.uniform(1.0, 3.0, (400, 2))
+        y = 2 * np.log(X[:, 0]) + X[:, 1] + rng.normal(0, 0.01, 400)
+        return X, y
+
+    def test_valid_row_does_not_depend_on_the_batch(self):
+        """An out-of-domain row used to zero a whole feature column, which moved
+        the prediction of every other row in the batch (2.88 alone, -6.6 next
+        to the bad row)."""
+        X, y = self._log_fit()
+        model = BeamFeatRegressor(random_state=0).fit(X, y)
+        alone = model.predict(np.array([[2.0, 1.5]]))
+        with pytest.warns(UserWarning, match="1 of 2 rows"):
+            batch = model.predict(np.array([[2.0, 1.5], [-3.0, 1.5]]))
+        np.testing.assert_allclose(batch[0], alone[0], rtol=1e-12)
+        assert np.isnan(batch[1])
+
+    def test_score_refuses_rows_without_a_prediction(self):
+        X, y = self._log_fit()
+        model = BeamFeatRegressor(random_state=0).fit(X, y)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with pytest.raises(ValueError, match="outside the domain"):
+                model.score(np.array([[2.0, 1.5], [-3.0, 1.5]]), np.array([2.9, 0.0]))
+
+    def test_transformer_marks_only_the_failing_cells(self):
+        X, y = self._log_fit()
+        model = BeamFeatTransformer(random_state=0).fit(X, y)
+        good = np.array([[2.0, 1.5], [1.5, 2.5]])
+        batch = np.vstack([good, [[-3.0, 1.5]]])
+        with pytest.warns(UserWarning, match="are NaN in the output"):
+            output = model.transform(batch)
+        np.testing.assert_allclose(output[:2], model.transform(good), rtol=1e-12)
+        assert np.isnan(output[2]).any()
+        # the bad row is NaN only in the columns that fail on it alone, and
+        # keeps its value in the others
+        with pytest.warns(UserWarning):
+            alone = model.transform(batch[2:3])[0]
+        np.testing.assert_allclose(output[2], alone, rtol=1e-12)
+
+    def test_classifier_rows_outside_the_domain(self):
+        X, y = self._log_fit()
+        labels = (y > np.median(y)).astype(int)
+        model = BeamFeatClassifier(random_state=0).fit(X, labels)
+        good = np.array([[2.0, 1.5], [2.8, 2.9]])
+        batch = np.vstack([good, [[-3.0, 0.0]]])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            undefined = np.isnan(model._apply(batch[2:3])).any()
+        assert undefined
+        majority = np.bincount(labels).argmax()
+        with pytest.warns(UserWarning, match="most frequent training class"):
+            predicted = model.predict(batch)
+        np.testing.assert_array_equal(predicted[:2], model.predict(good))
+        assert predicted[2] == majority
+        with pytest.warns(UserWarning, match="NaN probabilities"):
+            probabilities = model.predict_proba(batch)
+        np.testing.assert_allclose(probabilities[:2], model.predict_proba(good), rtol=1e-12)
+        assert np.all(np.isnan(probabilities[2]))
+        with pytest.warns(UserWarning, match="NaN scores"):
+            scores = model.decision_function(batch)
+        np.testing.assert_allclose(scores[:2], model.decision_function(good), rtol=1e-12)
+        assert np.isnan(scores[2])
+
+    def test_underflow_is_isolated_to_its_row(self):
+        """Underflow fails an evaluation but leaves finite values behind, so it
+        is found by splitting the rows rather than by the non-finite mask."""
+        from beamfeat import leaf, transform
+        from beamfeat.estimators import _evaluate_by_row
+
+        node = transform("exp", leaf("x0"))
+        column = np.array([1.0, -800.0, 2.0, 0.5])
+        values = _evaluate_by_row(node, {"x0": column}, None, 4)
+        assert np.isnan(values[1])
+        np.testing.assert_allclose(values[[0, 2, 3]], np.exp(column[[0, 2, 3]]))
 
     def test_single_sample_message_follows_convention(self, regression_data):
         X, y = regression_data
@@ -522,14 +647,47 @@ class TestSelectionIntegration:
         ).fit(X, y)
         assert model.fdr_controlled_ is False
 
-    def test_holdout_split_is_disjoint_and_seed_stable(self, regression_data):
+    def test_holdout_split_is_disjoint_and_seed_stable(self, regression_data, monkeypatch):
+        """The rows the search sees, the rows screening tests on and the rows
+        the re-test uses must not overlap. Each target value is unique, so the
+        rows a stage saw are identified by the targets it was given."""
+        from beamfeat.search import BeamSearch
+        from beamfeat.selection import PermutationSelector
+
         X, y = regression_data
+        assert len(np.unique(y)) == len(y)
+        seen = {"search": [], "select": []}
+        run, select = BeamSearch.run, PermutationSelector.select
+
+        def recording_run(self, data, target, *args, **kwargs):
+            seen["search"].append(np.asarray(target))
+            return run(self, data, target, *args, **kwargs)
+
+        def recording_select(self, features, target):
+            seen["select"].append(np.asarray(target))
+            return select(self, features, target)
+
+        monkeypatch.setattr(BeamSearch, "run", recording_run)
+        monkeypatch.setattr(PermutationSelector, "select", recording_select)
+
         first = BeamFeatRegressor(
-            max_depth=2, beam_width=20, selector="permutation", random_state=7
+            max_depth=2, beam_width=20, selector="permutation", random_state=7,
+            parsimony_holdout=0.5,
         ).fit(X, y)
+        stages = [seen["search"][0], *seen["select"]]
+        assert len(stages) == 3
+        for i, earlier in enumerate(stages):
+            for later in stages[i + 1:]:
+                assert not set(earlier) & set(later)
+        assert sum(len(stage) for stage in stages) == len(y)
+        np.testing.assert_array_equal(np.sort(y[first._holdout_rows_]),
+                                      np.sort(np.concatenate(seen["select"])))
+
         second = BeamFeatRegressor(
-            max_depth=2, beam_width=20, selector="permutation", random_state=7
+            max_depth=2, beam_width=20, selector="permutation", random_state=7,
+            parsimony_holdout=0.5,
         ).fit(X, y)
+        np.testing.assert_array_equal(first._holdout_rows_, second._holdout_rows_)
         assert first.formulas() == second.formulas()
 
     def test_selected_features_still_predict(self, regression_data):
@@ -715,6 +873,31 @@ class TestHoldoutFitCheck:
         with pytest.warns(DegenerateFitWarning):
             BeamFeatRegressor(max_depth=2, beam_width=20, random_state=0).fit(X, y)
 
+    def test_degenerate_classifier_warns(self, monkeypatch):
+        rng = np.random.default_rng(0)
+        X = rng.uniform(1, 6, (400, 4))
+        y = (X[:, 0] * X[:, 1] > 12).astype(int)
+        monkeypatch.setattr(BeamFeatClassifier, "score", lambda self, X, y: 0.0)
+        with pytest.warns(DegenerateFitWarning, match="majority-class rate"):
+            BeamFeatClassifier(max_depth=2, beam_width=20, random_state=0).fit(X, y)
+
+    def test_message_does_not_claim_screening_it_did_not_have(self, monkeypatch):
+        """Under the fallback the features never passed screening, so the
+        warning must not say they did."""
+        rng = np.random.default_rng(3)
+        X = rng.uniform(1, 6, (400, 4))
+        y = rng.standard_normal(400)
+        monkeypatch.setattr(BeamFeatRegressor, "score", lambda self, X, y: -1.7)
+        with pytest.warns(DegenerateFitWarning) as record:
+            model = BeamFeatRegressor(
+                max_depth=2, beam_width=15, target_fdr=0.05, random_state=3,
+                on_no_discoveries="fallback",
+            ).fit(X, y)
+        assert model.fdr_controlled_ is False
+        message = str([w for w in record if w.category is DegenerateFitWarning][0].message)
+        assert "passed FDR screening" not in message
+        assert "no FDR guarantee" in message
+
     def test_healthy_fit_does_not_warn(self):
         rng = np.random.default_rng(1)
         X = rng.uniform(1, 6, (400, 4))
@@ -753,6 +936,19 @@ class TestClassifierEquation:
         manual = features @ raw + offset
         np.testing.assert_allclose(manual, model.decision_function(X[:12]), rtol=1e-9)
 
+    def test_labels_print_as_plain_values(self):
+        rng = np.random.default_rng(0)
+        X = rng.uniform(1, 6, (400, 4))
+        y = (X[:, 0] * X[:, 1] > X[:, 2] * X[:, 3]).astype(np.int64)
+        model = BeamFeatClassifier(max_depth=1, beam_width=10, random_state=0).fit(X, y)
+        equation = model.equation()
+        assert equation.startswith("logit P(y = 1) = ")
+        assert "np." not in equation
+        named = BeamFeatClassifier(max_depth=1, beam_width=10, random_state=0).fit(
+            X, np.where(y == 1, "yes", "no")
+        )
+        assert named.equation().startswith("logit P(y = 'yes') = ")
+
     def test_multiclass_equation_has_one_line_per_class(self):
         rng = np.random.default_rng(1)
         X = rng.uniform(1, 6, (450, 4))
@@ -760,6 +956,7 @@ class TestClassifierEquation:
         model = BeamFeatClassifier(max_depth=1, beam_width=10, random_state=0).fit(X, y)
         lines = model.equation().splitlines()
         assert sum(line.startswith("score(") for line in lines) == len(model.classes_)
+        assert lines[0].startswith("score(0) = ")
 
     def test_null_model_equation_reports_priors(self):
         rng = np.random.default_rng(3)
@@ -1125,3 +1322,135 @@ class TestConstantColumns:
             b = _fast(BeamFeatRegressor, selector="permutation").fit(padded, y)
         assert a.n_features_out_ == b.n_features_out_
         assert len(a.selection_report_) == len(b.selection_report_)
+
+
+class TestInflationOfTheReturnedSet:
+    """``fdp_inflation_`` is |S|/|S'| for the set the model actually returns,
+    measured after the parsimony re-test or its fallback."""
+
+    def test_fallback_to_the_screened_set_has_no_inflation(self, rng):
+        X = rng.uniform(1.0, 6.0, (38, 4))
+        y = (X[:, 0] * X[:, 1]) / X[:, 2] + rng.normal(0, 0.05, 38)
+        with pytest.warns(UserWarning, match="cannot be split"):
+            model = _fast(BeamFeatRegressor, selector="permutation", parsimony_holdout=0.5).fit(X, y)
+        assert model.n_features_out_ == model.selection_result_.n_selected
+        assert model.fdp_inflation_ == pytest.approx(1.0)
+
+    def test_re_certified_set_has_no_inflation(self, regression_data):
+        X, y = regression_data
+        model = _fast(BeamFeatRegressor, selector="permutation", parsimony_holdout=0.5).fit(X, y)
+        assert model.certification_result_.n_selected == model.n_features_out_
+        assert model.fdp_inflation_ == pytest.approx(1.0)
+
+    def test_forward_subset_reports_its_ratio(self, regression_data):
+        X, y = regression_data
+        model = _fast(BeamFeatRegressor, selector="permutation").fit(X, y)
+        assert model.fdp_inflation_ == pytest.approx(
+            model.selection_result_.n_selected / model.n_features_out_
+        )
+
+
+class TestParameterValidation:
+    """Out-of-range values used to be ignored: a holdout of 1.5 switched the
+    split off, and an unknown on_no_discoveries behaved like "empty"."""
+
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [
+            ("on_no_discoveries", "ignore"),
+            ("selection_holdout", 1.5),
+            ("selection_holdout", 0.0),
+            ("selection_holdout", 1),
+            ("selection_holdout", -0.2),
+            ("selection_holdout", "0.5"),
+            ("parsimony_holdout", 2.0),
+            ("parsimony_holdout", True),
+            ("selection_correction", "holm"),
+            ("parsimony", "backward"),
+        ],
+    )
+    @pytest.mark.parametrize("cls", ESTIMATORS)
+    def test_bad_values_raise(self, cls, name, value, regression_data):
+        X, y = regression_data
+        y = (y > np.median(y)).astype(int) if cls is BeamFeatClassifier else y
+        with pytest.raises(ValueError, match=name):
+            _fast(cls, selector="permutation", **{name: value}).fit(X, y)
+
+    def test_none_disables_the_holdout(self, regression_data):
+        X, y = regression_data
+        with pytest.warns(UserWarning, match="same rows"):
+            model = _fast(BeamFeatRegressor, selector="permutation", selection_holdout=None).fit(X, y)
+        assert model.fdr_controlled_ is False
+
+
+class TestSelectorInstance:
+    """An instance keeps its own settings; a disagreement with the estimator's
+    is named rather than resolved in silence."""
+
+    def test_disagreeing_correction_is_named(self, regression_data):
+        from beamfeat import PermutationSelector
+
+        X, y = regression_data
+        with pytest.warns(UserWarning, match=r"selection_correction='by'.*correction='bh'"):
+            model = _fast(BeamFeatRegressor, selector=PermutationSelector()).fit(X, y)
+        assert model.selection_result_ is not None
+
+    def test_disagreeing_target_fdr_is_named(self, regression_data):
+        from beamfeat import PermutationSelector
+
+        X, y = regression_data
+        with pytest.warns(UserWarning, match=r"target_fdr=0.05.*target_fdr=0.1"):
+            _fast(
+                BeamFeatRegressor, target_fdr=0.05, selector=PermutationSelector(correction="by")
+            ).fit(X, y)
+
+    def test_agreeing_instance_is_silent(self, regression_data):
+        from beamfeat import PermutationSelector
+
+        X, y = regression_data
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _fast(BeamFeatRegressor, selector=PermutationSelector(correction="by")).fit(X, y)
+        assert not [entry for entry in caught if "instance" in str(entry.message)]
+
+    def test_verbose_reports_the_correction_that_ran(self, regression_data, capsys):
+        from beamfeat import PermutationSelector
+
+        X, y = regression_data
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _fast(BeamFeatRegressor, selector=PermutationSelector(), verbose=1).fit(X, y)
+        assert "permutation (BH)" in capsys.readouterr().out
+
+
+class TestSingleCandidate:
+    def test_a_lone_candidate_is_screened(self, rng):
+        """With one candidate, screening used to be skipped and the term
+        returned unvetted."""
+        X = rng.uniform(1.0, 6.0, (300, 1))
+        y = 2 * X[:, 0] + rng.normal(0, 0.1, 300)
+        model = BeamFeatRegressor(max_depth=0, random_state=0).fit(X, y)
+        assert model.selection_result_ is not None
+        assert model.selection_result_.n_candidates == 1
+        assert model.fdr_controlled_ is True
+        assert model.formulas() == ["x0"]
+
+    def test_a_lone_null_candidate_can_be_screened_out(self):
+        rng = np.random.default_rng(0)
+        X = rng.uniform(1.0, 6.0, (300, 1))
+        y = rng.standard_normal(300)
+        with pytest.warns(NoDiscoveriesWarning):
+            model = BeamFeatRegressor(max_depth=0, random_state=0).fit(X, y)
+        assert model.selection_result_.p_values[0] > 0.1
+        assert model.n_features_out_ == 0
+
+
+def test_estimator_exports_are_in_the_module_all():
+    import beamfeat
+    from beamfeat import estimators
+
+    exported = {
+        name for name in beamfeat.__all__
+        if getattr(getattr(beamfeat, name), "__module__", None) == estimators.__name__
+    }
+    assert exported <= set(estimators.__all__)

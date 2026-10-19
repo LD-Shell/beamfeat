@@ -51,7 +51,10 @@ trials against BY's 1 (FDP 0.06 and 0.01,
 difference is not significant at this trial count: both corrections saw the
 same 100 datasets, the one trial on which BY selected is among BH's six, and
 the exact paired test gives p = 0.06. Read it as a consistency check rather
-than a demonstrated BH failure.
+than a demonstrated BH failure. A selector *instance* passed to an estimator
+keeps its own settings, so `selector=PermutationSelector()` runs BH at the
+instance's `target_fdr`; the estimator warns when its `selection_correction`
+or `target_fdr` disagrees with the instance's.
 
 **Measured calibration** (Gaussian designs, 300 rows, 25 candidates, 5 signals,
 100 trials). BH controls the FDR at `q·m0/m`, here `q·20/25`, and realised

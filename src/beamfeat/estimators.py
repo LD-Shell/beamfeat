@@ -25,6 +25,7 @@ leak.
 from __future__ import annotations
 
 import logging
+import numbers
 import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -34,12 +35,19 @@ from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin, Transfo
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted
 
-from beamfeat.expression import Evaluator, Node
+from beamfeat.expression import OPERATORS, Evaluator, Node
 from beamfeat.scoring import Scorer, is_constant
 from beamfeat.search import DEFAULT_BINARY, DEFAULT_UNARY, BeamSearch, report
 from beamfeat.selection import Selector, make_selector  # noqa: F401
 
-__all__ = ["BeamFeatClassifier", "BeamFeatRegressor", "BeamFeatTransformer"]
+__all__ = [
+    "BeamFeatClassifier",
+    "BeamFeatRegressor",
+    "BeamFeatTransformer",
+    "DegenerateFitWarning",
+    "NoDiscoveriesError",
+    "NoDiscoveriesWarning",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +88,61 @@ def _validate_input(estimator, X, y=_UNSET, **kwargs):
             ) from None
         raise
 
+
+def _undefined_rows(node: Node, data: Mapping[str, np.ndarray], n_rows: int) -> np.ndarray:
+    """Mask of the rows on which ``node`` or any subexpression is non-finite.
+
+    Operators are elementwise, so a row is undefined here exactly when it
+    would make the evaluation of ``node`` fail on its own. Underflow is the
+    one failure this pass cannot see, since it leaves finite values behind;
+    :func:`_evaluate_by_row` checks the remaining rows for it.
+    """
+    def walk(current: Node) -> tuple[np.ndarray, np.ndarray]:
+        if current.is_leaf:
+            values = np.asarray(data[str(current.column)], dtype=np.float64)
+            return values, ~np.isfinite(values)
+        operands, undefined = [], np.zeros(n_rows, dtype=bool)
+        for child in current.children:
+            values, child_undefined = walk(child)
+            operands.append(values)
+            undefined |= child_undefined
+        with np.errstate(all="ignore"):
+            values = np.asarray(OPERATORS[current.op].fn(*operands), dtype=np.float64)
+        return values, undefined | ~np.isfinite(values)
+
+    return walk(node)[1]
+
+
+def _evaluate_by_row(node: Node, data: Mapping[str, np.ndarray], units, n_rows: int) -> np.ndarray:
+    """Evaluate ``node`` on every row it is defined on, with NaN on the rest.
+
+    Each defined row gets the value it would get if evaluated alone, so a
+    prediction never depends on what else is in the batch. Rows found
+    undefined by :func:`_undefined_rows` are set aside first; the rest are
+    evaluated as blocks, and a block that still fails is halved until the
+    failing rows are isolated.
+    """
+    result = np.full(n_rows, np.nan)
+    rows = np.flatnonzero(~_undefined_rows(node, data, n_rows))
+    pending = [rows] if len(rows) else []
+    while pending:
+        block = pending.pop()
+        values = Evaluator(
+            {name: column[block] for name, column in data.items()}, units=units
+        ).transform_values(node)
+        if values is not None:
+            result[block] = values
+        elif len(block) > 1:
+            half = len(block) // 2
+            pending.extend([block[:half], block[half:]])
+    return result
+
+
+def _label(value: Any) -> str:
+    """Display a class label as the plain value, not a numpy scalar repr."""
+    if isinstance(value, np.generic):
+        value = value.item()
+    return repr(value)
 
 
 _EQUATION_STYLES = ("significant", "fixed", "scientific")
@@ -137,11 +200,15 @@ def _render_linear_equation(
     standardised = np.asarray(coefficients, dtype=np.float64)
     scale = np.where(scaler.scale_ == 0, 1.0, scaler.scale_)
     raw_coefficients = standardised / scale
-    offset = float(intercept - np.sum(raw_coefficients * scaler.mean_))
 
     order = np.argsort(-np.abs(standardised))
     if max_terms is not None:
         order = order[:max_terms]
+    # Terms left out by max_terms are held at their training mean, so the
+    # constant carries their average contribution rather than dropping it:
+    # a term such as 5*log(x) with mean 8 would otherwise shift every value
+    # the shortened equation gives by 40.
+    offset = float(intercept - np.sum(raw_coefficients[order] * scaler.mean_[order]))
 
     parts = []
     for index in order:
@@ -280,13 +347,14 @@ class _BeamFeatBase(BaseEstimator):
         """
         if self.parsimony is None or len(screened) <= 1:
             return list(screened)
-        if self.parsimony != "forward":
-            raise ValueError(f"parsimony must be 'forward' or None, got {self.parsimony!r}")
 
-        numeric = np.asarray(target, dtype=np.float64)
+        # Labels are encoded before any numeric cast: the transformer passes
+        # its target through unencoded, and string labels cannot be cast.
         if self._problem_type == "classification":
             _, numeric = np.unique(target, return_inverse=True)
             numeric = numeric.astype(np.float64)
+        else:
+            numeric = np.asarray(target, dtype=np.float64)
         total_variance = float(np.var(numeric))
         if total_variance < 1e-12:  # pragma: no cover - defensive
             return list(screened)
@@ -308,6 +376,91 @@ class _BeamFeatBase(BaseEstimator):
             best_r2 = scores[best_position]
             chosen.append(remaining.pop(best_position))
         return sorted(chosen)
+
+    def _validate_params(self) -> None:
+        """Reject option values that would otherwise be ignored or misread.
+
+        An out-of-range holdout fraction used to switch the split off rather
+        than fail, which removes the guarantee the split exists for; an
+        unrecognised ``on_no_discoveries`` fell through to the default.
+        """
+        if self.on_no_discoveries not in ("empty", "fallback", "raise"):
+            raise ValueError(
+                "on_no_discoveries must be 'empty', 'fallback' or 'raise', "
+                f"got {self.on_no_discoveries!r}"
+            )
+        for name in ("selection_holdout", "parsimony_holdout"):
+            value = getattr(self, name)
+            if value is None:
+                continue
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, numbers.Real)
+                or not 0.0 < float(value) < 1.0
+            ):
+                raise ValueError(
+                    f"{name} must be None or a fraction strictly between 0 and 1, got {value!r}"
+                )
+        if self.selection_correction not in ("bh", "by"):
+            raise ValueError(
+                f"selection_correction must be 'bh' or 'by', got {self.selection_correction!r}"
+            )
+        if self.parsimony not in ("forward", None):
+            raise ValueError(f"parsimony must be 'forward' or None, got {self.parsimony!r}")
+
+    def _make_selector(self, warn: bool = False) -> Selector:
+        """Build the configured selector.
+
+        A :class:`~beamfeat.selection.Selector` instance is used as it is, so
+        its own ``target_fdr``, ``problem_type`` and (for
+        :class:`~beamfeat.selection.PermutationSelector`) ``correction``
+        apply, and the estimator's values of those settings do not. With
+        ``warn``, each estimator setting that disagrees with the instance is
+        named in a warning, since a ``PermutationSelector()`` passed for its
+        other options would otherwise run Benjamini-Hochberg in silence where
+        the estimator's default is Benjamini-Yekutieli.
+        """
+        if isinstance(self.selector, Selector):
+            if warn:
+                conflicts = [
+                    f"{own}={self._setting(own)!r} (the instance has {theirs}="
+                    f"{getattr(self.selector, theirs)!r})"
+                    for own, theirs in (
+                        ("target_fdr", "target_fdr"),
+                        ("selection_correction", "correction"),
+                        ("problem_type", "problem_type"),
+                    )
+                    if hasattr(self.selector, theirs)
+                    and getattr(self.selector, theirs) != self._setting(own)
+                ]
+                if conflicts:
+                    warnings.warn(
+                        f"beamfeat: selector is a {type(self.selector).__name__} instance, "
+                        "whose own settings apply; the estimator's "
+                        + ", ".join(conflicts)
+                        + (" is" if len(conflicts) == 1 else " are")
+                        + " not used. Configure the instance, or pass the selector "
+                        "by name to use the estimator's settings.",
+                        UserWarning,
+                        stacklevel=3,
+                    )
+            return self.selector
+        selector_kwargs = {}
+        if isinstance(self.selector, str) and self.selector.lower() in ("permutation", "perm"):
+            selector_kwargs["correction"] = self.selection_correction
+        return make_selector(
+            self.selector,
+            target_fdr=self.target_fdr,
+            problem_type=self._problem_type,
+            random_state=self.random_state,
+            **selector_kwargs,
+        )
+
+    def _setting(self, name: str) -> Any:
+        """The estimator's value for a selector setting it shares."""
+        if name == "problem_type":
+            return self._problem_type
+        return getattr(self, name)
 
     def _resolve_fdr_scope(self) -> None:
         """Record which set :attr:`fdr_controlled_` is a statement about.
@@ -381,16 +534,7 @@ class _BeamFeatBase(BaseEstimator):
         # A lone survivor still has to earn its place on rows it has not seen;
         # only the multiplicity correction is trivial in that case, not the
         # test itself.
-        selector_kwargs = {}
-        if isinstance(self.selector, str) and self.selector.lower() in ("permutation", "perm"):
-            selector_kwargs["correction"] = self.selection_correction
-        selector = make_selector(
-            self.selector,
-            target_fdr=self.target_fdr,
-            problem_type=self._problem_type,
-            random_state=self.random_state,
-            **selector_kwargs,
-        )
+        selector = self._make_selector()
         result = selector.select(np.column_stack(columns), y[rows])
         self.certification_result_ = result
         for diagnostic in result.warnings_raised:
@@ -398,7 +542,7 @@ class _BeamFeatBase(BaseEstimator):
         if result.n_selected == 0:
             warnings.warn(
                 "beamfeat: no term of the parsimonious equation survived re-testing on the "
-                f"held-back rows at target FDR {self.target_fdr:.3g}, so no compact "
+                f"held-back rows at target FDR {selector.target_fdr:.3g}, so no compact "
                 "certified equation is available on this sample. The whole screened set is "
                 "returned instead: it does carry the guarantee, but it is not compact.",
                 NoDiscoveriesWarning,
@@ -439,9 +583,16 @@ class _BeamFeatBase(BaseEstimator):
             degenerate = holdout_score < 0.0
             description = f"R^2 {holdout_score:.3f} on the selection rows is negative"
         if degenerate:
+            # Only a fit whose features came from the screened set can claim
+            # the associations were certified; a fallback to the unfiltered
+            # search output, or same-data selection, cannot.
+            premise = (
+                "the selected features passed FDR screening (genuine associations), but "
+                if self.fdr_controlled_
+                else "the selected features carry no FDR guarantee, and "
+            )
             warnings.warn(
-                "beamfeat: the selected features passed FDR screening (genuine "
-                f"associations), but the assembled model is degenerate: {description}. "
+                f"beamfeat: {premise}the assembled model is degenerate: {description}. "
                 "This is a diagnostic rather than an independent evaluation — the "
                 "selection rows also enter the final fit. "
                 "Association does not guarantee a well-conditioned fit; inspect "
@@ -484,6 +635,7 @@ class _BeamFeatBase(BaseEstimator):
 
         Returns the transformed training matrix on the full data.
         """
+        self._validate_params()
         # Checked here rather than in BeamSearch so the message follows
         # scikit-learn's convention, which its estimator checks match against.
         if X.shape[0] < 2:
@@ -639,31 +791,21 @@ class _BeamFeatBase(BaseEstimator):
                     candidate_nodes.append(node)
                     candidate_columns.append(values)
 
-            if len(candidate_nodes) > 1:
+            selector = self._make_selector(warn=True)
+            # A single candidate is screened like any other set: only the
+            # multiplicity correction is trivial for it, not the test.
+            if candidate_nodes:
                 matrix = np.column_stack(candidate_columns)
-                selector_kwargs = {}
-                if isinstance(self.selector, str) and self.selector.lower() in ("permutation", "perm"):
-                    selector_kwargs["correction"] = self.selection_correction
-                selector = make_selector(
-                    self.selector,
-                    target_fdr=self.target_fdr,
-                    problem_type=self._problem_type,
-                    random_state=self.random_state,
-                    **selector_kwargs,
-                )
                 selection_result = selector.select(matrix, selection_target)
                 self.selection_result_ = selection_result
+                correction = getattr(selector, "correction", None)
                 report(
                     self.verbose,
                     1,
                     f"screen: {selection_result.n_candidates} candidates, "
                     f"{selection_result.method}"
-                    + (
-                        f" ({self.selection_correction.upper()})"
-                        if selection_result.method == "permutation"
-                        else ""
-                    )
-                    + f" at q={self.target_fdr:g} -> "
+                    + (f" ({correction.upper()})" if correction else "")
+                    + f" at q={selector.target_fdr:g} -> "
                     f"{selection_result.n_selected} certified",
                 )
                 if self.verbose >= 2 and selection_result.n_selected:
@@ -689,15 +831,12 @@ class _BeamFeatBase(BaseEstimator):
                     keep_order = self._parsimonious_subset(
                         matrix, selection_target, list(selection_result.selected)
                     )
-                    self.fdp_inflation_ = float(selection_result.n_selected) / max(
-                        len(keep_order), 1
-                    )
                     report(
                         self.verbose,
                         1,
                         f"parsimony: {selection_result.n_selected} certified -> "
                         f"{len(keep_order)} term{'' if len(keep_order) == 1 else 's'}"
-                        f" (|S|/|S'| = {self.fdp_inflation_:.2f})"
+                        f" (|S|/|S'| = {selection_result.n_selected / len(keep_order):.2f})"
                         if self.parsimony is not None
                         else f"parsimony: off, keeping all {selection_result.n_selected} "
                         f"certified term{'' if selection_result.n_selected == 1 else 's'}",
@@ -738,38 +877,9 @@ class _BeamFeatBase(BaseEstimator):
                     )
                 else:
                     kept = set()
-                    self.fdr_controlled_ = False
-                    message = (
-                        f"beamfeat: no feature passed FDR-controlled selection at target "
-                        f"FDR {self.target_fdr:.3g} on the held-out split "
-                        f"(on_no_discoveries={self.on_no_discoveries!r}). "
+                    nodes = self._no_discoveries(
+                        nodes, selector.target_fdr, use_holdout, selection_result.warnings_raised
                     )
-                    if selection_result.warnings_raised:
-                        message += (
-                            "Selector notes: " + "; ".join(selection_result.warnings_raised) + ". "
-                        )
-                    if self.on_no_discoveries == "raise":
-                        raise NoDiscoveriesError(
-                            message + "Raise mode requested; refit with a higher target_fdr, "
-                            "more data, or on_no_discoveries='empty'/'fallback'."
-                        )
-                    if self.on_no_discoveries == "fallback":
-                        warnings.warn(
-                            message + "Falling back to the UNFILTERED search output: the "
-                            "returned features carry no false-discovery-rate guarantee.",
-                            NoDiscoveriesWarning,
-                            stacklevel=2,
-                        )
-                    else:  # "empty" (default)
-                        nodes = []
-                        warnings.warn(
-                            message + "Returning no constructed features; the model will "
-                            "predict the training mean (regression) or class prior "
-                            "(classification). Set on_no_discoveries='fallback' to keep "
-                            "the unfiltered search output instead.",
-                            NoDiscoveriesWarning,
-                            stacklevel=2,
-                        )
 
                 self.selection_report_ = [
                     {
@@ -789,7 +899,13 @@ class _BeamFeatBase(BaseEstimator):
                     for i in range(len(candidate_nodes))
                 ]
             else:
-                self.fdr_controlled_ = False
+                # Nothing could even be evaluated on the selection rows, so
+                # nothing passed; returning the search output here unannounced
+                # would skip the screening the caller configured.
+                nodes = self._no_discoveries(
+                    nodes, selector.target_fdr, use_holdout,
+                    ["no candidate could be evaluated on the selection rows"],
+                )
 
             if not use_holdout and self.fdr_controlled_:
                 # Same-data selection: the guarantee is stated for a fixed
@@ -820,11 +936,62 @@ class _BeamFeatBase(BaseEstimator):
         self.feature_formulas_ = [node.name for node in kept_nodes]
         self.n_features_out_ = len(kept_nodes)
         self._resolve_fdr_scope()
+        # |S|/|S'| for the set actually returned, so it is measured after the
+        # parsimony re-test or its fallback rather than on the forward subset.
+        # A re-certified set is its own S.
+        if kept_nodes and self.selection_result_ is not None and self.selection_result_.n_selected:
+            certified = self.certification_result_
+            base = (
+                certified.n_selected
+                if certified is not None and certified.n_selected
+                else self.selection_result_.n_selected
+            )
+            self.fdp_inflation_ = float(base) / len(kept_nodes)
         if not kept_nodes:
             # The honest empty outcome: zero constructed columns. Downstream
             # models degrade to an intercept-only fit rather than pretending.
             return np.empty((n_samples, 0), dtype=np.float64)
         return np.column_stack(kept_columns)
+
+    def _no_discoveries(
+        self, nodes: list[Node], target_fdr: float, use_holdout: bool, notes: Sequence[str]
+    ) -> list[Node]:
+        """Apply ``on_no_discoveries`` when screening passed nothing.
+
+        Returns the expressions to keep: the unfiltered search output under
+        ``"fallback"``, none under ``"empty"``. ``"raise"`` raises.
+        """
+        self.fdr_controlled_ = False
+        message = (
+            f"beamfeat: no feature passed FDR-controlled selection at target "
+            f"FDR {target_fdr:.3g} "
+            + ("on the held-out split " if use_holdout else "on the search rows ")
+            + f"(on_no_discoveries={self.on_no_discoveries!r}). "
+        )
+        if notes:
+            message += "Selector notes: " + "; ".join(notes) + ". "
+        if self.on_no_discoveries == "raise":
+            raise NoDiscoveriesError(
+                message + "Raise mode requested; refit with a higher target_fdr, "
+                "more data, or on_no_discoveries='empty'/'fallback'."
+            )
+        if self.on_no_discoveries == "fallback":
+            warnings.warn(
+                message + "Falling back to the UNFILTERED search output: the "
+                "returned features carry no false-discovery-rate guarantee.",
+                NoDiscoveriesWarning,
+                stacklevel=3,
+            )
+            return nodes
+        warnings.warn(
+            message + "Returning no constructed features; the model will "
+            "predict the training mean (regression) or class prior "
+            "(classification). Set on_no_discoveries='fallback' to keep "
+            "the unfiltered search output instead.",
+            NoDiscoveriesWarning,
+            stacklevel=3,
+        )
+        return []
 
     def _resolve_units(self, feature_names: list[str], warn: bool = True) -> dict[str, Any] | None:
         """Map user-supplied units onto the internal column names.
@@ -899,12 +1066,16 @@ class _BeamFeatBase(BaseEstimator):
 
     # -- transform ---------------------------------------------------------- #
 
-    def _apply(self, X: np.ndarray) -> np.ndarray:
+    def _apply(self, X: np.ndarray, outcome: str = "are NaN in the output") -> np.ndarray:
         """Evaluate the stored expressions on new data.
 
-        Expressions that fail numerically on unseen data — overflow, or a
-        non-finite result — yield a column of zeros rather than aborting the
-        transform, and the substitution is logged.
+        An expression that cannot be evaluated on some row — a logarithm of a
+        negative value, overflow, or any other non-finite result — is NaN on
+        that row and only that row. Every other row gets exactly the value it
+        would get if evaluated alone, so a prediction never depends on what
+        else is in the batch. A :class:`UserWarning` names each such
+        expression and the number of rows it failed on; ``outcome`` completes
+        its last sentence with what the caller does with those rows.
 
         Search-time admissibility filters are deliberately not applied here.
         Those criteria are data-dependent, so applying them would make the
@@ -914,7 +1085,7 @@ class _BeamFeatBase(BaseEstimator):
 
         This method does not mutate the estimator. scikit-learn requires
         ``transform`` and ``predict`` to leave ``__dict__`` untouched, so the
-        count of failed expressions is logged rather than stored.
+        failures are reported rather than stored.
         """
         if not self.features_:
             return np.empty((X.shape[0], 0), dtype=np.float64)
@@ -924,28 +1095,47 @@ class _BeamFeatBase(BaseEstimator):
         data = {name: X[:, index] for index, name in enumerate(feature_names)}
         # warn=False: coverage is a fit-time concern, and this path runs on
         # every transform and predict.
-        evaluator = Evaluator(data, units=self._resolve_units(feature_names, warn=False))
+        units = self._resolve_units(feature_names, warn=False)
+        evaluator = Evaluator(data, units=units)
 
         columns = []
-        n_failed = 0
+        failures = []
         for node in self.features_:
             values = evaluator.transform_values(node)
             if values is None:
-                n_failed += 1
-                values = np.zeros(X.shape[0])
+                values = _evaluate_by_row(node, data, units, X.shape[0])
+                n_failed = int(np.count_nonzero(np.isnan(values)))
+                failures.append(f"{node.name!r} on {n_failed} row{'' if n_failed == 1 else 's'}")
             columns.append(values)
 
-        if n_failed:
-            logger.warning(
-                "[beamfeat] %d of %d expressions could not be evaluated on this data "
-                "and were replaced with zeros",
-                n_failed,
-                len(self.features_),
+        matrix = np.column_stack(columns)
+        if failures:
+            n_rows = int(np.count_nonzero(np.isnan(matrix).any(axis=1)))
+            warnings.warn(
+                f"beamfeat: could not evaluate {', '.join(failures)} (outside the "
+                f"expression's domain, or not finite). {n_rows} of {X.shape[0]} rows are "
+                f"affected and {outcome}; the other rows are unaffected.",
+                UserWarning,
+                stacklevel=4,
             )
+        return matrix
 
-        if not columns:  # pragma: no cover - defensive
-            return np.empty((X.shape[0], 0))
-        return np.column_stack(columns)
+    def _model_output(self, X: np.ndarray, method: str, outcome: str) -> tuple[np.ndarray, np.ndarray]:
+        """Call ``model_.<method>`` on the rows every expression is defined on.
+
+        Returns the output with NaN on the other rows, and the mask of rows
+        that were defined. Undefined rows are passed to the model at the
+        training mean only so the output keeps its shape, and then
+        overwritten.
+        """
+        matrix = self._apply(X, outcome)
+        defined = ~np.isnan(matrix).any(axis=1)
+        if not defined.all():
+            matrix = np.where(defined[:, None], matrix, self.scaler_.mean_)
+        output = getattr(self.model_, method)(self.scaler_.transform(matrix))
+        if not defined.all() and output.dtype.kind == "f":
+            output[~defined] = np.nan
+        return output, defined
 
     # -- introspection ------------------------------------------------------ #
 
@@ -981,7 +1171,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             :class:`~beamfeat.scoring.Scorer` instance.
         selector: FDR-controlled selector, or ``None`` to keep the search
             output unfiltered. A name (``"permutation"``, ``"knockoff"``) or a
-            :class:`~beamfeat.selection.Selector` instance.
+            :class:`~beamfeat.selection.Selector` instance, whose own settings
+            apply in place of ``target_fdr`` and ``selection_correction``.
         problem_type: ``"regression"`` or ``"classification"``. Determines how
             the scorer and selector treat the target.
         max_depth: Maximum expression depth.
@@ -997,6 +1188,23 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         units: Optional mapping of input column name to pint quantity.
             Supplying units restricts the search to dimensionally valid
             expressions.
+        selection_holdout: Fraction of the training rows held out of the
+            search for selection, strictly between 0 and 1, or ``None`` to
+            select on the search rows (which forfeits the guarantee, so
+            :attr:`fdr_controlled_` is then ``False``).
+        parsimony_holdout: Fraction of the selection rows held back to
+            re-test the returned terms, strictly between 0 and 1, or ``None``
+            (default) for no re-test.
+        selection_correction: ``"by"`` (Benjamini-Yekutieli, default) or
+            ``"bh"`` (Benjamini-Hochberg), used when ``selector`` is the name
+            ``"permutation"``. A selector instance keeps its own correction
+            and ``target_fdr``, and a warning names any estimator setting it
+            overrides; ``PermutationSelector()`` defaults to ``"bh"``.
+        on_no_discoveries: What to return when no feature passes selection:
+            ``"empty"`` (default) keeps no constructed features,
+            ``"fallback"`` keeps the unfiltered search output with
+            :attr:`fdr_controlled_` ``False``, ``"raise"`` raises
+            :class:`NoDiscoveriesError`.
         parsimony: ``"forward"`` (default) fits a compact subset of the
             screened set, chosen by greedy forward selection on the selection
             rows. That subset is not re-certified, so the FDR guarantee covers
@@ -1027,6 +1235,12 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             features, ``"screened set"`` when it covers a larger set they were
             drawn from, ``None`` when the flag is not ``True``.
         n_features_out_: Number of features produced.
+
+    A row on which a fitted expression cannot be evaluated at transform time
+    (outside its domain, such as the logarithm of a negative value) is NaN in
+    that expression's column, with a warning naming the expression; the other
+    rows are unaffected. Impute or drop those rows before a downstream model
+    that does not accept NaN.
     """
 
     def __init__(
@@ -1220,12 +1434,38 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         return self
 
     def predict(self, X) -> np.ndarray:
-        """Predict using the constructed features and fitted model."""
+        """Predict using the constructed features and fitted model.
+
+        A row on which a fitted expression cannot be evaluated (outside its
+        domain, such as the logarithm of a negative value) is predicted as
+        NaN, with a warning; the other rows are unaffected. :meth:`score`
+        raises on such rows rather than scoring the others in silence.
+        """
         check_is_fitted(self, ["model_"])
         X = _validate_input(self, X, dtype=np.float64, reset=False)
         if self.model_ is None:
             return np.full(X.shape[0], self.intercept_, dtype=np.float64)
-        return self.model_.predict(self.scaler_.transform(self._apply(X)))
+        return self._model_output(X, "predict", "are predicted as NaN")[0]
+
+    def score(self, X, y, sample_weight=None) -> float:
+        """Return the R^2 of :meth:`predict` on ``X``.
+
+        Raises:
+            ValueError: If a fitted expression cannot be evaluated on some
+                row. R^2 over the remaining rows would be a different
+                quantity, so it is not returned in its place.
+        """
+        from sklearn.metrics import r2_score
+
+        predictions = self.predict(X)
+        undefined = int(np.count_nonzero(np.isnan(predictions)))
+        if undefined:
+            raise ValueError(
+                f"{undefined} of {len(predictions)} rows are outside the domain of a fitted "
+                "expression and have no prediction, so R^2 is undefined on this data; "
+                "drop or impute those rows before scoring."
+            )
+        return float(r2_score(y, predictions, sample_weight=sample_weight))
 
     def equation(
         self,
@@ -1239,7 +1479,10 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             precision: Significant figures for the coefficients, or decimal
                 places when ``style="fixed"``.
             max_terms: If set, include only the terms with the largest
-                standardised coefficients.
+                standardised coefficients. The omitted terms are held at their
+                training mean, whose contribution moves into the constant, so
+                the shortened equation agrees with the model on average
+                rather than treating the omitted terms as zero.
             style: ``"significant"`` adapts to each coefficient's magnitude,
                 ``"fixed"`` aligns decimal places, ``"scientific"`` uses
                 uniform e-notation. ``"fixed"`` falls back to significant
@@ -1357,6 +1600,10 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             return self
 
         self.scaler_ = StandardScaler().fit(matrix)
+        # predict cannot return NaN as a label, so a row it cannot evaluate is
+        # given the prediction of a model with no features at all.
+        counts = np.array([np.sum(y == klass) for klass in self.classes_])
+        self._majority_class_ = self.classes_[int(np.argmax(counts))]
 
         if len(self.classes_) < 2:
             # A single-class training set has nothing to discriminate; store
@@ -1369,6 +1616,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         )
         self.coef_ = self.model_.coef_
         self.intercept_ = self.model_.intercept_
+        self._holdout_fit_check(X, y)
         report(
             self.verbose,
             1,
@@ -1386,14 +1634,27 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         return self
 
     def predict(self, X) -> np.ndarray:
-        """Predict class labels."""
+        """Predict class labels.
+
+        A row on which a fitted expression cannot be evaluated (outside its
+        domain, such as the logarithm of a negative value) cannot be given a
+        NaN label, so it is assigned the most frequent training class -- the
+        prediction of a model with no features -- with a warning. The other
+        rows are unaffected. :meth:`predict_proba` and
+        :meth:`decision_function` return NaN for such rows, which is how to
+        find them.
+        """
         check_is_fitted(self, ["features_"])
         X = _validate_input(self, X, dtype=np.float64, reset=False)
         if self.model_ is None:
             if hasattr(self, "class_prior_"):
                 return np.full(X.shape[0], self.classes_[int(np.argmax(self.class_prior_))])
             return np.full(X.shape[0], self.classes_[0])
-        return self.model_.predict(self.scaler_.transform(self._apply(X)))
+        labels, defined = self._model_output(
+            X, "predict", "are assigned the most frequent training class"
+        )
+        labels[~defined] = self._majority_class_
+        return labels
 
     def equation(
         self,
@@ -1414,7 +1675,9 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             precision: Significant figures for the coefficients, or decimal
                 places when ``style="fixed"``.
             max_terms: If set, include only the terms with the largest
-                standardised coefficients per line.
+                standardised coefficients per line. The omitted terms are held
+                at their training mean, whose contribution moves into the
+                constant.
             style: ``"significant"`` adapts to each coefficient's magnitude,
                 ``"fixed"`` aligns decimal places, ``"scientific"`` uses
                 uniform e-notation. ``"fixed"`` falls back to significant
@@ -1430,24 +1693,24 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         if self.model_ is None:
             if hasattr(self, "class_prior_"):
                 prior = ", ".join(
-                    f"P({klass}) = {_format_coefficient(p, precision, style)}"
+                    f"P({_label(klass)}) = {_format_coefficient(p, precision, style)}"
                     for klass, p in zip(self.classes_, self.class_prior_, strict=True)
                 )
                 return f"class priors only (no feature passed selection): {prior}"
-            return f"constant prediction: {self.classes_[0]!r}"
+            return f"constant prediction: {_label(self.classes_[0])}"
 
         coefficients = np.atleast_2d(self.coef_)
         intercepts = np.atleast_1d(self.intercept_)
         note = self._parsimony_note()
         if coefficients.shape[0] == 1:
             return _render_linear_equation(
-                f"logit P(y = {self.classes_[1]!r})",
+                f"logit P(y = {_label(self.classes_[1])})",
                 coefficients[0], float(intercepts[0]), self.scaler_,
                 self.feature_formulas_, precision, max_terms, style,
             ) + note
         lines = [
             _render_linear_equation(
-                f"score({klass!r})", coefficients[row], float(intercepts[row]),
+                f"score({_label(klass)})", coefficients[row], float(intercepts[row]),
                 self.scaler_, self.feature_formulas_, precision, max_terms, style,
             )
             for row, klass in enumerate(self.classes_)
@@ -1457,21 +1720,26 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
                 + "\n(predicted class = argmax of the softmax scores)" + note)
 
     def predict_proba(self, X) -> np.ndarray:
-        """Predict class probabilities."""
+        """Predict class probabilities.
+
+        NaN on a row where a fitted expression cannot be evaluated; see
+        :meth:`predict`.
+        """
         check_is_fitted(self, ["features_"])
         X = _validate_input(self, X, dtype=np.float64, reset=False)
         if self.model_ is None:
             if hasattr(self, "class_prior_"):
                 return np.tile(self.class_prior_, (X.shape[0], 1))
             return np.ones((X.shape[0], 1))
-        return self.model_.predict_proba(self.scaler_.transform(self._apply(X)))
+        return self._model_output(X, "predict_proba", "have NaN probabilities")[0]
 
     def decision_function(self, X) -> np.ndarray:
         """Return the model's decision scores.
 
         With no feature selected the scores are the log prior odds (binary)
         or the log priors (multiclass), so they agree with :meth:`predict`
-        and :meth:`predict_proba`.
+        and :meth:`predict_proba`. NaN on a row where a fitted expression
+        cannot be evaluated; see :meth:`predict`.
         """
         check_is_fitted(self, ["model_"])
         X = _validate_input(self, X, dtype=np.float64, reset=False)
@@ -1482,4 +1750,4 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             if len(self.classes_) == 2:
                 return np.full(X.shape[0], log_prior[1] - log_prior[0])
             return np.tile(log_prior, (X.shape[0], 1))
-        return self.model_.decision_function(self.scaler_.transform(self._apply(X)))
+        return self._model_output(X, "decision_function", "have NaN scores")[0]
