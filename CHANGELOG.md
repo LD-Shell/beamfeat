@@ -4,6 +4,147 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.5] - 2026-10-19
+
+Bug fixes. The default path (correlation scoring, permutation screening with
+Benjamini-Yekutieli) gives the same results as 0.4.4 except where a fix below
+applies; "Changed" lists the cases that differ.
+
+### Fixed
+
+- A row on which a fitted formula is undefined, such as the logarithm of a
+  negative value, no longer changes the predictions for the other rows of the
+  batch. The formula's whole column was replaced with zeros for every row
+  whenever any row failed, so a valid row predicted 2.88 alone and -6.63 next
+  to an out-of-domain row, with only a log message. The failing rows are now
+  NaN in `transform`, `predict`, `predict_proba` and `decision_function`, and
+  a `UserWarning` names the formula and counts the rows. The classifier's
+  `predict` assigns those rows the most frequent training class, since a
+  label cannot be NaN; the regressor's `score` raises.
+- `KnockoffSelector` leaves constant and linearly dependent columns out of the
+  knockoff construction when the design covariance has an eigenvalue below
+  1e-6. Valid knockoffs of such columns equal the originals, so the lasso's
+  tie-breaking decided the statistics in favour of the originals: with one
+  duplicated null column, knockoff+ reached a mean FDP of 0.31 at q = 0.1,
+  under fixed-X and model-X alike. Dropped columns get W = 0 and are named in
+  the warning; routing and the fixed-X row requirement count the retained
+  columns.
+- `BeamSearch` reaches late input columns when `max_candidates_per_depth`
+  binds at depth 1. The first round proposed parents in column order, so from
+  about 258 inputs (default ceiling) pairs among the last columns were never
+  proposed. A truncated first round is now rebuilt with the inputs ranked by
+  score, as documented; rounds the ceiling does not reach are proposed as
+  before and give identical results.
+- `SpearmanScorer` gives tied values their average rank. Ordinal ranks broke
+  ties by row order, so a score depended on how the rows were arranged and a
+  constant candidate scored above zero. An incumbent set that explains the
+  target exactly now zeroes every score, a 1-D incumbent is accepted, and a
+  candidate with a non-finite value scores zero, as under `CorrelationScorer`.
+  For classification only the candidates are ranked: ranking the logistic
+  residual let a copy of an incumbent score about 0.5.
+- String and object class labels work in every scorer and in the parsimony
+  step; both cast the target to float, so `BeamFeatTransformer(problem_type=
+  "classification")` failed on string labels.
+- `BeamFeatClassifier` runs the post-fit check on the selection rows, so
+  `DegenerateFitWarning` fires for classification as documented.
+- A lone candidate is screened like any other set; screening was skipped and
+  the term returned unvetted. When no candidate can be evaluated on the
+  selection rows, `on_no_discoveries` applies. The `DegenerateFitWarning`
+  message no longer says features passed FDR screening when they did not.
+- `on_no_discoveries`, `selection_holdout`, `parsimony_holdout`,
+  `selection_correction` and `parsimony` are validated at fit. A holdout
+  fraction outside (0, 1), such as 1.5, switched the split off silently, and
+  an unrecognised `on_no_discoveries` behaved like `"empty"`.
+- A `Selector` instance keeps its own `correction` and `target_fdr`, and the
+  estimator warns when its own settings disagree: `selector=
+  PermutationSelector()` ran Benjamini-Hochberg where the estimators default
+  to Benjamini-Yekutieli, without saying so. Verbose output and warnings
+  report the correction and level that ran.
+- `fdp_inflation_` describes the set the model returns, after the
+  `parsimony_holdout` re-test or its fallback.
+- `equation(max_terms=...)` holds the omitted terms at their training mean,
+  so the printed constant absorbs their average contribution; it kept the
+  full model's constant, as if the omitted terms were zero.
+- Class labels print as plain values (`logit P(y = 1)`, not `np.int64(1)`).
+- `make_scorer` warns when given a scorer instance whose `problem_type`
+  differs from the one requested.
+- Node keys escape backslashes, parentheses and commas in column names, so a
+  column named like `a,leaf:b` can no longer give two expressions one key and
+  one cache entry. Keys and formulas of ordinary names are unchanged.
+- Units from different pint registries no longer drop candidates silently:
+  `Evaluator` re-expresses every unit in the first one's registry, and nodes
+  built directly from mixed registries raise `UnitRegistryError`.
+- Exclusion reasons name the cause: an overflowing variance is `overflow`
+  (was `zero_variance`), an underflow is `underflow` (was `non_finite`), and
+  `abs` of a never-negative operand is `duplicate` (was `domain_error`).
+  Which candidates are excluded is unchanged; the overflow's `RuntimeWarning`
+  no longer escapes.
+- The evaluation cache re-checks a value first computed without the search
+  filters, and returns read-only arrays. A failing node is logged once per
+  evaluator.
+- `(1/a)/b` is folded into `1/(a*b)` only when the fold does not deepen the
+  node; it could exceed `max_depth`.
+- `Node.to_sympy` and `to_sympy()` on the estimators give distinct symbols to
+  columns whose sanitised names coincide (`a b` and `a-b`).
+- The evaluator's default constancy cut matches `is_constant` (spread below
+  1e-12 of the magnitude; was 1e-5), so a column varying by a millionth of its
+  value is no longer dropped from the search without a warning.
+- `redundancy_threshold=1.0` drops exact affine and sign-flipped copies
+  consistently; their correlation landed a rounding error either side of 1.
+  The redundancy check judges constancy relative to a column's magnitude.
+- `BeamSearch` rejects `max_candidates_per_depth` below 1 (0 returned the
+  inputs), and its final `verbose` line reports the depth reached.
+- The guide's "honest failure" example used a seed on which pure noise
+  certifies 12 formulas, which happens on about 1 fit in 100; it now uses one
+  where nothing passes and says that some pure-noise fits certify features.
+
+### Added
+
+- `UnitRegistryError`, `ExclusionReason.UNDERFLOW`, an optional
+  `OperatorSpec.redundant` predicate, a `symbols` argument to
+  `Node.to_sympy`, and `SearchResult.n_rejected_redundant_final`.
+
+### Changed
+
+- Results that differ from 0.4.4: knockoff selections on candidate pools
+  with dependent columns, which are common among constructed features;
+  searches whose first round reaches `max_candidates_per_depth` (about 258
+  inputs or more at the defaults); `SpearmanScorer` scores with ties;
+  predictions for batches containing out-of-domain rows; the constant printed
+  by `equation(max_terms=...)`; fits with a single candidate, which may now
+  return nothing.
+- `SearchResult.n_evaluated_total` no longer counts the input columns,
+  matching `n_proposed_total`.
+- The release workflow runs the full CI suite and publishes only after it
+  passes; a tag push previously published before the tests finished.
+  `CONTRIBUTING.md` describes the release flow.
+- Docstrings describe what the code does: ranking on the larger of the
+  absolute and marginal scores, redundancy pruning within a depth with
+  cross-depth duplicates removed in the final ranking, and correlation scoring
+  as one dot product per candidate. `SpearmanScorer`, `is_constant` and the
+  estimator warnings are listed in their modules' `__all__`.
+- 131 tests added (587 in all).
+
+### Benchmarks
+
+- The comparison harnesses (`independent/bench.py` and its copy in
+  `additional_experiments/`) filled non-finite test cells of constructed
+  features with 0 while training cells got the training median; both now use
+  the training medians. The archived results are unchanged;
+  `independent/PROVENANCE.md` lists the affected `featuretools` and `OpenFE`
+  fits and relates them to the paper's comparison table.
+- `run_benchmarks.py` scores knockpy recovery with the shared criterion
+  instead of recording `False`.
+- `calibration_study.py` bounds the global-null rate by trials selecting
+  anything rather than features selected, and says its scores are in-sample.
+- `depth_ladder.py` seeds with `zlib.crc32` instead of the per-process
+  `hash()`; the archived ladder used the old seeding.
+- `additional_experiments/aggregate.py` reads the `highdim_*.json` records,
+  the README run order matches the archived run, and `selector_comparison.py`
+  reports selector errors instead of counting them as skips.
+- Stale docstrings corrected in `selector_calibration.py`, `feynman_panel.py`,
+  `bench.py` and `selector_comparison.py`.
+
 ## [0.4.4] - 2026-10-18
 
 ### Fixed

@@ -38,7 +38,7 @@ pip install "beamfeat[units]"   # + pint, for unit-aware search (units as
 pip install "beamfeat[all]"     # + sympy display support and test deps
 ```
 
-Python ≥ 3.10. There are **no upper version pins**: the 456 tests pass on
+Python ≥ 3.10. There are **no upper version pins**: the 587 tests pass on
 Python 3.10 to 3.15, from scikit-learn 1.6.1 with numpy 1.26 through
 scikit-learn 1.9.1 with numpy 2.5. Running the test suite or reproducing
 the benchmarks needs a little more setup, described in
@@ -141,7 +141,7 @@ benchmark scripts, not asserted:
   rate, power 1.000, zero fallbacks; zero selections over 60 global-null
   replicates.
 - Feynman-equation panel (12 physics laws, 0.1% noise): 10/12 solved at the
-  SRBench criterion and 8/12 in exact symbolic form, ~0.9 s per equation; the misses are named boundaries (a depth-3 rational, a literal
+  SRBench criterion and exact symbolic form on 8 of the 9 laws that have one, ~0.9 s per equation; the misses are named boundaries (a depth-3 rational, a literal
   constant, depth-4 nesting, the Gaussian's exponential).
 - Pure-noise stress ([`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py)): over 100
   global-null pipelines, where every selection is false by construction, BH
@@ -184,7 +184,7 @@ benchmark scripts, not asserted:
   marginally-quiet quadratic is priced by the guarantee itself) and an
   achieved 0.780 ± 0.013: about 0.086 lost to what marginal screening cannot
   see, 0.094 to the search — stated rather than hidden.
-- Test suite: 456 tests at 95% statement coverage (a 90% floor is enforced
+- Test suite: 587 tests at 96% statement coverage (a 90% floor is enforced
   in CI), including scikit-learn's full estimator-conformance checks.
 - Selection-only baseline (knockpy on raw columns, modified-FDR offset —
   the only satisfiable configuration at these dimensionalities): 0/15
