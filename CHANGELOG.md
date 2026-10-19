@@ -83,7 +83,12 @@ applies; "Changed" lists the cases that differ.
   about 258 inputs (default ceiling) pairs among the last columns were never
   proposed. A truncated first round is now rebuilt with the inputs ranked by
   score, as documented; rounds the ceiling does not reach are proposed as
-  before and give identical results.
+  before and give identical results. Three datasets of the high-dimensional
+  study reach the ceiling: mean R² moves from 0.523 to 0.340 on riboflavin,
+  from 0.687 to 0.664 on ct_slices and from 0.812 to 0.816 on ujiindoorloc.
+  With the ceiling raised so that every input of ct_slices and ujiindoorloc
+  is proposed, the search returns the 0.4.5 result exactly; the 0.4.4 figures
+  depended on which columns came first in the file.
 - `SpearmanScorer` gives tied values their average rank. Ordinal ranks broke
   ties by row order, so a score depended on how the rows were arranged and a
   constant candidate scored above zero. An incumbent set that explains the
