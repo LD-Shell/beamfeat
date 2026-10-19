@@ -48,17 +48,28 @@ and excluded from the default configuration.
 
 The order matters; each step feeds the next.
 
-1. Confirm a clean tree: `ruff check src tests benchmarks`, `pytest`
-   (coverage floor enforced), `mkdocs build`, `python -m build`,
-   `twine check dist/*`.
-2. Push to GitHub and let CI pass on all jobs, including the notebook job
-   and the `paper` workflow (the compiled PDF artifact is the manuscript's
-   real rendering check).
-3. Upload the checked distributions to PyPI: `twine upload dist/*`.
-4. Tag the release (`git tag v0.1.0 && git push --tags`) and create the
-   GitHub release.
-5. Archive the release on Zenodo; copy the concept DOI into
-   `CITATION.cff` (template at the bottom of that file) and the README's
-   DOI badge.
-6. Publish the conda-forge recipe: `grayskull pypi beamfeat`, then a pull
-   request to `conda-forge/staged-recipes` (a skeleton is in `recipe/`).
+1. Confirm a clean tree locally: `ruff check src tests benchmarks`,
+   `pytest -q` (the 90% coverage floor is enforced in CI with
+   `--cov=beamfeat --cov-fail-under=90`), and `mkdocs build` (needs the
+   `docs` extra).
+2. Bump `__version__` in `src/beamfeat/__init__.py` (the package version is
+   read from it), add the release section to `CHANGELOG.md`, and update
+   `version` and `date-released` in `CITATION.cff`.
+3. Commit, push `main`, and wait for CI to pass on all jobs, including the
+   oldest-stack and notebook jobs.
+4. Tag the release commit and push the tag:
+
+   ```bash
+   git tag -a vX.Y.Z -m "beamfeat X.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+   The tag triggers `release.yml`, which runs the CI suite again, builds
+   and checks the distributions, and publishes them to PyPI through trusted
+   publishing (the `pypi` environment). Do not upload with `twine` by hand.
+5. Create the GitHub release from the tag, with the changelog section as
+   its notes. Zenodo archives each GitHub release automatically under the
+   concept DOI already in `CITATION.cff` and the README badge.
+6. conda-forge: update `recipe/recipe.yaml` (`version` and the sdist
+   `sha256` from PyPI) for the pending `staged-recipes` submission; once the
+   feedstock exists, its bot opens the version-bump pull request instead.
