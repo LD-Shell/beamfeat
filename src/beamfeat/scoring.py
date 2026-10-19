@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import Literal
+from typing import Any, Literal, NamedTuple
 
 import numpy as np
 
@@ -97,6 +97,61 @@ def _standardise(values: np.ndarray) -> np.ndarray:
     return centred / float(np.sqrt(np.mean(centred**2)))
 
 
+# Columns standardised together at most this many bytes at a time, so that
+# scoring a wide matrix does not hold several full-size temporaries at once.
+_BLOCK_BYTES = 16 * 2**20
+
+
+class ColumnStats(NamedTuple):
+    """Per-column summary shared by evaluation, scoring and standardisation.
+
+    Attributes:
+        mean: Mean of each column.
+        variance: Mean squared deviation of each column, as :func:`numpy.var`.
+        magnitude: Mean absolute value of each column.
+    """
+
+    mean: np.ndarray
+    variance: np.ndarray
+    magnitude: np.ndarray
+
+    def take(self, index: Any) -> ColumnStats:
+        """Statistics of the columns selected by ``index``."""
+        return ColumnStats(self.mean[index], self.variance[index], self.magnitude[index])
+
+
+def column_stats(values: np.ndarray) -> ColumnStats:
+    """Mean, variance and magnitude of every column of a 2-D array.
+
+    Each column is reduced as a contiguous vector, so every statistic equals
+    the one computed from that column on its own, to the last bit; reducing
+    along the rows of a row-major matrix sums in a different order. Overflow
+    is not reported: it shows up as an infinite variance.
+    """
+    values = np.asfortranarray(values)
+    with np.errstate(all="ignore"):
+        mean = values.mean(axis=0)
+        centred = values - mean
+        variance = np.mean(centred**2, axis=0)
+        magnitude = np.mean(np.abs(values), axis=0)
+    return ColumnStats(mean, variance, magnitude)
+
+
+def _standardise_block(values: np.ndarray, stats: ColumnStats) -> np.ndarray:
+    """Standardise every column of ``values`` as :func:`_standardise` would.
+
+    Returns a column-major array, so each standardised column is contiguous.
+    """
+    with np.errstate(all="ignore"):
+        scale = np.sqrt(stats.variance)
+        bounded = np.isfinite(stats.magnitude) & (stats.magnitude > 0.0)
+        constant = np.where(bounded, scale <= 1e-12 * stats.magnitude, scale == 0.0)
+        standardised = np.asfortranarray(values) - stats.mean
+        np.divide(standardised, scale, out=standardised)
+    standardised[:, constant] = 0.0
+    return standardised
+
+
 class Scorer(ABC):
     """Base class for candidate scoring strategies.
 
@@ -108,6 +163,12 @@ class Scorer(ABC):
 
     #: Human-readable identifier, used in logs and reports.
     name: str = "scorer"
+
+    #: Whether each candidate's score depends on its own column alone, so that
+    #: a batch scored in pieces receives the scores it would receive whole.
+    #: Declared by the class that defines :meth:`score_batch`; a subclass that
+    #: overrides :meth:`score_batch` without declaring it is scored whole.
+    separable: bool = False
 
     def __init__(self, problem_type: ProblemType = "regression", random_state: int | None = 0) -> None:
         self.problem_type = _check_problem_type(problem_type)
@@ -138,28 +199,78 @@ class Scorer(ABC):
         """Score a single candidate. Convenience wrapper over :meth:`score_batch`."""
         return float(self.score_batch(candidate.reshape(-1, 1), target, incumbent)[0])
 
+    def scores_by_column(self) -> bool:
+        """Whether a batch may be split into pieces and scored piece by piece.
+
+        True only when the class that defines :meth:`score_batch` declares
+        :attr:`separable`; the search then scores candidates in bounded
+        chunks through :meth:`prepare` and :meth:`score_prepared`, and scores
+        a batch whole otherwise.
+        """
+        for klass in type(self).__mro__:
+            if "score_batch" in vars(klass):
+                return bool(vars(klass).get("separable", False))
+        return False  # pragma: no cover - score_batch is abstract
+
+    def prepare(self, target: np.ndarray, incumbent: np.ndarray | None = None) -> Any:
+        """Compute the target-side state shared by every candidate in a round.
+
+        Only separable scorers implement this; see :meth:`scores_by_column`.
+
+        Args:
+            target: ``(n_samples,)`` target vector.
+            incumbent: Optional ``(n_samples, n_selected)`` matrix of features
+                already selected.
+
+        Returns:
+            An opaque value to pass to :meth:`score_prepared`.
+        """
+        raise NotImplementedError(f"{type(self).__name__} scores a batch whole")
+
+    def score_prepared(
+        self, candidates: np.ndarray, prepared: Any, stats: ColumnStats | None = None
+    ) -> np.ndarray:
+        """Score candidate columns against state from :meth:`prepare`.
+
+        Args:
+            candidates: ``(n_samples, n_candidates)`` matrix of candidate
+                feature values.
+            prepared: The value :meth:`prepare` returned.
+            stats: Optional :func:`column_stats` of ``candidates``, when the
+                caller has them already.
+
+        Returns:
+            ``(n_candidates,)`` array, equal to what :meth:`score_batch` gives
+            for the same candidates, target and incumbent.
+        """
+        raise NotImplementedError(f"{type(self).__name__} scores a batch whole")
+
     # -- shared helpers ----------------------------------------------------- #
 
     def _validate(
         self, candidates: np.ndarray, target: np.ndarray, incumbent: np.ndarray | None
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
         """Coerce shapes and dtypes, and check row counts agree."""
-        candidates = np.asarray(candidates, dtype=np.float64)
-        if candidates.ndim == 1:
-            candidates = candidates.reshape(-1, 1)
-        if candidates.ndim != 2:
-            raise ValueError(f"candidates must be 2-D, got {candidates.ndim}-D")
+        candidates = _as_matrix(candidates)
+        target, incumbent = self._validate_reference(target, incumbent, candidates.shape[0])
+        return candidates, target, incumbent
 
+    def _validate_reference(
+        self, target: np.ndarray, incumbent: np.ndarray | None, n_rows: int | None = None
+    ) -> tuple[np.ndarray, np.ndarray | None]:
+        """Coerce the target and incumbent, checking them against ``n_rows``."""
         target = np.asarray(target).ravel()
-        if target.shape[0] != candidates.shape[0]:
-            raise ValueError(f"target has {target.shape[0]} rows, candidates have {candidates.shape[0]}")
+        if n_rows is None:
+            n_rows = target.shape[0]
+        if target.shape[0] != n_rows:
+            raise ValueError(f"target has {target.shape[0]} rows, candidates have {n_rows}")
 
         if incumbent is not None:
             incumbent = np.asarray(incumbent, dtype=np.float64)
             if incumbent.ndim == 1:
                 incumbent = incumbent.reshape(-1, 1)
-            if incumbent.shape[0] != candidates.shape[0]:
-                raise ValueError(f"incumbent has {incumbent.shape[0]} rows, candidates have {candidates.shape[0]}")
+            if incumbent.shape[0] != n_rows:
+                raise ValueError(f"incumbent has {incumbent.shape[0]} rows, candidates have {n_rows}")
             if incumbent.shape[1] == 0:
                 incumbent = None
 
@@ -171,7 +282,7 @@ class Scorer(ABC):
         else:
             target = target.astype(np.float64)
 
-        return candidates, target, incumbent
+        return target, incumbent
 
     def _residualise(self, target: np.ndarray, incumbent: np.ndarray | None) -> np.ndarray:
         """Return the part of the target not explained by the incumbent set.
@@ -257,6 +368,7 @@ class CorrelationScorer(Scorer):
     """
 
     name = "correlation"
+    separable = True
 
     def score_batch(
         self,
@@ -265,23 +377,56 @@ class CorrelationScorer(Scorer):
         incumbent: np.ndarray | None = None,
     ) -> np.ndarray:
         candidates, target, incumbent = self._validate(candidates, target, incumbent)
-        residual = self._residualise(target, incumbent)
+        return self.score_prepared(candidates, self._prepare_validated(target, incumbent))
 
-        scaled_residual = _standardise(residual)
+    def prepare(self, target: np.ndarray, incumbent: np.ndarray | None = None) -> np.ndarray | None:
+        return self._prepare_validated(*self._validate_reference(target, incumbent))
+
+    def _prepare_validated(self, target: np.ndarray, incumbent: np.ndarray | None) -> np.ndarray | None:
+        """Standardised residual, or ``None`` when nothing is left to explain."""
+        scaled_residual = _standardise(self._residualise(target, incumbent))
         if not np.any(scaled_residual):
             # The incumbent set explains the target completely; nothing to add.
+            return None
+        return scaled_residual
+
+    def score_prepared(
+        self, candidates: np.ndarray, prepared: np.ndarray | None, stats: ColumnStats | None = None
+    ) -> np.ndarray:
+        candidates = _as_matrix(candidates)
+        if prepared is None:
             return np.zeros(candidates.shape[1])
+        return _absolute_correlations(candidates, prepared, stats)
 
-        return _absolute_correlations(candidates, scaled_residual)
+
+def _as_matrix(candidates: np.ndarray) -> np.ndarray:
+    """Coerce candidates to a 2-D float64 array, one column per candidate."""
+    candidates = np.asarray(candidates, dtype=np.float64)
+    if candidates.ndim == 1:
+        candidates = candidates.reshape(-1, 1)
+    if candidates.ndim != 2:
+        raise ValueError(f"candidates must be 2-D, got {candidates.ndim}-D")
+    return candidates
 
 
-def _absolute_correlations(candidates: np.ndarray, scaled_residual: np.ndarray) -> np.ndarray:
-    """|Pearson correlation| of each candidate column with a standardised residual."""
-    scores = np.empty(candidates.shape[1])
-    n_samples = candidates.shape[0]
-    for index in range(candidates.shape[1]):
-        scaled_candidate = _standardise(candidates[:, index])
-        scores[index] = abs(float(scaled_candidate @ scaled_residual) / n_samples)
+def _absolute_correlations(
+    candidates: np.ndarray, scaled_residual: np.ndarray, stats: ColumnStats | None = None
+) -> np.ndarray:
+    """|Pearson correlation| of each candidate column with a standardised residual.
+
+    Columns are standardised a block at a time and each is then reduced with
+    its own dot product: a matrix-vector product would sum in a different
+    order, and scores that differ in the last bit can rank differently.
+    """
+    n_samples, n_candidates = candidates.shape
+    scores = np.empty(n_candidates)
+    step = max(1, _BLOCK_BYTES // max(1, 8 * n_samples))
+    for start in range(0, n_candidates, step):
+        block = candidates[:, start : start + step]
+        block_stats = column_stats(block) if stats is None else stats.take(slice(start, start + step))
+        standardised = _standardise_block(block, block_stats)
+        for offset, column in enumerate(standardised.T):
+            scores[start + offset] = abs(float(column @ scaled_residual) / n_samples)
 
     return np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
 
@@ -428,6 +573,7 @@ class GradientBoostingScorer(Scorer):
     """
 
     name = "gradient_boosting"
+    separable = True
 
     def __init__(
         self,
@@ -491,36 +637,47 @@ class GradientBoostingScorer(Scorer):
         target: np.ndarray,
         incumbent: np.ndarray | None = None,
     ) -> np.ndarray:
+        candidates, target, incumbent = self._validate(candidates, target, incumbent)
+        return self.score_prepared(candidates, self._prepare_validated(target, incumbent))
+
+    def prepare(self, target: np.ndarray, incumbent: np.ndarray | None = None) -> _BoostingRound | None:
+        return self._prepare_validated(*self._validate_reference(target, incumbent))
+
+    def _prepare_validated(self, target: np.ndarray, incumbent: np.ndarray | None) -> _BoostingRound | None:
+        """Rows, folds and baseline shared by every candidate, or ``None`` if unscoreable.
+
+        Every candidate is scored on the same rows and folds against the same
+        baseline, so a candidate's score does not depend on which others are
+        scored with it.
+        """
         from sklearn.model_selection import KFold, StratifiedKFold
 
-        candidates, target, incumbent = self._validate(candidates, target, incumbent)
-
         # Subsample for affordability, deterministically.
-        n_samples = candidates.shape[0]
+        n_samples = target.shape[0]
+        keep = None
         if self.subsample_size is not None and n_samples > self.subsample_size:
             rng = np.random.default_rng(self.random_state)
             keep = rng.choice(n_samples, size=self.subsample_size, replace=False)
             keep.sort()
-            candidates = candidates[keep]
             target = target[keep]
             if incumbent is not None:
                 incumbent = incumbent[keep]
 
-        n_samples = candidates.shape[0]
+        n_samples = target.shape[0]
         n_folds = min(self.n_folds, n_samples)
         if n_folds < 2:
-            return np.zeros(candidates.shape[1])
+            return None
 
         if self.problem_type == "classification":
             _, counts = np.unique(target, return_counts=True)
             n_folds = min(n_folds, int(counts.min()))
             if n_folds < 2:
-                return np.zeros(candidates.shape[1])
+                return None
             splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=self.random_state)
-            folds = list(splitter.split(candidates, target))
+            folds = list(splitter.split(np.zeros((n_samples, 1)), target))
         else:
             splitter = KFold(n_splits=n_folds, shuffle=True, random_state=self.random_state)
-            folds = list(splitter.split(candidates))
+            folds = list(splitter.split(np.zeros((n_samples, 1))))
 
         # Baseline: performance of the incumbent set alone. With no incumbent
         # the baseline is the trivial predictor, which scores 0 under r2 and
@@ -532,14 +689,35 @@ class GradientBoostingScorer(Scorer):
             if not np.isfinite(baseline):  # pragma: no cover - defensive
                 baseline = 0.0
 
+        return _BoostingRound(keep, target, incumbent, folds, baseline)
+
+    def score_prepared(
+        self, candidates: np.ndarray, prepared: _BoostingRound | None, stats: ColumnStats | None = None
+    ) -> np.ndarray:
+        candidates = _as_matrix(candidates)
+        if prepared is None:
+            return np.zeros(candidates.shape[1])
+        if prepared.keep is not None:
+            candidates = candidates[prepared.keep]
+
         scores = np.empty(candidates.shape[1])
         for index in range(candidates.shape[1]):
             column = candidates[:, index : index + 1]
-            features = column if incumbent is None else np.column_stack([incumbent, column])
-            improvement = self._cv_score(features, target, folds) - baseline
+            features = column if prepared.incumbent is None else np.column_stack([prepared.incumbent, column])
+            improvement = self._cv_score(features, prepared.target, prepared.folds) - prepared.baseline
             scores[index] = max(0.0, improvement) if np.isfinite(improvement) else 0.0
 
         return scores
+
+
+class _BoostingRound(NamedTuple):
+    """Target-side state of one :class:`GradientBoostingScorer` round."""
+
+    keep: np.ndarray | None
+    target: np.ndarray
+    incumbent: np.ndarray | None
+    folds: list[tuple[np.ndarray, np.ndarray]]
+    baseline: float
 
 
 def _as_codes(target: np.ndarray) -> np.ndarray:
@@ -588,6 +766,7 @@ class SpearmanScorer(CorrelationScorer):
     """
 
     name = "spearman"
+    separable = True
 
     def score_batch(
         self,
@@ -596,9 +775,13 @@ class SpearmanScorer(CorrelationScorer):
         incumbent: np.ndarray | None = None,
     ) -> np.ndarray:
         candidates, target, incumbent = self._validate(candidates, target, incumbent)
+        return self.score_prepared(candidates, self._prepare_validated(target, incumbent))
+
+    def _prepare_validated(self, target: np.ndarray, incumbent: np.ndarray | None) -> np.ndarray | None:
+        """Standardised (ranked) residual, or ``None`` when nothing is left to explain."""
         residual = self._residualise(target, incumbent)
         if not np.all(np.isfinite(residual)):  # pragma: no cover - defensive
-            return np.zeros(candidates.shape[1])
+            return None
 
         # An exactly explained target leaves a zero residual, whose ranks are
         # all tied: the standardised ranks are then zero, as for Pearson.
@@ -606,9 +789,17 @@ class SpearmanScorer(CorrelationScorer):
             residual = _average_ranks(residual.reshape(-1, 1))[:, 0]
         scaled_residual = _standardise(residual)
         if not np.any(scaled_residual):
-            return np.zeros(candidates.shape[1])
+            return None
+        return scaled_residual
 
-        scores = _absolute_correlations(_average_ranks(candidates), scaled_residual)
+    def score_prepared(
+        self, candidates: np.ndarray, prepared: np.ndarray | None, stats: ColumnStats | None = None
+    ) -> np.ndarray:
+        # The statistics of the raw values do not describe their ranks.
+        candidates = _as_matrix(candidates)
+        if prepared is None:
+            return np.zeros(candidates.shape[1])
+        scores = _absolute_correlations(_average_ranks(candidates), prepared)
         # Ranks would order an infinite or NaN value like any other; Pearson
         # scores such a column zero, and so does this scorer.
         scores[~np.all(np.isfinite(candidates), axis=0)] = 0.0

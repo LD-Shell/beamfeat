@@ -13,6 +13,7 @@ from beamfeat.scoring import (
     SpearmanScorer,
     _average_ranks,
     _standardise,
+    column_stats,
     is_constant,
     make_scorer,
 )
@@ -540,3 +541,94 @@ class TestIsConstant:
         for values in (np.full(200, 4.0), np.linspace(0, 1e-9, 200), np.linspace(1, 9, 200)):
             standardised = _standardise(values)
             assert np.allclose(standardised, 0.0) is is_constant(values)
+
+
+# --------------------------------------------------------------------------- #
+# Scoring in pieces
+# --------------------------------------------------------------------------- #
+
+
+def _awkward_candidates(rng, n=240):
+    """Columns at very different scales, with a constant, a near-constant and a NaN column."""
+    base = rng.uniform(1.0, 3.0, (n, 9)) * np.array([1e-9, 1e-3, 1.0, 1.0, 1e3, 1e9, 1.0, 1.0, 1.0])
+    base[:, 6] = 2.5
+    base[:, 7] = 1.0 + 1e-14 * rng.normal(size=n)
+    base[3, 8] = np.nan
+    return base
+
+
+SEPARABLE = ["correlation", "spearman", "gradient_boosting"]
+
+
+class TestScoringInPieces:
+    @pytest.mark.parametrize("name", SEPARABLE)
+    @pytest.mark.parametrize("problem_type", ["regression", "classification"])
+    @pytest.mark.parametrize("with_incumbent", [False, True])
+    def test_prepared_scores_equal_score_batch(self, rng, name, problem_type, with_incumbent):
+        candidates = _awkward_candidates(rng)
+        signal = candidates[:, 2] * candidates[:, 3]
+        target = signal + rng.normal(0, 0.1, len(signal))
+        if problem_type == "classification":
+            target = (target > np.median(target)).astype(int)
+        incumbent = candidates[:, [3]] if with_incumbent else None
+        scorer = _fast(name, problem_type)
+        assert scorer.scores_by_column()
+
+        whole = scorer.score_batch(candidates, target, incumbent)
+        prepared = scorer.prepare(target, incumbent)
+        pieces = np.concatenate(
+            [scorer.score_prepared(candidates[:, start : start + 2], prepared) for start in range(0, 9, 2)]
+        )
+        np.testing.assert_array_equal(pieces, whole)
+
+    @pytest.mark.parametrize("name", ["correlation", "gradient_boosting"])
+    def test_supplied_statistics_give_the_same_scores(self, rng, name):
+        candidates = _awkward_candidates(rng)
+        target = candidates[:, 2] + rng.normal(0, 0.1, len(candidates))
+        scorer = _fast(name)
+        prepared = scorer.prepare(target)
+        np.testing.assert_array_equal(
+            scorer.score_prepared(candidates, prepared, column_stats(candidates)),
+            scorer.score_prepared(candidates, prepared),
+        )
+
+    def test_correlation_equals_the_column_by_column_definition(self, rng):
+        """Bit for bit: vectorising the standardisation must not move a score."""
+        candidates = _awkward_candidates(rng)
+        target = candidates[:, 2] * candidates[:, 4] + rng.normal(0, 0.1, len(candidates))
+        residual = _standardise(target)
+        expected = np.empty(candidates.shape[1])
+        with np.errstate(all="ignore"):
+            for index in range(candidates.shape[1]):
+                column = _standardise(candidates[:, index])
+                expected[index] = abs(float(column @ residual) / len(target))
+        expected = np.nan_to_num(expected, nan=0.0, posinf=0.0, neginf=0.0)
+        np.testing.assert_array_equal(CorrelationScorer().score_batch(candidates, target), expected)
+        np.testing.assert_array_equal(
+            CorrelationScorer().score_batch(np.ascontiguousarray(candidates), target),
+            CorrelationScorer().score_batch(np.asfortranarray(candidates), target),
+        )
+
+    def test_column_stats_match_the_one_column_reductions(self, rng):
+        candidates = _awkward_candidates(rng)[:, :8]
+        stats = column_stats(candidates)
+        for index in range(candidates.shape[1]):
+            column = candidates[:, index]
+            assert stats.mean[index] == column.mean()
+            assert stats.variance[index] == np.var(column)
+            assert stats.magnitude[index] == np.mean(np.abs(column))
+
+    def test_mutual_information_is_scored_whole(self, rng):
+        """Its noise is drawn for the whole batch, so a column's score depends on the batch."""
+        scorer = MutualInformationScorer()
+        assert not scorer.scores_by_column()
+        with pytest.raises(NotImplementedError):
+            scorer.prepare(rng.normal(size=50))
+
+    def test_nothing_left_to_explain_scores_zero(self, rng):
+        candidates = rng.uniform(1.0, 3.0, (100, 3))
+        target = 2.0 * candidates[:, 0] + 1.0
+        for scorer in (CorrelationScorer(), SpearmanScorer()):
+            prepared = scorer.prepare(target, candidates[:, [0]])
+            assert prepared is None
+            np.testing.assert_array_equal(scorer.score_prepared(candidates, prepared), np.zeros(3))
