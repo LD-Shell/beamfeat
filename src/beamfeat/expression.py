@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import math
 from collections import OrderedDict
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -42,6 +42,7 @@ __all__ = [
     "OperatorSpec",
     "RejectedNode",
     "UnitError",
+    "UnitRegistryError",
     "combine",
     "leaf",
     "transform",
@@ -64,6 +65,17 @@ class UnitError(NodeError):
     """
 
 
+class UnitRegistryError(UnitError):
+    """Raised when operands carry units from different pint registries.
+
+    pint cannot multiply or divide quantities from two ``UnitRegistry``
+    instances, so this is a configuration problem rather than a dimensional
+    verdict on one candidate. :class:`Evaluator` converts the units it is given
+    into a single registry, so it only arises for nodes built directly with
+    :func:`leaf` from mixed registries.
+    """
+
+
 # --------------------------------------------------------------------------- #
 # Exclusion reasons
 # --------------------------------------------------------------------------- #
@@ -79,7 +91,10 @@ class ExclusionReason(str, Enum):
     """Evaluation produced NaN or infinite values."""
 
     OVERFLOW = "overflow"
-    """Evaluation triggered a floating-point overflow warning."""
+    """Evaluation, or the variance of its result, overflowed."""
+
+    UNDERFLOW = "underflow"
+    """Evaluation triggered a floating-point underflow."""
 
     DOMAIN_ERROR = "domain_error"
     """Input fell outside the operator's valid domain (e.g. log of a negative)."""
@@ -88,7 +103,8 @@ class ExclusionReason(str, Enum):
     """Result is constant, or within tolerance of constant."""
 
     DUPLICATE = "duplicate"
-    """Result is numerically identical to an already-accepted feature."""
+    """Result is numerically identical to an already-accepted feature, such as
+    ``abs`` of an operand that is never negative."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,10 +127,11 @@ class EvaluationLog:
     dropped. Supports iteration, ``len``, and filtering by reason.
     """
 
-    __slots__ = ("_records",)
+    __slots__ = ("_generation", "_records")
 
     def __init__(self) -> None:
         self._records: list[RejectedNode] = []
+        self._generation = 0
 
     def record(self, node: Node, reason: ExclusionReason, detail: str = "") -> None:
         """Append a rejection record."""
@@ -134,6 +151,7 @@ class EvaluationLog:
     def clear(self) -> None:
         """Discard all records."""
         self._records.clear()
+        self._generation += 1
 
     def __iter__(self) -> Iterator[RejectedNode]:
         return iter(self._records)
@@ -167,6 +185,9 @@ class OperatorSpec:
             operand as outside the operator's valid domain.
         commutative: Whether operand order is irrelevant. Commutative operands
             are sorted during hashing so ``x+y`` and ``y+x`` unify.
+        redundant: Optional predicate on input arrays; returning True marks the
+            result as identical to its operand (``abs`` of a column that is
+            never negative), so it is excluded as a duplicate.
     """
 
     name: str
@@ -176,6 +197,7 @@ class OperatorSpec:
     unit_fn: Callable[..., Any] | None = None
     domain: Callable[..., bool] | None = None
     commutative: bool = False
+    redundant: Callable[..., bool] | None = None
 
     def __post_init__(self) -> None:
         if self.arity not in (1, 2):
@@ -224,14 +246,16 @@ class Node:
         """Build a canonical string key for structural hashing.
 
         Commutative operands are sorted so that ``x+y`` and ``y+x`` produce the
-        same key and therefore unify to a single node.
+        same key and therefore unify to a single node. Backslashes, parentheses
+        and commas in column and operator names are escaped, so a column named
+        ``"a,leaf:b"`` cannot make two different expressions share a key.
         """
         if not children:
-            return f"leaf:{column}"
+            return f"leaf:{_escape_key(str(column))}"
         keys = [c._key for c in children]
         if commutative:
             keys = sorted(keys)
-        return f"{op}({','.join(keys)})"
+        return f"{_escape_key(op)}({','.join(keys)})"
 
     def __hash__(self) -> int:
         return hash(self._key)
@@ -289,19 +313,30 @@ class Node:
         """Return the names of source columns this expression depends on."""
         return {str(n.column) for n in self.leaves()}
 
-    def to_sympy(self) -> Any:
+    def to_sympy(self, symbols: Mapping[str, Any] | None = None) -> Any:
         """Convert to a sympy expression for display or simplification.
 
         Imported lazily: sympy is only needed when a user asks for a symbolic
         form, so it stays off the hot path during search.
-        """
-        import sympy
 
+        Args:
+            symbols: Optional mapping of column name to the sympy symbol used
+                for it. By default each column gets a real symbol named after
+                it, sanitised into an identifier; columns whose sanitised names
+                coincide are given distinct numeric suffixes.
+        """
+        if symbols is None:
+            symbols = _sympy_symbols(self.columns())
+        return self._to_sympy(symbols)
+
+    def _to_sympy(self, symbols: Mapping[str, Any]) -> Any:
         if self.is_leaf:
-            return sympy.Symbol(_sympy_safe(str(self.column)), real=True)
-        args = [c.to_sympy() for c in self.children]
+            return symbols[str(self.column)]
+        args = [c._to_sympy(symbols) for c in self.children]
         builder = _SYMPY_BUILDERS.get(self.op)
         if builder is None:  # pragma: no cover - defensive
+            import sympy
+
             return sympy.Function(self.op)(*args)
         return builder(*args)
 
@@ -325,12 +360,68 @@ class Node:
         return self.name
 
 
+_KEY_ESCAPES = str.maketrans({"\\": "\\\\", "(": "\\(", ")": "\\)", ",": "\\,"})
+
+
+def _escape_key(name: str) -> str:
+    """Escape the characters that delimit structural keys."""
+    return name.translate(_KEY_ESCAPES)
+
+
+def _plain_key(node: Node) -> str:
+    """The structural key with names left unescaped."""
+    if node.is_leaf:
+        return f"leaf:{node.column}"
+    keys = [_plain_key(c) for c in node.children]
+    spec = OPERATORS.get(node.op)
+    if spec is not None and spec.commutative:
+        keys = sorted(keys)
+    return f"{node.op}({','.join(keys)})"
+
+
+def _operand_order(node: Node) -> tuple[str, str]:
+    """Sort key placing the operands of a commutative operator.
+
+    Ordering by the unescaped key keeps operand order, and with it every
+    printed formula, the same as before keys were escaped; the escaped key
+    breaks the ties between names the unescaped form cannot tell apart.
+    """
+    if "\\" not in node._key:
+        return node._key, node._key
+    return _plain_key(node), node._key
+
+
 def _sympy_safe(name: str) -> str:
     """Sanitise a column name into a valid sympy symbol name."""
     cleaned = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in name)
     if not cleaned or cleaned[0].isdigit():
         cleaned = f"x_{cleaned}"
     return cleaned
+
+
+def _sympy_symbols(columns: Iterable[str]) -> dict[str, Any]:
+    """Map column names to distinct real sympy symbols.
+
+    Names that are already valid identifiers keep them. Others are sanitised,
+    and a sanitised name that is already taken gets a numeric suffix, so two
+    columns never share a symbol.
+    """
+    import sympy
+
+    ordered = sorted(set(columns))
+    names = {column: column for column in ordered if _sympy_safe(column) == column}
+    taken = set(names.values())
+    for column in ordered:
+        if column in names:
+            continue
+        base = candidate = _sympy_safe(column)
+        suffix = 1
+        while candidate in taken:
+            suffix += 1
+            candidate = f"{base}_{suffix}"
+        names[column] = candidate
+        taken.add(candidate)
+    return {column: sympy.Symbol(name, real=True) for column, name in names.items()}
 
 
 # --------------------------------------------------------------------------- #
@@ -378,6 +469,10 @@ def _coerce_unit(value: Any, registry: Any = None) -> Any:
       ValueError naming the fix rather than an ImportError from deep inside
       unit propagation.
 
+    When ``registry`` is given, Quantities and Units built in a different pint
+    registry are re-expressed in it, since pint cannot multiply or divide
+    across registries.
+
     Anything else raises ``ValueError`` naming the offending value, so a typo
     fails at fit time with a readable message instead of a ``TypeError`` deep
     in an operator's unit function.
@@ -385,12 +480,14 @@ def _coerce_unit(value: Any, registry: Any = None) -> Any:
     if value is None:
         return None
     if hasattr(value, "units") and hasattr(value, "dimensionality"):
-        return value
+        return _in_registry(value, registry)
     if hasattr(value, "dimensionality"):
         try:
-            return 1 * value
+            quantity = 1 * value
         except TypeError:  # pragma: no cover - defensive
             pass
+        else:
+            return _in_registry(quantity, registry)
     if isinstance(value, str):
         try:
             import pint
@@ -410,6 +507,21 @@ def _coerce_unit(value: Any, registry: Any = None) -> Any:
         f"unsupported unit specification {value!r} of type {type(value).__name__}; "
         "pass a pint Quantity (1 * ureg.kg), a pint Unit, a unit string ('kg'), or None"
     )
+
+
+def _in_registry(quantity: Any, registry: Any) -> Any:
+    """Re-express ``quantity`` in ``registry`` if it was built in another one."""
+    own = getattr(quantity, "_REGISTRY", None)
+    if registry is None or own is None or own is registry:
+        return quantity
+    try:
+        converted = registry.Quantity(quantity.magnitude, quantity.units)
+        converted.dimensionality  # raises for a unit this registry does not define
+        return converted
+    except Exception as exc:
+        raise UnitRegistryError(
+            f"unit {quantity!r} comes from a different pint registry and could not be converted: {exc}"
+        ) from None
 
 
 def _registry_of(units: dict[str, Any] | None) -> Any:
@@ -440,23 +552,6 @@ def _normalise_unit(unit: Any) -> Any:
 
 def _unit_preserving(unit: Any) -> Any:
     return unit
-
-
-def _unit_dimensionless(unit: Any, op_name: str = "transform") -> Any:
-    _dimensionless_required(unit, op_name)
-    return unit
-
-
-def _make_unary_unit_fn(op_name: str, requires_dimensionless: bool) -> Callable[[Any], Any]:
-    def fn(unit: Any) -> Any:
-        if unit is None:
-            return None
-        if requires_dimensionless:
-            _dimensionless_required(unit, op_name)
-            return unit
-        return unit
-
-    return fn
 
 
 OPERATORS: dict[str, OperatorSpec] = {}
@@ -510,15 +605,26 @@ def _sub_unit(left: Any, right: Any) -> Any:
     return left if left is not None else right
 
 
+def _same_registry_required(left: Any, right: Any, op_name: str) -> None:
+    """Raise if ``left`` and ``right`` come from different pint registries."""
+    if getattr(left, "_REGISTRY", None) is not getattr(right, "_REGISTRY", None):
+        raise UnitRegistryError(
+            f"{op_name} of units from different pint registries ({left.units} and {right.units}); "
+            "build every unit from one UnitRegistry"
+        )
+
+
 def _mul_unit(left: Any, right: Any) -> Any:
     if left is None or right is None:
         return None
+    _same_registry_required(left, right, "multiplication")
     return left * right
 
 
 def _div_unit(left: Any, right: Any) -> Any:
     if left is None or right is None:
         return None
+    _same_registry_required(left, right, "division")
     return left / right
 
 
@@ -564,7 +670,7 @@ register_operator(
         fn=lambda x: np.abs(x),
         formula=lambda x: f"abs({x})",
         unit_fn=_unit_preserving,
-        domain=lambda x: bool(np.any(x < 0)),
+        redundant=lambda x: bool(np.all(x >= 0)),
     )
 )
 
@@ -644,6 +750,13 @@ register_operator(
         commutative=False,
     )
 )
+
+
+def _read_only(values: np.ndarray) -> np.ndarray:
+    """A read-only view of ``values``, leaving the array itself writable."""
+    view = values.view()
+    view.setflags(write=False)
+    return view
 
 
 def _sympy_builders() -> dict[str, Callable[..., Any]]:
@@ -739,17 +852,21 @@ def transform(op: str, child: Node) -> Node:
     # Local algebraic normalisation. Only domain-preserving-or-widening
     # rewrites are applied: the rewritten expression is defined wherever the
     # original was (so the record-and-exclude evaluation semantics can only
-    # become more permissive, never silently stricter), and the two are equal
-    # everywhere the original is defined. Full algebraic canonicalisation is
-    # deliberately out of scope; these rules target the spellings the search
-    # actually produces, so that ``a / (1/b)`` and ``a * b`` unify to one node
-    # instead of wasting a beam slot and uglifying output.
+    # become more permissive, never silently stricter, with the one exception
+    # noted at sqrt(x^2)), and the two are equal everywhere the original is
+    # defined. Full algebraic canonicalisation is deliberately out of scope;
+    # these rules target the spellings the search actually produces, so that
+    # ``a / (1/b)`` and ``a * b`` unify to one node instead of wasting a beam
+    # slot and uglifying output.
     if op == "reciprocal":
         if child.op == "reciprocal":  # 1/(1/x) -> x  (domain equal: x != 0)
             return child.children[0]
         if child.op == "div":  # 1/(a/b) -> b/a  (domain equal: a != 0, b != 0)
             return combine("div", child.children[1], child.children[0])
-    if op == "sqrt" and child.op == "square":  # sqrt(x^2) -> |x|  (domain equal)
+    if op == "sqrt" and child.op == "square":
+        # sqrt(x^2) -> |x|. Defined wherever the original is, and also where
+        # x^2 overflows. Stricter in one case: when x is never negative, |x| is
+        # excluded as a duplicate of x, which sqrt(x^2) would not have been.
         return transform("abs", child.children[0])
     if op == "abs" and child.op == "abs":  # ||x|| -> |x|
         return child
@@ -814,7 +931,7 @@ def combine(op: str, left: Node, right: Node) -> Node:
 
     # Canonicalise operand order for commutative operators so that structurally
     # identical expressions unify to one node.
-    if spec.commutative and right._key < left._key:
+    if spec.commutative and _operand_order(right) < _operand_order(left):
         left, right = right, left
 
     unit = spec.unit_fn(left.unit, right.unit) if spec.unit_fn is not None else _add_unit(left.unit, right.unit)
@@ -843,7 +960,10 @@ class Evaluator:
 
     Numerical failures are recorded in :attr:`log` and reported by returning
     ``None`` from :meth:`evaluate`; they never propagate as exceptions and are
-    never silently discarded.
+    never silently discarded. Each failing node is recorded once: evaluating it
+    again returns ``None`` without a second record, until the log is cleared.
+
+    Returned arrays are read-only, since they are shared with the cache.
 
     Args:
         data: Mapping of column name to 1-D array, or a 2-D array with
@@ -859,7 +979,19 @@ class Evaluator:
             the unit the caller happened to choose.
     """
 
-    __slots__ = ("_cache", "_columns", "_dtype", "_leaves", "_n_rows", "_units", "cache_size", "log", "variance_tol")
+    __slots__ = (
+        "_cache",
+        "_columns",
+        "_dtype",
+        "_failed",
+        "_failed_stamp",
+        "_leaves",
+        "_n_rows",
+        "_units",
+        "cache_size",
+        "log",
+        "variance_tol",
+    )
 
     def __init__(
         self,
@@ -876,7 +1008,13 @@ class Evaluator:
         self.cache_size = int(cache_size)
         self.variance_tol = float(variance_tol)
         self.log = EvaluationLog()
-        self._cache: OrderedDict[str, np.ndarray] = OrderedDict()
+        # Cached arrays, each with whether it passed the search-time filters.
+        self._cache: OrderedDict[str, tuple[np.ndarray, bool]] = OrderedDict()
+        # Keys of nodes already recorded as failed, each with whether the
+        # failure came from a search-time filter (so it does not hold when the
+        # filters are off). Tied to one generation of one log.
+        self._failed: dict[str, bool] = {}
+        self._failed_stamp: tuple[EvaluationLog, int] | None = None
 
         self._leaves, self._columns = self._ingest(data, columns)
         self._n_rows = len(next(iter(self._leaves.values()))) if self._leaves else 0
@@ -896,7 +1034,10 @@ class Evaluator:
                 columns = [f"x{i}" for i in range(data.shape[1])]
             if len(columns) != data.shape[1]:
                 raise ValueError(f"got {len(columns)} column names for {data.shape[1]} columns")
-            leaves = {str(c): np.ascontiguousarray(data[:, i], dtype=self._dtype) for i, c in enumerate(columns)}
+            leaves = {
+                str(c): _read_only(np.ascontiguousarray(data[:, i], dtype=self._dtype))
+                for i, c in enumerate(columns)
+            }
             return leaves, [str(c) for c in columns]
 
         if hasattr(data, "items"):
@@ -907,7 +1048,7 @@ class Evaluator:
                 if arr.ndim != 1:
                     raise ValueError(f"column {name!r} must be 1-D, got {arr.ndim}-D")
                 lengths.add(arr.shape[0])
-                leaves[str(name)] = arr
+                leaves[str(name)] = _read_only(arr)
             if len(lengths) > 1:
                 raise ValueError(f"columns have differing lengths: {sorted(lengths)}")
             return leaves, list(leaves)
@@ -970,27 +1111,39 @@ class Evaluator:
             values = self._leaves.get(column)
             if values is None:
                 raise KeyError(f"column {column!r} is not present in the data")
+            if self._known_failure(node, apply_filters):
+                return None
             if not np.all(np.isfinite(values)):
                 n_bad = int(np.count_nonzero(~np.isfinite(values)))
-                self.log.record(node, ExclusionReason.NON_FINITE, f"{n_bad} non-finite value(s) in input column")
+                self._reject(node, ExclusionReason.NON_FINITE, f"{n_bad} non-finite value(s) in input column")
                 return None
             if apply_filters:
                 # Extreme-magnitude columns can overflow while computing
                 # variance; treat that as an input-scale problem, not a crash.
-                with np.errstate(all="ignore"):
-                    variance = float(np.var(values))
+                variance = self._variance(values)
                 if not math.isfinite(variance):
-                    self.log.record(node, ExclusionReason.OVERFLOW, "input column variance overflowed")
+                    self._reject(
+                        node, ExclusionReason.OVERFLOW, "input column variance overflowed", filtered=True
+                    )
                     return None
                 if self._is_constant(values, variance):
-                    self.log.record(node, ExclusionReason.ZERO_VARIANCE, f"input column variance={variance:.3g}")
+                    self._reject(
+                        node,
+                        ExclusionReason.ZERO_VARIANCE,
+                        f"input column variance={variance:.3g}",
+                        filtered=True,
+                    )
                     return None
             return values
 
         cached = self._cache.get(node.key)
-        if cached is not None:
+        if cached is not None and (cached[1] or not apply_filters):
+            # Values do not depend on the filters, but whether they were
+            # checked does: an entry stored unfiltered is rechecked below.
             self._cache.move_to_end(node.key)
-            return cached
+            return cached[0]
+        if self._known_failure(node, apply_filters):
+            return None
 
         spec = OPERATORS.get(node.op)
         if spec is None:  # pragma: no cover - defensive
@@ -1006,14 +1159,21 @@ class Evaluator:
             operands.append(child_values)
 
         if apply_filters and spec.domain is not None and not spec.domain(*operands):
-            self.log.record(node, ExclusionReason.DOMAIN_ERROR, f"input outside domain of {spec.name!r}")
+            self._reject(
+                node, ExclusionReason.DOMAIN_ERROR, f"input outside domain of {spec.name!r}", filtered=True
+            )
+            return None
+        if apply_filters and spec.redundant is not None and spec.redundant(*operands):
+            self._reject(
+                node, ExclusionReason.DUPLICATE, f"{spec.name!r} leaves its operand unchanged", filtered=True
+            )
             return None
 
         values = self._compute(node, spec, operands, apply_filters=apply_filters)
         if values is None:
             return None
 
-        self._store(node.key, values)
+        self._store(node.key, values, apply_filters)
         return values
 
     def transform_values(self, node: Node) -> np.ndarray | None:
@@ -1041,11 +1201,13 @@ class Evaluator:
                 message = str(exc).lower()
                 if "overflow" in message:
                     reason = ExclusionReason.OVERFLOW
+                elif "underflow" in message:
+                    reason = ExclusionReason.UNDERFLOW
                 elif "divide" in message or "invalid" in message:
                     reason = ExclusionReason.DOMAIN_ERROR
                 else:  # pragma: no cover - rare numpy conditions
                     reason = ExclusionReason.NON_FINITE
-                self.log.record(node, reason, str(exc))
+                self._reject(node, reason, str(exc))
                 return None
 
         values = np.asarray(values, dtype=self._dtype)
@@ -1054,16 +1216,48 @@ class Evaluator:
 
         if not np.all(np.isfinite(values)):
             n_bad = int(np.count_nonzero(~np.isfinite(values)))
-            self.log.record(node, ExclusionReason.NON_FINITE, f"{n_bad} non-finite value(s)")
+            self._reject(node, ExclusionReason.NON_FINITE, f"{n_bad} non-finite value(s)")
             return None
 
         if apply_filters:
-            variance = float(np.var(values))
+            variance = self._variance(values)
+            if not math.isfinite(variance):
+                self._reject(node, ExclusionReason.OVERFLOW, "variance overflowed", filtered=True)
+                return None
             if self._is_constant(values, variance):
-                self.log.record(node, ExclusionReason.ZERO_VARIANCE, f"variance={variance:.3g}")
+                self._reject(node, ExclusionReason.ZERO_VARIANCE, f"variance={variance:.3g}", filtered=True)
                 return None
 
-        return values
+        return _read_only(values)
+
+    @staticmethod
+    def _variance(values: np.ndarray) -> float:
+        """Variance of ``values``; an overflow comes back as inf, without a warning."""
+        with np.errstate(all="ignore"):
+            return float(np.var(values))
+
+    def _reject(self, node: Node, reason: ExclusionReason, detail: str, filtered: bool = False) -> None:
+        """Record ``node`` as excluded, and remember it so it is recorded once.
+
+        ``filtered`` marks a rejection by a search-time filter, which does not
+        hold when :meth:`evaluate` is called with ``apply_filters=False``.
+        """
+        self.log.record(node, reason, detail)
+        self._sync_failures()
+        self._failed[node.key] = filtered
+
+    def _known_failure(self, node: Node, apply_filters: bool) -> bool:
+        """Whether ``node`` already failed in a way that holds for this call."""
+        self._sync_failures()
+        filtered = self._failed.get(node.key)
+        return filtered is not None and (apply_filters or not filtered)
+
+    def _sync_failures(self) -> None:
+        """Forget remembered failures once their records leave the log."""
+        stamp = (self.log, self.log._generation)
+        if self._failed_stamp != stamp:
+            self._failed.clear()
+            self._failed_stamp = stamp
 
     def _is_constant(self, values: np.ndarray, variance: float) -> bool:
         """Scale-free constancy test.
@@ -1074,17 +1268,19 @@ class Evaluator:
         rejected as constant while the identical data expressed in mol/m^3 was
         accepted. Worse, when only some columns fall below the floor the fit
         succeeds with the important column silently removed.
+
+        A non-finite ``variance`` is an overflow, not constancy; callers
+        reject it as such before asking.
         """
-        if not math.isfinite(variance):
-            return True
-        scale = float(np.mean(np.abs(values)))
+        with np.errstate(all="ignore"):
+            scale = float(np.mean(np.abs(values)))
         if math.isfinite(scale) and scale > 0.0:
             return variance <= self.variance_tol * scale * scale
         return variance <= self.variance_tol
 
-    def _store(self, key: str, values: np.ndarray) -> None:
+    def _store(self, key: str, values: np.ndarray, filtered: bool) -> None:
         """Insert into the LRU cache, evicting the oldest entry if full."""
-        self._cache[key] = values
+        self._cache[key] = (values, filtered)
         self._cache.move_to_end(key)
         while len(self._cache) > self.cache_size:
             self._cache.popitem(last=False)

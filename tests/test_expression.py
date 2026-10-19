@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -13,6 +15,7 @@ from beamfeat.expression import (
     NodeError,
     OperatorSpec,
     UnitError,
+    UnitRegistryError,
     combine,
     leaf,
     transform,
@@ -100,6 +103,35 @@ class TestStructuralIdentity:
         assert leaf("a") != "a"
         assert leaf("a") is not None
 
+    def test_key_separators_in_column_names_cannot_merge_nodes(self):
+        """Unescaped, both keys read ``sub(leaf:a,leaf:b,leaf:c)``."""
+        left = combine("sub", leaf("a,leaf:b"), leaf("c"))
+        right = combine("sub", leaf("a"), leaf("b,leaf:c"))
+        assert left != right
+        assert left.key != right.key
+
+    def test_key_separators_do_not_share_cache_entries(self):
+        columns = {
+            "a": np.array([1.0, 2.0, 3.0, 4.0]),
+            "c": np.array([0.5, 0.1, 0.9, 0.3]),
+            "a,leaf:b": np.array([10.0, 30.0, 20.0, 40.0]),
+            "b,leaf:c": np.array([7.0, 3.0, 5.0, 1.0]),
+        }
+        ev = Evaluator(columns)
+        left = combine("sub", leaf("a,leaf:b"), leaf("c"))
+        right = combine("sub", leaf("a"), leaf("b,leaf:c"))
+        np.testing.assert_allclose(ev.evaluate(left), columns["a,leaf:b"] - columns["c"])
+        np.testing.assert_allclose(ev.evaluate(right), columns["a"] - columns["b,leaf:c"])
+
+    def test_plain_keys_are_unchanged(self):
+        assert combine("mul", transform("log", leaf("a")), leaf("b")).key == "mul(leaf:b,log(leaf:a))"
+
+    def test_escaping_keeps_operand_order(self):
+        """Escaped, ``f(x)`` would sort after ``fA``; operand order, and so
+        the printed formula, must not depend on the escaping."""
+        assert combine("add", leaf("fA"), leaf("f(x)")).name == "(f(x) + fA)"
+        assert combine("add", leaf("f(x)"), leaf("fA")).name == "(f(x) + fA)"
+
 
 class TestStructure:
     def test_leaf_properties(self):
@@ -140,8 +172,25 @@ class TestStructure:
         assert expr == sympy.Symbol("a", real=True) * sympy.Symbol("b", real=True)
 
     def test_to_sympy_sanitises_awkward_names(self):
+        pytest.importorskip("sympy")
         expr = leaf("3 weird-name!").to_sympy()
         assert expr.name[0].isalpha() or expr.name[0] == "_"
+
+    def test_to_sympy_keeps_columns_with_alike_names_apart(self):
+        """Names that sanitise to the same identifier must stay distinct
+        symbols, or a sum of two columns collapses to twice one of them."""
+        pytest.importorskip("sympy")
+        expr = combine("add", leaf("a b"), leaf("a-b")).to_sympy()
+        assert len(expr.free_symbols) == 2
+        expr = combine("sub", leaf("a b"), leaf("a_b")).to_sympy()
+        assert {s.name for s in expr.free_symbols} == {"a_b", "a_b_2"}
+        assert expr.subs({s: 1.0 for s in expr.free_symbols}) == 0
+
+    def test_to_sympy_accepts_a_symbol_mapping(self):
+        sympy = pytest.importorskip("sympy")
+        p, q = sympy.symbols("p q", positive=True)
+        expr = combine("mul", leaf("a"), leaf("b")).to_sympy({"a": p, "b": q})
+        assert expr == p * q
 
 
 class TestConstructorValidation:
@@ -262,6 +311,29 @@ class TestUnits:
         """Units carry dimensionality only; magnitude must not accumulate."""
         node = leaf("a", 5.0 * ureg.meter)
         assert node.unit.magnitude == pytest.approx(1.0)
+
+    def test_mixed_registries_raise_a_unit_registry_error(self, ureg):
+        """pint's own error is a plain ValueError, which reads as an ordinary
+        construction failure; the specific error names the cause."""
+        other = type(ureg)()
+        mass, length = leaf("m", 1.0 * ureg.kilogram), leaf("l", 1.0 * other.meter)
+        with pytest.raises(UnitRegistryError, match="different pint registries"):
+            combine("mul", mass, length)
+        with pytest.raises(UnitRegistryError, match="different pint registries"):
+            combine("div", mass, length)
+
+    def test_evaluator_unifies_registries(self, ureg, data):
+        other = type(ureg)()
+        ev = Evaluator(data, units={"a": 1.0 * ureg.kilogram, "b": other.meter, "c": 2.0 * other.second})
+        a, b, c = ev.leaf_nodes()
+        product = combine("div", combine("mul", a, b), c)
+        assert product.unit.dimensionality == (ureg.kilogram * ureg.meter / ureg.second).dimensionality
+
+    def test_unconvertible_unit_from_another_registry_raises(self, ureg, data):
+        other = type(ureg)()
+        other.define("widget = 3 * meter")
+        with pytest.raises(UnitRegistryError, match="widget"):
+            Evaluator(data, units={"a": 1.0 * ureg.kilogram, "b": 1.0 * other.widget})
 
 
 # --------------------------------------------------------------------------- #
@@ -400,6 +472,31 @@ class TestCaching:
         with pytest.raises(ValueError, match="cache_size"):
             Evaluator(data, cache_size=0)
 
+    def test_unfiltered_result_is_rechecked_with_filters(self):
+        """A value cached by transform_values has not been through the
+        filters; a later filtered evaluation must still apply them."""
+        ev = Evaluator({"a": np.array([2.0, 3.0, 4.0]), "b": np.array([3.0, 4.0, 5.0])})
+        constant = combine("sub", leaf("b"), leaf("a"))
+        assert ev.transform_values(constant) is not None
+        assert ev.evaluate(constant) is None
+        assert ev.log.by_reason(ExclusionReason.ZERO_VARIANCE)
+
+    def test_filtered_result_serves_unfiltered_requests(self, data):
+        ev = Evaluator(data)
+        node = combine("mul", leaf("a"), leaf("b"))
+        first = ev.evaluate(node)
+        assert ev.transform_values(node) is first
+
+    def test_returned_arrays_are_read_only(self, data):
+        """Callers share the cached array; writing to it would corrupt every
+        later evaluation that reuses it."""
+        ev = Evaluator(data)
+        node = combine("mul", leaf("a"), leaf("b"))
+        for values in (ev.evaluate(node), ev.evaluate(leaf("a")), ev.transform_values(node)):
+            with pytest.raises(ValueError, match="read-only"):
+                values[0] = 0.0
+        assert data["a"].flags.writeable  # the caller's own array is untouched
+
 
 # --------------------------------------------------------------------------- #
 # Exclusion: recorded, never silent
@@ -425,12 +522,12 @@ class TestExclusion:
         assert ev.log.by_reason(ExclusionReason.DOMAIN_ERROR)
 
     def test_overflow_is_recorded_not_silent(self):
-        """The failure mode autofeat masks: overflow must surface in the log."""
-        ev = Evaluator({"big": np.array([1e200, 2e200, 3e200]), "a": np.array([1.0, 2.0, 3.0])})
-        assert ev.evaluate(transform("square", leaf("big"))) is None
-        counts = ev.log.counts()
-        assert counts, "overflow produced no log record"
-        assert ExclusionReason.OVERFLOW in counts or ExclusionReason.NON_FINITE in counts
+        """The failure mode autofeat masks: overflow must surface in the log.
+        The column itself is admissible; only its cube overflows."""
+        ev = Evaluator({"big": np.array([1e103, 2e103, 3e103]), "a": np.array([1.0, 2.0, 3.0])})
+        node = transform("cube", leaf("big"))
+        assert ev.evaluate(node) is None
+        assert [(r.node, r.reason) for r in ev.log] == [(node, ExclusionReason.OVERFLOW)]
 
     def test_constant_result_is_recorded(self):
         ev = Evaluator({"a": np.array([2.0, 3.0, 4.0]), "b": np.array([2.0, 3.0, 4.0]) + 1.0})
@@ -474,6 +571,55 @@ class TestExclusion:
         ev.log.clear()
         assert len(ev.log) == 0
 
+    def test_variance_overflow_is_labelled_overflow(self):
+        """Finite values whose variance overflows are not constant."""
+        ev = Evaluator({"a": np.array([1e100, 2e100, 3e100]), "b": np.array([1e100, 3e100, 2e100])})
+        node = combine("mul", leaf("a"), leaf("b"))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            assert ev.evaluate(node) is None
+        assert [(r.node, r.reason) for r in ev.log] == [(node, ExclusionReason.OVERFLOW)]
+
+    def test_underflow_is_labelled_underflow(self):
+        ev = Evaluator({"a": np.array([-800.0, -1.0, -2.0])})
+        node = transform("exp", leaf("a"))
+        assert ev.evaluate(node) is None
+        assert [(r.node, r.reason) for r in ev.log] == [(node, ExclusionReason.UNDERFLOW)]
+
+    def test_abs_of_non_negative_is_a_duplicate(self, data):
+        """abs(x) equals x when x is never negative: a duplicate of x, not a
+        domain violation."""
+        ev = Evaluator(data)
+        node = transform("abs", leaf("a"))
+        assert ev.evaluate(node) is None
+        assert [(r.node, r.reason) for r in ev.log] == [(node, ExclusionReason.DUPLICATE)]
+        assert ev.transform_values(node) is not None
+
+    def test_failure_is_logged_once(self, data):
+        ev = Evaluator(data)
+        bad = transform("log", combine("sub", leaf("a"), leaf("b")))
+        assert ev.evaluate(bad) is None
+        assert ev.evaluate(bad) is None
+        assert ev.evaluate(combine("mul", bad, leaf("c"))) is None
+        assert ev.evaluate_many([bad, bad])[0] == []
+        assert len(ev.log) == 1
+
+    def test_failure_is_logged_again_after_clearing_the_log(self, data):
+        ev = Evaluator(data)
+        bad = transform("log", combine("sub", leaf("a"), leaf("b")))
+        ev.evaluate(bad)
+        ev.log.clear()
+        assert ev.evaluate(bad) is None
+        assert len(ev.log) == 1
+
+    def test_filter_rejection_does_not_block_unfiltered_evaluation(self):
+        ev = Evaluator({"a": np.array([2.0, 3.0, 4.0]), "b": np.array([3.0, 4.0, 5.0])})
+        constant = combine("sub", leaf("b"), leaf("a"))
+        assert ev.evaluate(constant) is None
+        np.testing.assert_allclose(ev.transform_values(constant), 1.0)
+        assert ev.evaluate(constant) is None
+        assert len(ev.log) == 1
+
     def test_variance_tolerance_is_configurable(self, rng):
         """The tolerance is relative to the column's magnitude, so the
         verdict survives a change of units."""
@@ -500,10 +646,13 @@ class TestNumericalHygiene:
         assert ev.evaluate(combine("mul", leaf("a"), leaf("b"))).dtype == np.float32
 
     def test_float64_survives_where_float32_overflows(self):
-        """Motivates the float64 default: float32 overflows on cube of 1e20."""
-        payload = {"a": np.array([1e20, 2e20, 3e20]), "b": np.array([1.0, 2.0, 3.0])}
+        """Motivates the float64 default: float32 overflows on cube of 1e13,
+        while the column's own variance still fits."""
+        payload = {"a": np.array([1e13, 2e13, 3e13]), "b": np.array([1.0, 2.0, 3.0])}
         node = transform("cube", leaf("a"))
-        assert Evaluator(payload, dtype=np.float32).evaluate(node) is None
+        narrow = Evaluator(payload, dtype=np.float32)
+        assert narrow.evaluate(node) is None
+        assert [(r.node, r.reason) for r in narrow.log] == [(node, ExclusionReason.OVERFLOW)]
         assert Evaluator(payload, dtype=np.float64).evaluate(node) is not None
 
     def test_no_nan_or_inf_ever_returned(self, rng):
