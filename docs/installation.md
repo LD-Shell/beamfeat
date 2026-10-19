@@ -29,8 +29,9 @@ pytest
 456 tests, about a minute, including scikit-learn's `check_estimator`
 conformance suite. `pytest --cov=beamfeat` reports 95% statement coverage.
 
-The `units` extra matters here: without `pint`, 26 tests skip silently and
-coverage reads about 93%. `[all]` includes it.
+The `units` extra matters here: without `pint`, every unit-aware test skips
+(listed with its reason by `pytest -rs`) and coverage reads about 93%.
+`[all]` includes it.
 
 ## Reproduce the benchmarks
 
