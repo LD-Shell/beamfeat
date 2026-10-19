@@ -1,6 +1,7 @@
 """Aggregate benchmark results and run the statistical comparison.
 
-Reads every results_*.json in a results directory, prints the tables reported
+Reads every highdim_*.json (the comparison records `bench.py` writes, as
+named in the README run order) in a results directory, prints the tables reported
 in the study (mean +/- std R^2, fit seconds, feature counts, recovery rates,
 average ranks, Friedman test, paired Wilcoxon tests), and writes
 independent_benchmark_results.csv beside them.
@@ -8,8 +9,7 @@ independent_benchmark_results.csv beside them.
 Usage:
     python aggregate.py [results_dir]
 
-The directory defaults to results (this suite's output). Pass
-results_fresh_run to analyse a regeneration instead.
+The directory defaults to results (this suite's output).
 """
 import glob
 import json
@@ -20,9 +20,9 @@ import pandas as pd
 from scipy import stats
 
 RESULTS_DIR = sys.argv[1] if len(sys.argv) > 1 else "results"
-paths = sorted(glob.glob(os.path.join(RESULTS_DIR, "results_*.json")))
+paths = sorted(glob.glob(os.path.join(RESULTS_DIR, "highdim_*.json")))
 if not paths:
-    raise SystemExit(f"no results_*.json under {RESULTS_DIR}/")
+    raise SystemExit(f"no highdim_*.json under {RESULTS_DIR}/")
 print(f"source: {RESULTS_DIR}/  ({len(paths)} file(s))")
 rows = []
 for f in paths:
@@ -51,7 +51,8 @@ if real:
     print("=== REAL: out-of-sample R2, mean ± std ===")
     print(table(real).to_string(), "\n")
 if syn:
-    print("=== SYNTHETIC: out-of-sample R2, mean ± std ===")
+    # the highdim group is real data outside the original study's REAL list
+    print(f"=== {'SYNTHETIC' if real else 'ALL'}: out-of-sample R2, mean ± std ===")
     print(table(syn).to_string(), "\n")
 
 print("=== Fit seconds (mean) ===")

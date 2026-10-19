@@ -9,7 +9,7 @@ feature counts when |corr| > 0.999 with the planted feature on fresh probe
 rows, so ((x0/x2)*x1) and ((x1/x2)*x0) count once, and an additive target
 counts when selected as the single composite.
 
-Run:  python depth_ladder.py --seeds 20 --out results/depth_ladder.json
+Run:  python depth_ladder.py --seeds 10 --out results/depth_ladder.json
       python depth_ladder.py --seeds 3 --quick
 """
 from __future__ import annotations
