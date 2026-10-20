@@ -201,6 +201,103 @@ The records behind the text are in `equations_`, one dict per line with
 nodes, and `model`, which marks the fitted line. It is `None` without a
 selector and empty when nothing passed screening.
 
+## One equation or one of many
+
+A fit prints one equation, found on one random split of the training rows
+into the part the search sees and the part selection tests on. Where many
+expressions predict about equally well, another split prints another
+equation, and nothing in a single fit says which case you are in.
+`stability_report` finds out. It refits clones of the estimator on random
+splits of the data, scores each once on a test part its fit never saw, and
+counts the distinct equations:
+
+```python
+from beamfeat import stability_report
+
+report = stability_report(BeamFeatRegressor(max_depth=2, beam_width=25), X, y, n_splits=30)
+print(report)
+```
+
+```text
+BeamFeatRegressor refitted on 30 random splits (random_state=0), each fitted on 300 rows and scored on the other 100.
+
+Held-out R^2: mean 1.000, sd 0.000, min 1.000, max 1.000.
+1 distinct equation in 30 splits: every split printed it.
+1 distinct feature, selected in 30 of the 30 splits.
+
+Equations printed in more than one split, most frequent first:
+  30/30  y ~ (x0 * x1)
+
+Features, most frequent first:
+  30/30  (x0 * x1)
+
+Features whose values on the rows of X correlate above 0.999 in absolute value are counted as one; an equation is the set of its features, whatever its coefficients.
+```
+
+Every split found the planted product. The diabetes data are another matter:
+
+```python
+from sklearn.datasets import load_diabetes
+
+diabetes = load_diabetes(as_frame=True)
+report = stability_report(BeamFeatRegressor(), diabetes.data, diabetes.target, n_splits=30)
+print(report.summary(max_rows=3))
+```
+
+```text
+BeamFeatRegressor refitted on 30 random splits (random_state=0), each fitted on 331 rows and scored on the other 111.
+
+Held-out R^2: mean 0.496, sd 0.050, min 0.389, max 0.575.
+30 distinct equations in 30 splits; none recurs.
+86 distinct features; the most frequent in 11 of the 30 splits.
+
+Features, most frequent first:
+  11/30  ((bmi + s5) + (bp - s3))
+   8/30  ((bmi + s5) - (s3 + sex))
+   8/30  ((bmi + bp) - (s3 + sex))
+  ... and 83 more features
+
+Features whose values on the rows of X correlate above 0.999 in absolute value are counted as one; an equation is the set of its features, whatever its coefficients.
+```
+
+No two of the thirty splits printed the same equation, and their held-out
+R² ranges from 0.389 to 0.575, a spread that one fit's score would hide. An
+equation fitted to these data is one draw among many that predict about as
+well. What recurs is a
+family of sums and differences of `bmi`, `s5`, `bp` and `s3`, the commonest
+member in 11 of the 30 splits. Report that family, with its frequencies,
+rather than one equation.
+
+Two formulas count as one feature when their values on the rows of `X`
+correlate above 0.999 in absolute value. A rewriting such as `(x1 - x0)` for
+`(x0 - x1)` is then not counted twice, and neither is a rescaling or a
+near-duplicate. An equation is the set of its features, whatever its
+coefficients. The report keeps everything behind the summary:
+
+- `report.splits[i]` has the rows split `i` was fitted and scored on, its
+  formulas, its `equation()`, its score and the fitted clone;
+- `report.features` and `report.equations` hold the classes, most frequent
+  first, each with the splits it appeared in;
+- `report.scores` holds the held-out scores.
+
+The splits and the clones' seeds come from `random_state` (default 0), so a
+report is reproducible, and `n_jobs` fits splits in parallel processes
+without changing it. The regressor is scored by R² and the classifier by
+accuracy, as their `score` methods are. A transformer has no score of its
+own, so it is scored by a ridge regression on its features, or by a logistic
+regression for classification. When a test row is outside a selected
+formula's [domain](#rows-outside-a-formulas-domain), the classifier predicts
+its most frequent training class there, as its `predict` does. A regressor or
+transformer has no score on such a test part, so that split goes unscored,
+and the summary counts it.
+
+The stability study of the paper (Appendix E) held one test part fixed and
+varied only the estimator's seed, which isolates the split inside the fit.
+On diabetes it found 79 distinct features, the commonest in 22 of 30 splits,
+and a standard deviation of R² of 0.015. Here each split also draws its own
+training and test rows, so the counts and the spread include the variation
+between samples as well.
+
 ## LaTeX
 
 `latex()` typesets `equation()`: the same terms, coefficients and options

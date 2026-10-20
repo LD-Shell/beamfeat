@@ -24,6 +24,12 @@ building and evaluating expressions directly.
 ::: beamfeat.NoDiscoveriesError
 ::: beamfeat.DegenerateFitWarning
 
+## Stability over splits
+
+::: beamfeat.stability
+    options:
+      filters: public
+
 ## Search
 
 ::: beamfeat.search

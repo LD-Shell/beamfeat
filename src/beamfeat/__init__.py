@@ -40,6 +40,7 @@ from beamfeat.selection import (
     knockoff_threshold,
     make_selector,
 )
+from beamfeat.stability import StabilityReport, stability_report
 
 __version__ = "0.6.0.dev0"
 
@@ -52,8 +53,8 @@ __all__ = [
     "ExclusionReason", "GradientBoostingScorer", "KnockoffSelector",
     "MutualInformationScorer", "Node", "NodeError", "OperatorSpec",
     "PermutationSelector", "RejectedNode", "Scorer", "SearchResult",
-    "SearchTrace", "SelectionResult", "Selector", "SpearmanScorer", "UnitError",
-    "UnitRegistryError", "combine",
+    "SearchTrace", "SelectionResult", "Selector", "SpearmanScorer", "StabilityReport",
+    "UnitError", "UnitRegistryError", "combine",
     "is_constant", "knockoff_threshold", "leaf", "make_scorer", "make_selector",
-    "transform",
+    "stability_report", "transform",
 ]

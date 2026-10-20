@@ -53,14 +53,15 @@ the features, p-values and predictions of 0.5.0, to the last bit.
 
 ### Towards 0.6.0
 
-On branch `feature/0.6.0` only. `certify_test` defaults to `"marginal"`, and
-a fit that leaves it there gives the results of 0.5.1 to the last bit.
-Figures below are from `benchmarks/parsimony_holdout/`: 48,000 fits of a
-global null and of `y = a*b/c` plus noise among 5 or 20 distractors, with
-and without a column correlated 0.9 with `a`, at signal-to-noise ratios 1
-and 3, 300 and 1,000 rows, 200 replicates per cell, q = 0.1 and 0.2. A
-printed term counts as false in the conditional sense when it uses any
-column outside the formula, as a rider such as `(a*b/c) * x7` does.
+On branch `feature/0.6.0` only. No default changes: `certify_test` defaults
+to `"marginal"`, and a fit that leaves it there gives the results of 0.5.1
+to the last bit. The re-test's figures below are from
+`benchmarks/parsimony_holdout/`: 48,000 fits of a global null and of `y =
+a*b/c` plus noise among 5 or 20 distractors, with and without a column
+correlated 0.9 with `a`, at signal-to-noise ratios 1 and 3, 300 and 1,000
+rows, 200 replicates per cell, q = 0.1 and 0.2. A printed term counts as
+false in the conditional sense when it uses any column outside the formula,
+as a rider such as `(a*b/c) * x7` does.
 
 #### Added
 
@@ -85,6 +86,29 @@ column outside the formula, as a rider such as `(a*b/c) * x7` does.
   another nothing passes, and the screened set, which carries the marginal
   guarantee only, is returned: in 87 to 92% of fits at a ratio of 1, where
   the forward step keeps 18 terms on average, and in 18 to 26% at 3.
+
+- `beamfeat.stability`: `stability_report(estimator, X, y, n_splits=30,
+  test_size=0.25, random_state=0, n_jobs=1)`, also exported from
+  `beamfeat`, makes the paper's stability study (Appendix E) a package
+  feature. It refits clones of a regressor, classifier or transformer on
+  random splits. Each split's test part is kept out of every step of its fit
+  and scored once after it, and the clones' seeds are spawned from
+  `random_state` by `SeedSequence`, so the report is the same for every
+  `n_jobs`. The `StabilityReport` holds:
+  - each split's rows, formulas, equation and held-out score;
+  - the distinct features and equations, with how often each recurs;
+  - a summary that states the ambiguity plainly. On diabetes it reads "30
+    distinct equations in 30 splits; none recurs", with held-out R² from
+    0.389 to 0.575.
+
+  Two features are one when their values on the rows of `X` correlate above
+  0.999 in absolute value, as in the paper, and an equation is the set of
+  its features. The regressor and classifier are scored by their own
+  `score`. A transformer is scored by a ridge regression (R²) on its
+  features, or by a logistic regression (accuracy) for classification. The
+  paper held one test part fixed and varied only the seed, so its spread is
+  narrower: on diabetes, an R² standard deviation of 0.015 against 0.050
+  here.
 
 #### Changed
 
