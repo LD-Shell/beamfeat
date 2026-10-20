@@ -288,8 +288,8 @@ How the constants are chosen:
   `max_candidates_per_depth` counts the operator proposals only.
 - **How.** Each constant maximises the absolute correlation with the target:
   a coarse grid scaled to the operand (for `exp_scaled`, `|a|` up to
-  10/max|x|; for the shifts, poles kept off the observed range), then a
-  golden-section refinement. A fit that runs to the edge of its grid, or
+  10/max|x|; for `pow`, `a` from -4 to 4; for the shifts, poles kept off the
+  observed range), then a golden-section refinement. A fit that runs to the edge of its grid, or
   that does not clearly beat the operand on its own (each operator becomes
   linear in `x` at one end of its range), is discarded. Correlation is used
   whatever the `scorer`; the scorer then ranks the result.
@@ -303,7 +303,11 @@ How the constants are chosen:
   and snapping never moves a constant past it. The margin widens where the
   data thin out towards the edge and narrows where they are dense. On 18
   real datasets, poles inside it were crossed by a row the fit had not
-  seen in 14% of fits, and poles outside it in 0.3%.
+  seen in 14% of fits, and poles outside it in 0.3%. A negative power has
+  its pole at 0, so `pow` fits one only when the operand stays more than
+  the same margin above 0. Otherwise `a` runs from 0.1 to 4, and a fit that
+  wants less is discarded, since `x^a` then takes the shape of `log(x)`,
+  which has the same pole.
 - **In context.** `1/(x0·x1 + a)` on its own correlates best with the target
   as `a` runs to the pole; only as the denominator of `(x0 + x1)` is `a = 1`
   identifiable. While the depth limit leaves room, each constant is also
@@ -419,13 +423,13 @@ regressor's `score` raises rather than scoring the remaining rows. To rule
 such rows out within the training ranges, fit with `safe_domain=True` (next
 section).
 
-Fitted constants do not change this. `(x12)^(-0.127)`, fitted where `x12`
-is at least 0.02, is infinite at `x12 = 0`, as `1/(x12)` would be, and
-`(x0)^1.5` is NaN for a negative `x0`, as `sqrt(x0)` is. A fitted
-[shift](#constants-inside-expressions) keeps its pole a margin away from the
-training rows, but a row far enough outside them can still reach it.
+Fitted constants do not change this. `(x0)^1.5` is NaN for a negative
+`x0`, as `sqrt(x0)` is. A fitted pole keeps a
+[margin](#constants-inside-expressions) from the training rows, but a row
+far enough outside them can still reach it: `(x1)^(-0.5)`, fitted where
+`x1` lies between 1 and 3, is infinite at `x1 = 0`, as `1/(x1)` would be.
 `safe_domain` with the columns' physical bounds declared, such as
-`{"x12": (0, 1)}`, rules all of these out.
+`{"x1": (0, 3)}`, rules all of these out.
 
 ## Search constraints
 

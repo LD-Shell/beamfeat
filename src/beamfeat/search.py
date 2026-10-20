@@ -319,7 +319,9 @@ class BeamSearch:
             leaves room for a product, as a factor of an expression in the
             beam, and is snapped to a simple value such as 1/2 when the data
             cannot tell the two apart; see :mod:`beamfeat.parametric`. A
-            fitted pole keeps a margin from the data (see
+            fitted pole keeps a margin from the data, and ``pow`` fits a
+            negative power, whose pole is at 0, only where the operand stays
+            more than that margin above 0 (see
             :func:`~beamfeat.expression.pole_margins`). The fit sees only the
             rows the search is given.
 

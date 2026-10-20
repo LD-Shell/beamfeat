@@ -25,11 +25,13 @@ any other.
 
 **Rejection.** A fit whose best grid point is the end of a grid segment ran
 into a bound -- the margin a shift keeps between its pole and the data (see
-:func:`~beamfeat.expression.pole_margins`), the linear limit of a small
-scale, or the step limit of a large one -- and is discarded, as is one whose
-values are not finite, constant, or outside the operator's domain. Snapping
-and rounding stay within the same bounds, so a simple constant never moves
-a pole closer to the data than the margin. And since each
+:func:`~beamfeat.expression.pole_margins`), the smallest positive power
+when the operand comes within that margin of 0, the pole of a negative
+power, the linear limit of a small scale, or the step limit of a large
+one -- and is discarded, as is one whose values are not finite, constant,
+or outside the operator's domain. Snapping and rounding stay within the
+same bounds, so a simple constant never moves a pole closer to the data
+than the margin. And since each
 operator tends to an affine function of its operand at one end of its range
 (a small scale, a distant shift, a power of 1), a fit must also improve
 clearly on the operand itself, or for a product on the partner alone, by
