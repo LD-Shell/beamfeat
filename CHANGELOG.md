@@ -28,7 +28,7 @@ dataset, and the speed-up changes no feature, p-value or prediction.
   (`note=False` drops it), and `latex_formulas()` for the features on all
   three estimators.
 - The guide shows how to export the features to NumPy, JAX or PyTorch with
-  `sympy.lambdify` on `to_sympy()`.
+  `sympy.lambdify` on `to_sympy()` (PyTorch needs sympy 1.14 or newer).
 - `n_jobs` on `BeamSearch`, `BeamFeatTransformer`, `BeamFeatRegressor` and
   `BeamFeatClassifier` (default 1). A depth's candidates are evaluated and
   scored in chunks on joblib threads; `GradientBoostingScorer`, whose fits
@@ -58,18 +58,21 @@ dataset, and the speed-up changes no feature, p-value or prediction.
   custom scorers that do not declare `separable` still receive a whole depth.
 - A candidate's mean, variance and magnitude are computed once, for the
   constancy filter and the scorer, and columns are standardised in blocks
-  rather than one at a time. When the depth-1 ceiling can bind, the round is
-  proposed in score order first rather than proposed in column order and
-  rebuilt. The same fit takes 7 s rather than 29 s, and one on 300 columns
-  3.3 s rather than 19 s. Features, p-values and predictions are unchanged,
-  as are search scores and the evaluation log, to the last bit.
+  rather than one at a time. The same fit takes 7 s rather than 29 s, and one
+  on 300 columns 3.3 s rather than 19 s. Features, p-values and predictions
+  are unchanged, as are search scores and the evaluation log, to the last
+  bit.
 - Results that differ from 0.4.4: knockoff selections on candidate pools
   with dependent columns, which are common among constructed features;
   searches whose first round reaches `max_candidates_per_depth` (about 258
   inputs or more at the defaults); `SpearmanScorer` scores with ties;
   predictions for batches containing out-of-domain rows; the constant printed
   by `equation(max_terms=...)`; fits with a single candidate, which may now
-  return nothing.
+  return nothing; fits on columns whose spread is between 1e-12 and 1e-5 of
+  their magnitude, which the constancy cut no longer drops; and the spelling,
+  not the value, of some formulas, since `(1/a)/b` is folded into `1/(a*b)`
+  only when that keeps the depth (`1/((x1 * (x0 * x2)))` now reads
+  `(1/(x1) / (x0 * x2))`, with the same p-values and predictions).
 - `SearchResult.n_evaluated_total` no longer counts the input columns,
   matching `n_proposed_total`.
 - `joblib` is a declared dependency (`>=1.2`, scikit-learn 1.6's own
@@ -100,8 +103,10 @@ dataset, and the speed-up changes no feature, p-value or prediction.
   absolute and marginal scores, redundancy pruning within a depth with
   cross-depth duplicates removed in the final ranking, and correlation scoring
   as one dot product per candidate. `SpearmanScorer`, `is_constant` and the
-  estimator warnings are listed in their modules' `__all__`.
-- 215 tests added (671 in all).
+  estimator warnings are listed in their modules' `__all__`, and
+  `SpearmanScorer` is exported from the package, as the other scorers are.
+  The estimators document all their fitted attributes.
+- 230 tests added (686 in all).
 
 ### Fixed
 
@@ -109,6 +114,14 @@ dataset, and the speed-up changes no feature, p-value or prediction.
   and `BeamFeatClassifier(selector="knockoff")` on one, raised on
   scikit-learn 1.8 and later, where the `liblinear` solver fits two classes
   only. The statistic is computed one class against the rest, as it was.
+- A refit no longer keeps fitted attributes of an earlier fit: the
+  classifier's `class_prior_` after a fit that kept no feature, the
+  regressor's `alpha_` when the new fit keeps none (it is now `None`), and
+  the classifier's coefficients when the new training set has one class.
+  Predictions were not affected.
+- The model-X warning of `KnockoffSelector` no longer reports a fallback from
+  fixed-X when model-X was requested with `construction="gaussian"`. It is
+  recorded whenever model-X runs, as the docstrings now say.
 - A row on which a fitted formula is undefined, such as the logarithm of a
   negative value, no longer changes the predictions for the other rows of the
   batch. The formula's whole column was replaced with zeros for every row
@@ -129,11 +142,13 @@ dataset, and the speed-up changes no feature, p-value or prediction.
 - `BeamSearch` reaches late input columns when `max_candidates_per_depth`
   binds at depth 1. The first round proposed parents in column order, so from
   about 258 inputs (default ceiling) pairs among the last columns were never
-  proposed. A truncated first round is now rebuilt with the inputs ranked by
-  score, as documented; rounds the ceiling does not reach are proposed as
-  before and give identical results. Three datasets of the high-dimensional
-  study reach the ceiling: mean R² moves from 0.523 to 0.340 on riboflavin,
-  from 0.687 to 0.664 on ct_slices and from 0.812 to 0.816 on ujiindoorloc.
+  proposed. When the ceiling can bind, the first round now proposes the
+  inputs in order of their score, as documented; rounds the ceiling cannot
+  reach are proposed as before and give identical results. Three datasets of
+  the high-dimensional study reach the ceiling. Rerunning 0.4.4 and 0.5.0 on
+  one machine, mean R² moves from 0.523 to 0.340 on riboflavin (the archived
+  study, made with an earlier version, reads 0.544), from 0.687 to 0.664 on
+  ct_slices and from 0.812 to 0.816 on ujiindoorloc.
   With the ceiling raised so that every input of ct_slices and ujiindoorloc
   is proposed, the search returns the result above exactly; the 0.4.4 figures
   depended on which columns came first in the file.
