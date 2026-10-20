@@ -37,7 +37,7 @@ from sklearn.utils.validation import check_is_fitted
 
 from beamfeat.expression import OPERATORS, Evaluator, Node, _sympy_symbols
 from beamfeat.scoring import Scorer, is_constant
-from beamfeat.search import DEFAULT_BINARY, DEFAULT_UNARY, BeamSearch, report
+from beamfeat.search import DEFAULT_BINARY, DEFAULT_UNARY, BeamSearch, declared_bounds, domain_box, report
 from beamfeat.selection import Selector, make_selector  # noqa: F401
 
 __all__ = [
@@ -487,6 +487,8 @@ class _BeamFeatBase(BaseEstimator):
         random_state: int | None = 0,
         verbose: int = 0,
         n_jobs: int | None = 1,
+        max_inputs: int | None = None,
+        safe_domain: bool | Mapping[str, tuple[float, float]] = False,
     ) -> None:
         self.scorer = scorer
         self.selector = selector
@@ -508,6 +510,8 @@ class _BeamFeatBase(BaseEstimator):
         self.random_state = random_state
         self.verbose = verbose
         self.n_jobs = n_jobs
+        self.max_inputs = max_inputs
+        self.safe_domain = safe_domain
 
     # -- fitting ------------------------------------------------------------ #
 
@@ -979,6 +983,20 @@ class _BeamFeatBase(BaseEstimator):
             ),
         )
 
+        # The box is the range of the full training X, not only the search
+        # rows, so that a feature is guaranteed defined on every training row
+        # and on new rows within the same ranges. It is computed from X alone:
+        # the permutation screen permutes y, and nothing here depends on y,
+        # so the screen's validity is unaffected.
+        safe_domain = self.safe_domain
+        self.input_bounds_: dict[str, tuple[float, float]] | None = None
+        declared = declared_bounds(safe_domain)
+        if declared is not None:
+            self.input_bounds_ = domain_box(
+                feature_names, {name: X[:, index] for index, name in enumerate(feature_names)}, declared
+            )
+            safe_domain = self.input_bounds_
+
         search = BeamSearch(
             scorer=self.scorer,
             problem_type=self._problem_type,
@@ -992,6 +1010,8 @@ class _BeamFeatBase(BaseEstimator):
             random_state=self.random_state,
             verbose=self.verbose,
             n_jobs=self.n_jobs,
+            max_inputs=self.max_inputs,
+            safe_domain=safe_domain,
         )
         search_result = search.run(search_data, y[search_index], units=units)
         self.search_result_ = search_result
@@ -1631,11 +1651,27 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             enclosing ``joblib.parallel_config``. Small searches run in the
             calling thread regardless. The fitted result is the same for
             every value.
+        max_inputs: Most distinct input columns one feature may use, or
+            ``None`` (default) for no limit. Candidates over it are rejected
+            during the search, before evaluation.
+        safe_domain: Admit only features defined everywhere in a box of
+            input values, so that :meth:`transform` and ``predict`` give no
+            NaN from an operator's domain on new rows inside it. ``True``
+            takes each column's range on the full training ``X``; a mapping
+            of column name to ``(lo, hi)`` declares bounds for some columns
+            and uses the training range for the rest. The bounds come from
+            interval arithmetic, which can overestimate, so some features
+            defined throughout the box are rejected as well. See
+            :class:`~beamfeat.search.BeamSearch`. ``False`` (default) checks
+            domains on the search rows only.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
         feature_formulas_: Their formula strings.
         search_result_: The :class:`~beamfeat.search.SearchResult`.
+        input_bounds_: Under ``safe_domain``, the box of input values on
+            which every feature is defined: column name to ``(lo, hi)``.
+            ``None`` otherwise.
         selection_result_: The :class:`~beamfeat.selection.SelectionResult`,
             or ``None`` if no selector was used.
         fdr_controlled_: Whether the returned features came from the
@@ -1696,6 +1732,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         random_state: int | None = 0,
         verbose: int = 0,
         n_jobs: int | None = 1,
+        max_inputs: int | None = None,
+        safe_domain: bool | Mapping[str, tuple[float, float]] = False,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1718,6 +1756,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             random_state=random_state,
             verbose=verbose,
             n_jobs=n_jobs,
+            max_inputs=max_inputs,
+            safe_domain=safe_domain,
         )
         self.problem_type = problem_type
 
@@ -1800,6 +1840,8 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         random_state: int | None = 0,
         verbose: int = 0,
         n_jobs: int | None = 1,
+        max_inputs: int | None = None,
+        safe_domain: bool | Mapping[str, tuple[float, float]] = False,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1822,6 +1864,8 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             random_state=random_state,
             verbose=verbose,
             n_jobs=n_jobs,
+            max_inputs=max_inputs,
+            safe_domain=safe_domain,
         )
         self.alpha = alpha
 
@@ -2031,6 +2075,8 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         random_state: int | None = 0,
         verbose: int = 0,
         n_jobs: int | None = 1,
+        max_inputs: int | None = None,
+        safe_domain: bool | Mapping[str, tuple[float, float]] = False,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -2053,6 +2099,8 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             random_state=random_state,
             verbose=verbose,
             n_jobs=n_jobs,
+            max_inputs=max_inputs,
+            safe_domain=safe_domain,
         )
         self.C = C
 
