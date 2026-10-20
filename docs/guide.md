@@ -8,6 +8,7 @@ Everything below is runnable as-is; outputs shown are from real runs.
 pip install beamfeat              # core: numpy, scikit-learn, joblib
 pip install "beamfeat[units]"     # + pint, for dimensional analysis
 pip install "beamfeat[display]"   # + sympy, for to_sympy() and latex()
+pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
 See [Installation](installation.md) for running the test suite or

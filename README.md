@@ -41,10 +41,11 @@ pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
 Python ≥ 3.10. There are **no upper version pins**: the 686 tests pass on
-Python 3.10 to 3.15 with current releases (scikit-learn 1.9.1, numpy 2.5),
-and on the oldest supported stack, scikit-learn 1.6.1 with numpy 1.26, where
-the unit tests skip because that run leaves pint out. Running the test suite
-or reproducing the benchmarks needs a little more setup, described in
+Python 3.10 to 3.15 with the newest releases each supports (scikit-learn
+1.9.1 from Python 3.11 and 1.7.2 on 3.10, numpy 2.2 to 2.5), and on the
+oldest supported stack, scikit-learn 1.6.1 with numpy 1.26, where the tests
+that need pint or pandas skip because that run leaves both out. Running the
+test suite or reproducing the benchmarks needs a little more setup, described in
 [`docs/installation.md`](https://github.com/LD-Shell/beamfeat/blob/main/docs/installation.md).
 
 ## What it does
