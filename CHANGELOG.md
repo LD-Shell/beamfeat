@@ -87,10 +87,10 @@ as a rider such as `(a*b/c) * x7` does.
   guarantee only, is returned: in 87 to 92% of fits at a ratio of 1, where
   the forward step keeps 18 terms on average, and in 18 to 26% at 3.
 
-- `beamfeat.stability`: `stability_report(estimator, X, y, n_splits=30,
-  test_size=0.25, random_state=0, n_jobs=1)`, also exported from
-  `beamfeat`, makes the paper's stability study (Appendix E) a package
-  feature. It refits clones of a regressor, classifier or transformer on
+- `beamfeat.stability`: `stability_report(estimator, X, y)`, also exported
+  from `beamfeat`, makes the paper's stability study (Appendix E) a package
+  feature; by default `n_splits=30`, `test_size=0.25`, `random_state=0` and
+  `n_jobs=1`. It refits clones of a regressor, classifier or transformer on
   random splits. Each split's test part is kept out of every step of its fit
   and scored once after it, and the clones' seeds are spawned from
   `random_state` by `SeedSequence`, so the report is the same for every
@@ -109,6 +109,17 @@ as a rider such as `(a*b/c) * x7` does.
   paper held one test part fixed and varied only the seed, so its spread is
   narrower: on diabetes, an R² standard deviation of 0.015 against 0.050
   here.
+
+- `resample` on `stability_report`, which picks what varies. `"splits"`,
+  the default and the behaviour above, measures split-to-split variability.
+  `"seeds"` keeps the first split's partition for every split and varies
+  only the clones' seeds, as the paper's study did, and measures
+  seed-to-seed variability. With the paper's transformer on diabetes it
+  gives an R² standard deviation of 0.008 to 0.019 over five partitions,
+  with 75 to 84 classes, the commonest in 8 to 18 of 30 splits. The paper
+  reports 0.015, 79 and 22 for its own partition. On that partition, its
+  own code with other lists of 30 seeds gives 79 to 88 classes, the
+  commonest in 18 to 23.
 
 #### Changed
 
