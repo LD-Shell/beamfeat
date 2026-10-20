@@ -35,6 +35,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin, Transfo
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted
 
+from beamfeat._compat import logistic_regression
 from beamfeat.expression import OPERATORS, Evaluator, Node, _sympy_symbols
 from beamfeat.scoring import Scorer, is_constant
 from beamfeat.search import DEFAULT_BINARY, DEFAULT_UNARY, BeamSearch, report
@@ -2060,7 +2061,6 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
 
     def fit(self, X, y):
         """Construct features and fit the downstream classifier."""
-        from sklearn.linear_model import LogisticRegression
         from sklearn.preprocessing import StandardScaler
         X, y = _validate_input(self, X, y, dtype=np.float64, y_numeric=False)
         check_classification_targets(y)
@@ -2098,7 +2098,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             self.model_ = None
             return self
 
-        self.model_ = LogisticRegression(C=self.C, max_iter=2000, random_state=self.random_state).fit(
+        self.model_ = logistic_regression(C=self.C, max_iter=2000, random_state=self.random_state).fit(
             self.scaler_.transform(matrix), y
         )
         self.coef_ = self.model_.coef_

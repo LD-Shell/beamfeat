@@ -70,12 +70,13 @@ References:
 from __future__ import annotations
 
 import logging
-import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Literal
 
 import numpy as np
+
+from beamfeat._compat import l1_logistic_coefficients, quiet
 
 __all__ = [
     "KnockoffSelector",
@@ -210,12 +211,11 @@ class Selector(ABC):
 
     def _lasso_importance(self, design: np.ndarray, target: np.ndarray) -> np.ndarray:
         """Cross-validated lasso coefficient magnitudes (knockoff statistic)."""
-        from sklearn.linear_model import LassoCV, LogisticRegressionCV
+        from sklearn.linear_model import LassoCV
 
         n_samples = design.shape[0]
         n_folds = int(min(5, max(2, n_samples // 10)))
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        with quiet():
             if self.problem_type == "classification":
                 if len(np.unique(target)) < 2:  # pragma: no cover - defensive
                     return np.zeros(design.shape[1])
@@ -223,12 +223,8 @@ class Selector(ABC):
                 n_folds = int(min(n_folds, counts.min()))
                 if n_folds < 2:  # pragma: no cover - defensive
                     return np.zeros(design.shape[1])
-                model = LogisticRegressionCV(
-                    cv=n_folds, penalty="l1", solver="liblinear", max_iter=2000,
-                    random_state=self.random_state,
-                )
-                model.fit(design, target)
-                coefficients = np.max(np.abs(model.coef_), axis=0)
+                rows = l1_logistic_coefficients(design, target, n_folds, self.random_state)
+                coefficients = np.max(np.abs(rows), axis=0)
             else:
                 model = LassoCV(cv=n_folds, max_iter=5000, random_state=self.random_state)
                 model.fit(design, target)

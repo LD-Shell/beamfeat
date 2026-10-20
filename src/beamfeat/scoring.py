@@ -50,6 +50,8 @@ from typing import Any, Literal, NamedTuple
 
 import numpy as np
 
+from beamfeat._compat import quiet
+
 __all__ = [
     "ColumnStats",
     "CorrelationScorer",
@@ -322,8 +324,7 @@ class Scorer(ABC):
                     return binary - binary.mean()
                 from sklearn.linear_model import LogisticRegression
 
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
+                with quiet():
                     model = LogisticRegression(max_iter=500)
                     model.fit(incumbent, binary)
                     probabilities = model.predict_proba(incumbent)[:, 1]
@@ -336,8 +337,7 @@ class Scorer(ABC):
             return numeric_target
 
         design = np.column_stack([np.ones(len(numeric_target)), incumbent])
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        with quiet():
             coefficients, *_ = np.linalg.lstsq(design, numeric_target, rcond=None)
         residual = numeric_target - design @ coefficients
         if not np.all(np.isfinite(residual)):  # pragma: no cover - defensive
@@ -537,8 +537,7 @@ class MutualInformationScorer(Scorer):
             if not np.any(_standardise(reference)):
                 return np.zeros(candidates.shape[1])
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        with quiet():
             scores = estimator(
                 candidates,
                 reference,
@@ -634,8 +633,7 @@ class GradientBoostingScorer(Scorer):
             if self.problem_type == "classification" and len(np.unique(target[train_index])) < 2:
                 continue
             estimator = self._make_estimator()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
+            with quiet():
                 try:
                     estimator.fit(features[train_index], target[train_index])
                     predictions = estimator.predict(features[test_index])
