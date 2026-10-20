@@ -56,8 +56,8 @@ the features, p-values and predictions of 0.5.0, to the last bit.
 On branch `feature/0.6.0` only. No default changes: `certify_test` defaults
 to `"marginal"`, and a fit that leaves it there gives the results of 0.5.1
 to the last bit. The re-test's figures below are from
-`benchmarks/parsimony_holdout/`: 48,000 fits of a global null and of `y =
-a*b/c` plus noise among 5 or 20 distractors, with and without a column
+`benchmarks/parsimony_holdout/`: 48,000 fits of a global null and of
+`y = a*b/c` plus noise among 5 or 20 distractors, with and without a column
 correlated 0.9 with `a`, at signal-to-noise ratios 1 and 3, 300 and 1,000
 rows, 200 replicates per cell, q = 0.1 and 0.2. A printed term counts as
 false in the conditional sense when it uses any column outside the formula,
