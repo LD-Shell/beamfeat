@@ -388,9 +388,9 @@ class TestSearch:
         seen_parents = []
 
         class Recording(BeamSearch):
-            def _fit(self, parents, values, prepared, seen):
+            def _fit(self, parents, values, prepared, seen, **kwargs):
                 seen_parents.append([parent.name for parent in parents])
-                return super()._fit(parents, values, prepared, seen)
+                return super()._fit(parents, values, prepared, seen, **kwargs)
 
         Recording(max_depth=1, beam_width=2, fitted_ops=("pow",)).run(X, y)
         assert seen_parents == [["x3", "x1"]]
@@ -412,6 +412,26 @@ class TestSearch:
         assert n_rejected == 6
         assert fitted and all(node.op == "inv_shift" for node in fitted)
         assert {str(node.unit.units) for node in fitted} <= {"1 / meter", "1 / second"}
+
+    def test_extra_parents_are_bounded_and_outside_the_beam(self, rng):
+        X = rng.uniform(0.5, 3, (200, 6))
+        y = X[:, 0] * X[:, 1] + np.exp(-X[:, 2]) + rng.normal(0, 0.01, 200)
+        calls = []
+
+        class Recording(BeamSearch):
+            def _fit(self, parents, values, prepared, seen, n_partners=None):
+                calls.append((list(parents), values, n_partners))
+                return super()._fit(parents, values, prepared, seen, n_partners)
+
+        Recording(max_depth=3, beam_width=8, fitted_ops=FITTED).run(X, y)
+        assert calls[0][2] is None and len(calls[0][0]) == 6
+        evaluator = Evaluator(X)
+        for parents, values, n_beam in calls[1:]:
+            beam, extras = parents[:n_beam], parents[n_beam:]
+            assert len(beam) <= 8 and len(extras) <= 8
+            assert not set(beam) & set(extras) and len(set(extras)) == len(extras)
+            for column, node in enumerate(parents):
+                assert np.array_equal(values[:, column], evaluator.evaluate(node))
 
     def test_constant_free_candidate_not_masked_by_a_fitted_one(self, rng):
         x = leaf("x")
@@ -551,24 +571,33 @@ class TestRecovery:
         x0 = sympy.Symbol("x0")
         assert _proportional(model.to_sympy()[0], sympy.exp(-(x0**2) / 2))
 
-    def test_relativistic_velocity(self):
-        # On this domain x0*x1 and x0 + x1 correlate at |r| = 0.95, the
-        # default redundancy_threshold, and with the panel's split x0*x1 is
-        # dropped at depth 1 as a near-duplicate of x0 + x1: the denominator
-        # is then never built. A slightly higher threshold keeps both.
+    @pytest.mark.parametrize("fitted_ops", [("inv_shift",), FITTED])
+    def test_relativistic_velocity(self, fitted_ops):
         sympy = pytest.importorskip("sympy")
-        model, r2 = self._fit("relativistic_velocity", fitted_ops=("inv_shift",), redundancy_threshold=0.97)
+        model, r2 = self._fit("relativistic_velocity", fitted_ops=fitted_ops)
         assert r2 > 0.999
         x0, x1 = sympy.symbols("x0 x1")
         assert _proportional(model.to_sympy()[0], (x0 + x1) / (1 + x0 * x1))
 
-    def test_relativistic_velocity_at_the_default_threshold(self):
-        # The honest outcome at the panel's own settings, recorded so that a
-        # change to it is noticed: not recovered, for the reason above.
-        sympy = pytest.importorskip("sympy")
+    def test_relativistic_denominator_comes_from_a_dropped_candidate(self, monkeypatch):
+        # On this domain x0*x1 and x0 + x1 correlate at |r| = 0.95, the
+        # default redundancy_threshold, and with the panel's split x0*x1 is
+        # dropped from the depth-1 beam as a near-duplicate of x0 + x1. It is
+        # still among the depth's best candidates, so it is fitted on.
+        product = combine("mul", leaf("x0"), leaf("x1"))
+        calls = []
+        fit = BeamSearch._fit
+
+        def recording(self, parents, values, prepared, seen, n_partners=None):
+            calls.append((list(parents), n_partners))
+            return fit(self, parents, values, prepared, seen, n_partners)
+
+        monkeypatch.setattr(BeamSearch, "_fit", recording)
         model, _ = self._fit("relativistic_velocity", fitted_ops=("inv_shift",))
-        x0, x1 = sympy.symbols("x0 x1")
-        assert not _proportional(model.to_sympy()[0], (x0 + x1) / (1 + x0 * x1))
+        parents, n_beam = calls[1]
+        assert product not in parents[:n_beam]
+        assert product in parents[n_beam:]
+        assert model.formulas()[0] == "((x0 + x1) * 1/((x0 * x1) + 1))"
 
     @pytest.mark.parametrize(
         ("make_target", "law"),
