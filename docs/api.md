@@ -13,6 +13,7 @@
 ## Search
 
 ::: beamfeat.BeamSearch
+::: beamfeat.parametric
 
 ## Expressions
 

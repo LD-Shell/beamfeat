@@ -29,6 +29,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+from fractions import Fraction
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -47,6 +48,7 @@ __all__ = [
     "UnitRegistryError",
     "combine",
     "leaf",
+    "parametric_operators",
     "transform",
 ]
 
@@ -198,7 +200,17 @@ class OperatorSpec:
         interval_domain: Optional predicate on operand intervals; returning
             True means the operator is defined on every value in them. An
             operator with a ``domain`` needs one to be admitted under
-            ``safe_domain``.
+            ``safe_domain``. Both receive a parametric operator's constant
+            after the operand intervals, as ``fn`` does.
+        constant_grid: Set for a *parametric* operator, one that carries a
+            constant fitted to the data, such as the ``a`` in ``exp(a*x)``.
+            ``fn``, ``formula``, ``domain`` and ``redundant`` then receive the
+            constant as a last argument after the operand (``formula`` as a
+            float). Called with the operand's values, it returns the coarse
+            grid of constants the fit starts from, as one or more increasing
+            segments; a fit whose best grid point is a segment's end is
+            rejected as running into a bound. Parametric operators must be
+            unary, and are applied through :func:`transform` with ``const``.
     """
 
     name: str
@@ -211,12 +223,20 @@ class OperatorSpec:
     redundant: Callable[..., bool] | None = None
     interval: Callable[..., tuple[float, float]] | None = None
     interval_domain: Callable[..., bool] | None = None
+    constant_grid: Callable[[np.ndarray], list[np.ndarray]] | None = None
 
     def __post_init__(self) -> None:
         if self.arity not in (1, 2):
             raise NodeError(f"operator {self.name!r} has unsupported arity {self.arity}")
         if self.commutative and self.arity != 2:
             raise NodeError(f"operator {self.name!r} cannot be commutative with arity {self.arity}")
+        if self.parametric and self.arity != 1:
+            raise NodeError(f"parametric operator {self.name!r} must be unary")
+
+    @property
+    def parametric(self) -> bool:
+        """Whether the operator carries a fitted constant."""
+        return self.constant_grid is not None
 
 
 # --------------------------------------------------------------------------- #
@@ -243,6 +263,9 @@ class Node:
         unit: Optional pint quantity describing the result's dimensions.
         depth: Longest path to a leaf. Leaves have depth 0.
         _key: Cached canonical structural key. Used for hashing and equality.
+        const: The fitted constant of a parametric operator, such as the
+            ``a`` in ``exp(a*x)``; ``None`` for every other node. Part of the
+            key, so nodes that differ only in their constant are distinct.
     """
 
     op: str
@@ -251,23 +274,38 @@ class Node:
     unit: Any = None
     depth: int = 0
     _key: str = field(default="", compare=True, repr=False)
+    const: float | None = None
 
     # -- structural identity ------------------------------------------------ #
 
     @staticmethod
-    def _canonical_key(op: str, children: Sequence[Node], column: str | None, commutative: bool) -> str:
+    def _canonical_key(
+        op: str,
+        children: Sequence[Node],
+        column: str | None,
+        commutative: bool,
+        const: float | None = None,
+    ) -> str:
         """Build a canonical string key for structural hashing.
 
         Commutative operands are sorted so that ``x+y`` and ``y+x`` produce the
         same key and therefore unify to a single node. Backslashes, parentheses
         and commas in column and operator names are escaped, so a column named
         ``"a,leaf:b"`` cannot make two different expressions share a key.
+
+        A fitted constant is appended as a last argument, ``const:`` followed
+        by the float's repr, which round-trips exactly. No operand key can
+        take that form, since an operand's key is a leaf's (``leaf:...``) or
+        contains an unescaped parenthesis, so the constant cannot be mistaken
+        for an operand.
         """
         if not children:
             return f"leaf:{_escape_key(str(column))}"
         keys = [c._key for c in children]
         if commutative:
             keys = sorted(keys)
+        if const is not None:
+            keys.append(_const_key(const))
         return f"{_escape_key(op)}({','.join(keys)})"
 
     def __hash__(self) -> int:
@@ -299,6 +337,8 @@ class Node:
         if spec is None:  # pragma: no cover - defensive
             child_names = ", ".join(c.name for c in self.children)
             return f"{self.op}({child_names})"
+        if self.const is not None:
+            return spec.formula(*(c.name for c in self.children), self.const)
         return spec.formula(*(c.name for c in self.children))
 
     @property
@@ -346,6 +386,8 @@ class Node:
         if self.is_leaf:
             return symbols[str(self.column)]
         args = [c._to_sympy(symbols) for c in self.children]
+        if self.const is not None:
+            args.append(_sympy_constant(self.const))
         builder = _SYMPY_BUILDERS.get(self.op)
         if builder is None:  # pragma: no cover - defensive
             import sympy
@@ -365,6 +407,16 @@ class Node:
         if self.op == "leaf":
             return 0
         return 1 + sum(child.n_operators for child in self.children)
+
+    @property
+    def n_constants(self) -> int:
+        """Number of fitted constants in the expression tree.
+
+        Counted the way :attr:`n_operators` counts operators: a constant in a
+        subexpression that appears twice counts twice.
+        """
+        own = 0 if self.const is None else 1
+        return own + sum(child.n_constants for child in self.children)
 
     def __repr__(self) -> str:  # pragma: no cover - display only
         return f"Node({self.name!r}, depth={self.depth})"
@@ -389,7 +441,102 @@ def _plain_key(node: Node) -> str:
     spec = OPERATORS.get(node.op)
     if spec is not None and spec.commutative:
         keys = sorted(keys)
+    if node.const is not None:
+        keys.append(_const_key(node.const))
     return f"{node.op}({','.join(keys)})"
+
+
+def _node_setstate(node: Node, state: Any) -> None:
+    """Restore a pickled node, including one pickled before ``const`` existed.
+
+    A frozen dataclass with slots pickles its field values as a list in
+    field order. A node pickled by a release without fitted constants has
+    one value fewer, and the missing trailing fields take their defaults.
+    """
+    values = list(state)
+    for position, spec in enumerate(Node.__dataclass_fields__.values()):
+        value = values[position] if position < len(values) else spec.default
+        object.__setattr__(node, spec.name, value)
+
+
+# Assigned after the class is built: on Python 3.10 the dataclass decorator
+# replaces a __setstate__ defined in the class body.
+Node.__setstate__ = _node_setstate  # type: ignore[method-assign]
+
+
+# --------------------------------------------------------------------------- #
+# Fitted constants
+# --------------------------------------------------------------------------- #
+
+# Fitted constants that equal a fraction with at most this denominator are
+# treated as exact: printed as 1/3 rather than 0.3333333333333333, and given
+# to sympy as a Rational. The fit snaps to such values when the data allow it.
+SIMPLE_DENOMINATOR = 4
+
+
+def _check_constant(const: Any, op: str) -> float:
+    """Coerce a fitted constant to a finite float, or raise."""
+    try:
+        value = float(const)
+    except (TypeError, ValueError):
+        raise NodeError(f"constant for {op!r} must be a real number, got {const!r}") from None
+    if not math.isfinite(value):
+        raise NodeError(f"constant for {op!r} must be finite, got {value!r}")
+    return value + 0.0  # turns -0.0 into 0.0, so the two share a key
+
+
+def _const_key(const: float) -> str:
+    """The key fragment of a fitted constant: its repr, which round-trips."""
+    return f"const:{float(const)!r}"
+
+
+def _simple_fraction(const: float) -> Fraction | None:
+    """The fraction ``const`` equals exactly, if its denominator is small."""
+    fraction = Fraction(const).limit_denominator(SIMPLE_DENOMINATOR)
+    return fraction if float(fraction) == const else None
+
+
+def _const_text(const: float) -> str:
+    """A fitted constant as it is printed in formulas.
+
+    Integers print without a decimal point and thirds as fractions; every
+    other value prints as its repr, which is the shortest string that reads
+    back as the same float, so two different constants never print alike.
+    """
+    fraction = _simple_fraction(const)
+    if fraction is not None and fraction.denominator in (1, 3):
+        return str(fraction)
+    return repr(float(const))
+
+
+def _const_factor(const: float) -> str:
+    """A fitted constant as a factor: parenthesised when it is a fraction."""
+    text = _const_text(const)
+    return f"({text})" if "/" in text else text
+
+
+def _sympy_constant(const: float) -> Any:
+    """A fitted constant as a sympy number: exact when it is a simple fraction."""
+    import sympy
+
+    fraction = _simple_fraction(const)
+    if fraction is not None:
+        return sympy.Rational(fraction.numerator, fraction.denominator)
+    return sympy.Float(repr(float(const)))
+
+
+def _with_const(operands: Sequence[np.ndarray], const: float | None) -> tuple[Any, ...]:
+    """Operator arguments: the operands, then the constant if there is one."""
+    return tuple(operands) if const is None else (*operands, const)
+
+
+def parametric_operators() -> list[str]:
+    """Names of the registered parametric operators, in sorted order.
+
+    These are the operators :class:`~beamfeat.search.BeamSearch` accepts in
+    ``fitted_ops``.
+    """
+    return sorted(name for name, spec in OPERATORS.items() if spec.parametric)
 
 
 def _operand_order(node: Node) -> tuple[str, str]:
@@ -680,6 +827,32 @@ def _excludes_zero(a: Interval) -> bool:
     return a[0] > 0 or a[1] < 0
 
 
+# Parametric operators receive their constant after the operand interval.
+# ``a * x`` and ``x + a`` are rounded once each, so they are widened before
+# the outer function is bounded.
+
+
+def _scaled(a: Interval, c: float) -> Interval:
+    return _widen(*_interval_mul(a, (c, c)))
+
+
+def _shifted(a: Interval, c: float) -> Interval:
+    return _widen(*_interval_add(a, (c, c)))
+
+
+def _power_bound(x: float, c: float) -> float:
+    try:
+        return math.pow(x, c)
+    except OverflowError:
+        return math.inf
+
+
+def _interval_pow(a: Interval, c: float) -> Interval:
+    ends = sorted((_power_bound(a[0], c), _power_bound(a[1], c)))
+    lo, hi = _widen(ends[0], ends[1])
+    return max(lo, 0.0), hi
+
+
 OPERATORS: dict[str, OperatorSpec] = {}
 
 
@@ -719,6 +892,16 @@ def _log_unit(unit: Any) -> Any:
 def _exp_unit(unit: Any) -> Any:
     _dimensionless_required(unit, "exp")
     return unit
+
+
+def _dimensionless_unit(op_name: str) -> Callable[[Any], Any]:
+    """Unit function of an operator that needs, and returns, a dimensionless value."""
+
+    def unit_fn(unit: Any) -> Any:
+        _dimensionless_required(unit, op_name)
+        return unit
+
+    return unit_fn
 
 
 def _add_unit(left: Any, right: Any) -> Any:
@@ -842,6 +1025,123 @@ register_operator(
     )
 )
 
+# Parametric unary operators ------------------------------------------------ #
+#
+# Each carries one constant, fitted to the data by beamfeat.parametric when
+# the operator is listed in a search's ``fitted_ops``. The grids are the
+# coarse search over the constant, scaled to the operand so that the same
+# grid serves a column in metres and one in kilometres:
+#
+# - exp(a*x): |a| from 1e-3 to 10 over max|x|, each sign, so that |a*x| stays
+#   at most 10. Small |a| makes exp(a*x) a linear function of x, and large
+#   |a| a step; a fit that runs to either end has found neither shape.
+# - x^a: a from -4 to 4 in steps of 0.1, on positive operands.
+# - 1/(x + a) and log(x + a): the shift places the pole a distance d below
+#   the smallest operand (or, for 1/(x + a), above the largest), with d from
+#   1e-2 to 1e2 times the operand's range. Close to the pole, the function
+#   is dominated by the few rows next to it; far from it, it is linear in x.
+
+_SHIFT_DISTANCES = np.logspace(-2.0, 2.0, 41)
+_SCALE_MAGNITUDES = np.logspace(-3.0, 1.0, 41)
+
+
+def _span(x: np.ndarray) -> float:
+    """The operand's range, or its magnitude when it is (nearly) constant."""
+    low, high = float(np.min(x)), float(np.max(x))
+    span = high - low
+    return span if span > 0.0 else max(abs(high), 1.0)
+
+
+def _scale_grid(x: np.ndarray) -> list[np.ndarray]:
+    largest = float(np.max(np.abs(x)))
+    if not math.isfinite(largest) or largest == 0.0:
+        return []
+    magnitudes = _SCALE_MAGNITUDES / largest
+    return [-magnitudes[::-1], magnitudes]
+
+
+def _power_grid(x: np.ndarray) -> list[np.ndarray]:
+    return [np.round(np.arange(-40, 41) * 0.1, 10)]
+
+
+def _pole_grid(x: np.ndarray) -> list[np.ndarray]:
+    distances = _SHIFT_DISTANCES * _span(x)
+    return [-float(np.max(x)) - distances[::-1], distances - float(np.min(x))]
+
+
+def _log_shift_grid(x: np.ndarray) -> list[np.ndarray]:
+    return [_SHIFT_DISTANCES * _span(x) - float(np.min(x))]
+
+
+def _scaled_formula(x: str, a: float) -> str:
+    return f"exp(-{x})" if a == -1.0 else f"exp({_const_factor(a)}*{x})"
+
+
+def _power_formula(x: str, a: float) -> str:
+    text = _const_text(a)
+    return f"({x})^({text})" if a < 0 or "/" in text else f"({x})^{text}"
+
+
+def _shift_text(x: str, a: float) -> str:
+    return f"{x} - {_const_text(-a)}" if a < 0 else f"{x} + {_const_text(a)}"
+
+
+register_operator(
+    OperatorSpec(
+        name="exp_scaled",
+        arity=1,
+        fn=lambda x, a: np.exp(a * x),
+        formula=_scaled_formula,
+        unit_fn=_dimensionless_unit("exp_scaled"),
+        domain=lambda x, a: bool(np.all(a * x < 50.0)),
+        constant_grid=_scale_grid,
+        interval=lambda a, c: _interval_exp(_scaled(a, c)),
+        interval_domain=lambda a, c: _scaled(a, c)[1] < 50.0,
+    )
+)
+
+register_operator(
+    OperatorSpec(
+        name="pow",
+        arity=1,
+        fn=lambda x, a: np.power(x, a),
+        formula=_power_formula,
+        unit_fn=_dimensionless_unit("pow"),
+        domain=lambda x, a: bool(np.all(x > 0)),
+        constant_grid=_power_grid,
+        interval=_interval_pow,
+        interval_domain=lambda a, c: a[0] > 0,
+    )
+)
+
+register_operator(
+    OperatorSpec(
+        name="inv_shift",
+        arity=1,
+        fn=lambda x, a: np.reciprocal(x + a),
+        formula=lambda x, a: f"1/({_shift_text(x, a)})",
+        unit_fn=_reciprocal_unit,
+        domain=lambda x, a: bool(np.all(x + a != 0)),
+        constant_grid=_pole_grid,
+        interval=lambda a, c: _interval_reciprocal(_shifted(a, c)),
+        interval_domain=lambda a, c: _excludes_zero(_shifted(a, c)),
+    )
+)
+
+register_operator(
+    OperatorSpec(
+        name="log_shift",
+        arity=1,
+        fn=lambda x, a: np.log(x + a),
+        formula=lambda x, a: f"log({_shift_text(x, a)})",
+        unit_fn=_dimensionless_unit("log_shift"),
+        domain=lambda x, a: bool(np.all(x + a > 0)),
+        constant_grid=_log_shift_grid,
+        interval=lambda a, c: _interval_log(_shifted(a, c)),
+        interval_domain=lambda a, c: _shifted(a, c)[0] > 0,
+    )
+)
+
 # Binary operators ---------------------------------------------------------- #
 
 register_operator(
@@ -913,6 +1213,10 @@ def _sympy_builders() -> dict[str, Callable[..., Any]]:
         "square": lambda x: x**2,
         "cube": lambda x: x**3,
         "exp": sympy.exp,
+        "exp_scaled": lambda x, a: sympy.exp(a * x),
+        "pow": lambda x, a: x**a,
+        "inv_shift": lambda x, a: 1 / (x + a),
+        "log_shift": lambda x, a: sympy.log(x + a),
         "add": lambda x, y: x + y,
         "sub": lambda x, y: x - y,
         "mul": lambda x, y: x * y,
@@ -967,7 +1271,7 @@ def leaf(column: str, unit: Any = None) -> Node:
     return Node(op="leaf", children=(), column=column, unit=_normalise_unit(_coerce_unit(unit)), depth=0, _key=key)
 
 
-def transform(op: str, child: Node) -> Node:
+def transform(op: str, child: Node, const: float | None = None) -> Node:
     """Apply a unary operator to a node.
 
     Unit compatibility is checked here, before any numerical work.
@@ -975,12 +1279,20 @@ def transform(op: str, child: Node) -> Node:
     Args:
         op: Registered unary operator name.
         child: Operand node.
+        const: The constant of a parametric operator (see
+            :attr:`OperatorSpec.constant_grid`), such as the ``a`` of
+            ``exp_scaled``, ``exp(a*x)``. Required for a parametric operator
+            and refused for any other. A constant that reduces the operator
+            to a plain one gives the plain node: ``pow`` with 2 is
+            ``square``, ``inv_shift`` with 0 is ``reciprocal``.
 
     Returns:
         A new :class:`Node` one level deeper than ``child``.
 
     Raises:
-        NodeError: If ``op`` is unknown or has the wrong arity.
+        NodeError: If ``op`` is unknown or has the wrong arity, if ``const``
+            is missing, not finite, or given to an operator without one, or
+            if the constant makes the result constant.
         UnitError: If the operation is dimensionally invalid.
     """
     spec = OPERATORS.get(op)
@@ -990,6 +1302,12 @@ def transform(op: str, child: Node) -> Node:
         raise NodeError(f"operator {op!r} expects {spec.arity} operands, got 1")
     if not isinstance(child, Node):
         raise NodeError(f"transform operand must be a Node, got {type(child).__name__}")
+    if spec.parametric:
+        if const is None:
+            raise NodeError(f"operator {op!r} takes a fitted constant; pass const")
+        return _transform_parametric(spec, child, _check_constant(const, op))
+    if const is not None:
+        raise NodeError(f"operator {op!r} takes no constant, got const={const!r}")
 
     # Local algebraic normalisation. Only domain-preserving-or-widening
     # rewrites are applied: the rewritten expression is defined wherever the
@@ -1016,6 +1334,49 @@ def transform(op: str, child: Node) -> Node:
     unit = spec.unit_fn(child.unit) if spec.unit_fn is not None else child.unit
     key = Node._canonical_key(op, (child,), None, commutative=False)
     return Node(op=op, children=(child,), column=None, unit=_normalise_unit(unit), depth=child.depth + 1, _key=key)
+
+
+# Constants at which a built-in parametric operator is a plain one, or the
+# operand itself (None). The rewrites follow the rule in `transform`: the
+# plain form is defined wherever the parametric one is, and equal there.
+_PLAIN_FORMS: dict[tuple[str, float], str | None] = {
+    ("exp_scaled", 1.0): "exp",
+    ("pow", 1.0): None,
+    ("pow", 2.0): "square",
+    ("pow", 3.0): "cube",
+    ("pow", 0.5): "sqrt",
+    ("pow", -1.0): "reciprocal",
+    ("inv_shift", 0.0): "reciprocal",
+    ("log_shift", 0.0): "log",
+}
+
+# Constants at which a built-in parametric operator is constant in its operand.
+_DEGENERATE: frozenset[tuple[str, float]] = frozenset({("exp_scaled", 0.0), ("pow", 0.0)})
+
+
+def _transform_parametric(spec: OperatorSpec, child: Node, const: float) -> Node:
+    """:func:`transform` for a parametric operator with its constant."""
+    if (spec.name, const) in _DEGENERATE:
+        raise NodeError(f"{spec.name!r} with constant {const!r} does not depend on its operand")
+    plain = (spec.name, const)
+    if plain in _PLAIN_FORMS:
+        # Units are checked as the parametric operator would check them, so
+        # pow(x, 2) is refused for a dimensional x even though x^2 is not.
+        if spec.unit_fn is not None:
+            spec.unit_fn(child.unit)
+        target = _PLAIN_FORMS[plain]
+        return child if target is None else transform(target, child)
+    unit = spec.unit_fn(child.unit) if spec.unit_fn is not None else child.unit
+    key = Node._canonical_key(spec.name, (child,), None, commutative=False, const=const)
+    return Node(
+        op=spec.name,
+        children=(child,),
+        column=None,
+        unit=_normalise_unit(unit),
+        depth=child.depth + 1,
+        _key=key,
+        const=const,
+    )
 
 
 def combine(op: str, left: Node, right: Node) -> Node:
@@ -1106,18 +1467,18 @@ def interval_of(node: Node, operands: Sequence[Interval]) -> Interval | None:
         answer, so an operator registered without interval functions is never
         admitted under ``safe_domain``.
     """
-    # Operand intervals are passed positionally. An operator whose node
-    # carries parameters of its own, such as a fitted constant, gets them
-    # from ``node`` here, after the operands.
+    # Operand intervals are passed positionally, and a fitted constant after
+    # them, as the array functions receive it.
     spec = OPERATORS.get(node.op)
     if spec is None or spec.interval is None:
         return None
+    arguments = (*operands, node.const) if spec.parametric else tuple(operands)
     if spec.interval_domain is not None:
-        if not spec.interval_domain(*operands):
+        if not spec.interval_domain(*arguments):
             return None
     elif spec.domain is not None:
         return None
-    lo, hi = spec.interval(*operands)
+    lo, hi = spec.interval(*arguments)
     if math.isnan(lo) or math.isnan(hi):
         return None
     return float(lo), float(hi)
@@ -1346,18 +1707,19 @@ class Evaluator:
                 return None
             operands.append(child_values)
 
-        if apply_filters and spec.domain is not None and not spec.domain(*operands):
+        arguments = _with_const(operands, node.const)
+        if apply_filters and spec.domain is not None and not spec.domain(*arguments):
             self._reject(
                 node, ExclusionReason.DOMAIN_ERROR, f"input outside domain of {spec.name!r}", filtered=True
             )
             return None
-        if apply_filters and spec.redundant is not None and spec.redundant(*operands):
+        if apply_filters and spec.redundant is not None and spec.redundant(*arguments):
             self._reject(
                 node, ExclusionReason.DUPLICATE, f"{spec.name!r} leaves its operand unchanged", filtered=True
             )
             return None
 
-        values = self._compute(node, spec, operands, apply_filters=apply_filters)
+        values = self._compute(node, spec, list(arguments), apply_filters=apply_filters)
         if values is None:
             return None
 
@@ -1381,7 +1743,10 @@ class Evaluator:
     def _compute(
         self, node: Node, spec: OperatorSpec, operands: list[np.ndarray], apply_filters: bool = True
     ) -> np.ndarray | None:
-        """Apply the operator, converting numerical failures into log records."""
+        """Apply the operator, converting numerical failures into log records.
+
+        ``operands`` are the operator's arguments, a fitted constant included.
+        """
         with np.errstate(all="raise"):
             try:
                 values = spec.fn(*operands)
@@ -1539,7 +1904,7 @@ class Evaluator:
                     break
                 operands.append(child_values)
             else:
-                entries.append((spec, tuple(operands)))
+                entries.append((spec, _with_const(operands, node.const)))
                 continue
             entries.append(None)
         return EvaluationBatch(entries, self._n_rows, self._dtype, self.variance_tol)
@@ -1610,7 +1975,8 @@ class EvaluationBatch:
     Attributes:
         entries: Per node, either ``None`` (excluded at planning, with any
             record already made), an array (a value known at planning), or
-            an ``(OperatorSpec, operands)`` pair to compute.
+            an ``(OperatorSpec, arguments)`` pair to compute, the arguments
+            being the operands followed by any fitted constant.
         n_rows: Rows per column.
         dtype: Working dtype.
         variance_tol: Relative constancy threshold, as on :class:`Evaluator`.

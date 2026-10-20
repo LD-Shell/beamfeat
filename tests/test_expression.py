@@ -1161,14 +1161,20 @@ class TestIntervals:
             for name, spec in OPERATORS.items():
                 operands = [a] if spec.arity == 1 else [a, b]
                 children = (leaf("a"),) if spec.arity == 1 else (leaf("a"), leaf("b"))
-                node = Node(op=name, children=children, _key=f"{name}(test)")
-                bound = interval_of(node, operands)
-                if bound is None:
-                    continue
-                samples = [np.concatenate([np.array(o), rng.uniform(*o, 200)]) for o in operands]
-                with np.errstate(all="ignore"):
-                    values = spec.fn(*samples) if spec.arity == 1 else spec.fn(samples[0][:, None], samples[1])
-                assert _contains(bound, values), (name, operands, bound)
+                for const in (-1.5, -0.5, 0.5, 1.3, 2.0) if spec.parametric else (None,):
+                    node = Node(op=name, children=children, _key=f"{name}(test)", const=const)
+                    bound = interval_of(node, operands)
+                    if bound is None:
+                        continue
+                    samples = [np.concatenate([np.array(o), rng.uniform(*o, 200)]) for o in operands]
+                    with np.errstate(all="ignore"):
+                        if spec.parametric:
+                            values = spec.fn(samples[0], const)
+                        elif spec.arity == 1:
+                            values = spec.fn(*samples)
+                        else:
+                            values = spec.fn(samples[0][:, None], samples[1])
+                    assert _contains(bound, values), (name, const, operands, bound)
 
 
 def test_evaluator_exposes_columns():

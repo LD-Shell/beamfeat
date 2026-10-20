@@ -106,6 +106,8 @@ def _undefined_rows(node: Node, data: Mapping[str, np.ndarray], n_rows: int) -> 
             values, child_undefined = walk(child)
             operands.append(values)
             undefined |= child_undefined
+        if current.const is not None:
+            operands.append(current.const)
         with np.errstate(all="ignore"):
             values = np.asarray(OPERATORS[current.op].fn(*operands), dtype=np.float64)
         return values, undefined | ~np.isfinite(values)
@@ -423,11 +425,13 @@ def _equation_list(
 def _tree_size(node: Node) -> int:
     """Number of nodes in the expression tree of ``node``.
 
-    Operators and input columns each count one, and a subexpression counts
-    each time it appears, as it does in the printed formula. Unlike
-    :attr:`~beamfeat.expression.Node.size`, which counts a shared node once.
+    Operators, input columns and fitted constants each count one, and a
+    subexpression counts each time it appears, as it does in the printed
+    formula. Unlike :attr:`~beamfeat.expression.Node.size`, which counts a
+    shared node once.
     """
-    return 1 + sum(_tree_size(child) for child in node.children)
+    own = 1 if node.const is None else 2
+    return own + sum(_tree_size(child) for child in node.children)
 
 
 class NoDiscoveriesError(RuntimeError):
@@ -489,6 +493,7 @@ class _BeamFeatBase(BaseEstimator):
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
         safe_domain: bool | Mapping[str, tuple[float, float]] = False,
+        fitted_ops: tuple[str, ...] = (),
     ) -> None:
         self.scorer = scorer
         self.selector = selector
@@ -512,6 +517,7 @@ class _BeamFeatBase(BaseEstimator):
         self.n_jobs = n_jobs
         self.max_inputs = max_inputs
         self.safe_domain = safe_domain
+        self.fitted_ops = fitted_ops
 
     # -- fitting ------------------------------------------------------------ #
 
@@ -1012,6 +1018,7 @@ class _BeamFeatBase(BaseEstimator):
             n_jobs=self.n_jobs,
             max_inputs=self.max_inputs,
             safe_domain=safe_domain,
+            fitted_ops=self.fitted_ops,
         )
         search_result = search.run(search_data, y[search_index], units=units)
         self.search_result_ = search_result
@@ -1664,6 +1671,19 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             defined throughout the box are rejected as well. See
             :class:`~beamfeat.search.BeamSearch`. ``False`` (default) checks
             domains on the search rows only.
+        fitted_ops: Parametric operators whose one constant is fitted
+            inside the expression: ``"exp_scaled"`` (``exp(a*x)``),
+            ``"pow"`` (``x^a``), ``"inv_shift"`` (``1/(x + a)``) and
+            ``"log_shift"`` (``log(x + a)``). Empty by default, which keeps
+            every expression free of constants and the fit unchanged. The
+            constants are fitted during the search, on the search rows only
+            (see :class:`~beamfeat.search.BeamSearch`), so the screen on the
+            selection rows sees fixed expressions and its guarantee is
+            unchanged; with ``selection_holdout=None`` the rows are shared,
+            as they are for the search itself. A fitted constant is part of
+            the expression: ``transform`` and ``predict`` reuse it, and the
+            formulas and :meth:`to_sympy` show it, as an exact fraction when
+            it was snapped to one.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
@@ -1690,7 +1710,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             screening used (of the integer-coded labels for
             classification, a ranking heuristic); ``"complexity"``, the
             number of nodes in their expression trees plus one per term for
-            its coefficient; and ``"model"``, whether they are the returned
+            its coefficient and one per fitted constant; and ``"model"``, whether they are the returned
             features. At most one record is marked, and none is when the
             returned features are not on the path, after a
             ``parsimony_holdout`` re-test for instance. The path is recorded
@@ -1734,6 +1754,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
         safe_domain: bool | Mapping[str, tuple[float, float]] = False,
+        fitted_ops: tuple[str, ...] = (),
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1758,6 +1779,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             n_jobs=n_jobs,
             max_inputs=max_inputs,
             safe_domain=safe_domain,
+            fitted_ops=fitted_ops,
         )
         self.problem_type = problem_type
 
@@ -1842,6 +1864,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
         safe_domain: bool | Mapping[str, tuple[float, float]] = False,
+        fitted_ops: tuple[str, ...] = (),
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1866,6 +1889,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             n_jobs=n_jobs,
             max_inputs=max_inputs,
             safe_domain=safe_domain,
+            fitted_ops=fitted_ops,
         )
         self.alpha = alpha
 
@@ -2077,6 +2101,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
         safe_domain: bool | Mapping[str, tuple[float, float]] = False,
+        fitted_ops: tuple[str, ...] = (),
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -2101,6 +2126,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             n_jobs=n_jobs,
             max_inputs=max_inputs,
             safe_domain=safe_domain,
+            fitted_ops=fitted_ops,
         )
         self.C = C
 
