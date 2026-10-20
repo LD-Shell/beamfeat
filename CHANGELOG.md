@@ -78,6 +78,9 @@ dataset, and the speed-up changes no feature, p-value or prediction.
 - The API reference documents every public module and the methods the three
   estimators share. `ColumnStats`, `column_stats`, `EvaluationBatch` and
   `BatchOutcome` are listed in their modules' `__all__`.
+- The tutorials cover the equation list, LaTeX, export, `n_jobs` and the
+  chunked search, describe knockoff routing and the scorers as they now are,
+  and are executed on 0.5.0. The guide has a section on speed and memory.
 - The release workflow runs the full CI suite and publishes only after it
   passes; a tag push previously published before the tests finished.
   `CONTRIBUTING.md` describes the release flow.
