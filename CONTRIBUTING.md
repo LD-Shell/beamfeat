@@ -70,6 +70,8 @@ The order matters; each step feeds the next.
 5. Create the GitHub release from the tag, with the changelog section as
    its notes. Zenodo archives each GitHub release automatically under the
    concept DOI already in `CITATION.cff` and the README badge.
-6. conda-forge: update `recipe/recipe.yaml` (`version` and the sdist
-   `sha256` from PyPI) for the pending `staged-recipes` submission; once the
-   feedstock exists, its bot opens the version-bump pull request instead.
+6. conda-forge: update `recipe/recipe.yaml` (`version`, the sdist `sha256`
+   from PyPI, and the `run` requirements when `pyproject.toml`'s dependencies
+   changed) for the pending `staged-recipes` submission; once the feedstock
+   exists, its bot opens the version-bump pull request instead, and the
+   requirements are still checked by hand.
