@@ -49,15 +49,18 @@ screened set realised FDP 0.397 while the greedily pruned subset realised
 
 ## The heavy studies, measured
 
-`parsimony_cost.py` covers the four studies that finish in minutes. The four
-that take hours were left unmeasured when it was written. They have since been
-run at `parsimony=None` on the maintainer's hardware, and those records are in
-`parsimony_cost/parsimony_none/` beside the others: `depth_ladder.json`,
-`scalability.json`, `split_stability.json`, `highdim.json`, and the two
-`independent_*.json` files from the 360-fit study.
+`parsimony_cost.py` runs five studies by default: the four above, which finish
+in minutes, and the real-data panel of `run_benchmarks.py`, which has no paired
+record here. The four that take hours were left unmeasured when it was
+written. They have since been run at `parsimony=None` on the maintainer's
+hardware, and those records are in `parsimony_cost/parsimony_none/` beside the
+others: `depth_ladder.json`, `scalability.json`, `split_stability.json`,
+`highdim.json`, and the two `independent_*.json` files from the 360-fit study.
 
 They pair with the shipped archives, which are the same studies at the default:
-`additional_experiments/results/` and `independent/results_as_reported/`.
+`additional_experiments/results/` and `independent/results_as_reported/`. Both
+arms predate 0.5.0, so the peak memory below is that of the earlier search;
+under 0.5.0's chunked search the default fit at p = 1000 peaks at 0.35 GB.
 
 | study | quantity | default | `parsimony=None` |
 |---|---|---|---|
@@ -167,7 +170,7 @@ Three consequences follow, and every determination below is one of them.
 | `calibration_study.py` | in principle `empirical_fdr`, `power`, `null_selections` | FDP is `#{kept formulas touching no relevant column} / #{kept}`, both over the kept set. Measured: identical at both settings on this design |
 | `friedman_decomposition.py` (partly) | `achieved`, and therefore "lost to the search" | `achieved` fits a `BeamFeatRegressor`. `oracle` and `ceiling` are least-squares fits on a fixed basis and `admitted` comes from `PermutationSelector` used directly, so "lost to marginal screening" does not move. The script asserts `achieved < ceiling < oracle`; `parsimony=None` raises `achieved`, so that assertion sits closer to its bound there |
 | `additional_experiments/scalability.py` | `n_selected`, `false_features`, `recovered`, `seconds` | fits a `BeamFeatTransformer`; all four are read off the kept set. Measured at p = 10: 1 feature at the default against 50 at `parsimony=None`. Both arms are now on record and the reported quantities — recovery, false features, memory, the FDR flag — are identical at the two settings; only `n_selected`, which the report does not print, moves |
-| `additional_experiments/depth_ladder.py` | `n_selected`, `recovered_all`, `recovered_any`, `seconds` | `equivalent()` scores `model.transform(probe)`, the kept features. The kept sets nest, so recovery at `None` should dominate the default; measured against the archived table it does not, differing in both directions on 13 of 60 cells. The two arms come from different environments and, since the ladder seeded each problem's data with the per-process `hash(name)` before 0.4.5, from different data draws, so that comparison cannot separate the setting from the environment or the data |
+| `additional_experiments/depth_ladder.py` | `n_selected`, `recovered_all`, `recovered_any`, `seconds` | `equivalent()` scores `model.transform(probe)`, the kept features. The kept sets nest, so recovery at `None` should dominate the default; measured against the archived table it does not, differing in both directions on 13 of 60 cells. The two arms come from different environments and, since the ladder seeded each problem's data with the per-process `hash(name)` before 0.5.0, from different data draws, so that comparison cannot separate the setting from the environment or the data |
 | `additional_experiments/split_stability.py` | `r2_*`, `n_selected`, `jaccard_*`, `n_classes`, `frequency_table` | fits a `BeamFeatTransformer` per split; Jaccard overlap is computed between kept sets, and set size changes it directly |
 | `additional_experiments/bench.py` (`highdim`) | `r2`, `n_new` for the `beamfeat` and `beamfeat_ridge` rows | both wrappers fit a `BeamFeat*` estimator; the "mean count of certified features" column is the kept count |
 | `independent/bench.py` (the 360-fit study) | `r2`, `n_new`, `recovered` for the two `beamfeat` rows | same wrappers. The other six methods are untouched, so two of eight rows depend on the setting |
@@ -205,12 +208,12 @@ creates. It reads nothing from the archives and writes nothing to them.
 
 ```bash
 python benchmarks/parsimony_cost.py --dry-run     # estimates only, runs nothing
-python benchmarks/parsimony_cost.py               # the four studies above
+python benchmarks/parsimony_cost.py               # the four studies above and the real panel
 python benchmarks/parsimony_cost.py --heavy       # adds the three long ones
 ```
 
-Wall time per setting, measured on one core; the runner prints its own
-estimates before doing anything.
+Wall time per setting, measured on one core before 0.5.0's faster search; the
+runner prints its own estimates before doing anything.
 
 | study | per setting | both settings |
 |---|---|---|
@@ -218,7 +221,7 @@ estimates before doing anything.
 | `friedman_decomposition` (6 draws) | ~10 s | ~20 s |
 | `calibration_study` (200 signal + 60 null) | ~100 s | ~3.5 min |
 | `run_benchmarks` core + robustness (18 datasets) | ~20 s | ~40 s |
-| `run_benchmarks` real (8 datasets, needs network on first run) | ~10 min | ~20 min |
+| `run_benchmarks` real (7 datasets, needs network on first run) | ~10 min | ~20 min |
 | `scalability` (100 cells to p = 1000) | ~30 min | ~1 h |
 | `depth_ladder` (15 targets × 2 scorers × 4 beams × 20 seeds) | ~45–90 min | ~1.5–3 h |
 | `split_stability` (30 splits × 12 datasets) | ~30–60 min | ~1–2 h |
