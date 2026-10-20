@@ -413,8 +413,9 @@ thread unless the scorer fits models, since starting workers would cost more
 than it saves, so on the four-column problem above `n_jobs` changes nothing.
 The estimators take the same argument.
 
-Neither setting changes the result, because no seed depends on a worker or a
-chunk. On forty columns, where both depths are large enough for workers:
+Neither setting changes the result, for the scorers that draw random numbers
+too: no seed depends on a worker or a chunk. On forty columns, where both
+depths are large enough for workers:
         """
     ),
     code(
