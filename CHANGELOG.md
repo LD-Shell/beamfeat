@@ -8,6 +8,40 @@ Notable changes to `beamfeat`. Format follows
 
 ### Added
 
+- `fitted_ops` on `BeamSearch`, `BeamFeatTransformer`, `BeamFeatRegressor`
+  and `BeamFeatClassifier` (default `()`, which leaves every result
+  unchanged): operators with one constant fitted inside the expression,
+  `exp_scaled` (`exp(a*x)`), `pow` (`x^a`), `inv_shift` (`1/(x + a)`) and
+  `log_shift` (`log(x + a)`). At each depth each is fitted to each member of
+  the previous depth's beam, and as a factor of another member where the
+  depth limit allows, by maximising |corr| with the target on the search
+  rows. The constant snaps to a simple value (0, ±1, ±2, ±3, ±1/2, ±3/2,
+  ±1/3, ±1/4) when a likelihood-ratio test cannot tell it from the optimum,
+  and is exact in `to_sympy()` and `latex()`. The screen sees fixed
+  expressions, so its guarantee is unchanged. `Node.const`,
+  `Node.n_constants`, `transform(..., const=...)`,
+  `OperatorSpec.constant_grid`, `SearchTrace.n_fitted` and
+  `beamfeat.parametric` support it.
+- `safe_domain` on the same four classes (default `False`). Every admitted
+  feature is then defined everywhere in a box of input values, not only on
+  the rows searched: `log(x0 - x1)` fitted where `x0 > x1` on every row, but
+  with overlapping ranges, is rejected rather than returning NaN from
+  `predict` on new rows. The box is each column's range on the full training
+  `X`, or bounds declared per column, and is stored on `input_bounds_` and
+  `SearchResult.domain_bounds`. Candidates are bounded by interval
+  arithmetic, through new `interval` and `interval_domain` functions on
+  `OperatorSpec` (an operator without them is never admitted), and rejected
+  before evaluation. Interval bounds treat repeated columns as independent,
+  so some features defined throughout the box are rejected too.
+- `max_inputs` on the same four classes (default `None`): the most distinct
+  input columns one feature may use, checked before evaluation.
+- `SearchTrace.n_rejected_constraints`, the candidates `max_inputs` or
+  `safe_domain` rejected at each depth (0 when both are off).
+
+## [0.5.0] - Unreleased
+
+### Added
+
 - `equations()` and `equations_` on all three estimators: the forward
   parsimony step continued through the whole screened set, one equation per
   number of terms, with its complexity (expression-tree nodes plus one per
