@@ -344,6 +344,48 @@ class TestEstimators:
         assert [s.score for s in report.splits] == [s.score for s in on_arrays.splits]
 
 
+class TestResample:
+    def test_seeds_keep_the_first_splits_rows_and_vary_only_the_seed(self, planted):
+        X, y = planted
+        splits = stability_report(_fast(BeamFeatRegressor), X, y, n_splits=4, random_state=3)
+        seeds = stability_report(_fast(BeamFeatRegressor), X, y, n_splits=4, random_state=3, resample="seeds")
+        assert (splits.resample, seeds.resample) == ("splits", "seeds")
+        assert [s.seed for s in seeds.splits] == [s.seed for s in splits.splits]
+        assert len({s.seed for s in seeds.splits}) == 4
+        first = splits.splits[0]
+        for split in seeds.splits:
+            assert np.array_equal(split.train, first.train) and np.array_equal(split.test, first.test)
+        assert any(not np.array_equal(s.test, first.test) for s in splits.splits[1:])
+        # The first split is the same in both designs, and the design is deterministic.
+        assert _splits(seeds)[0] == _splits(splits)[0]
+        again = stability_report(_fast(BeamFeatRegressor), X, y, n_splits=4, random_state=3, resample="seeds")
+        assert _splits(again) == _splits(seeds) and _classes(again) == _classes(seeds)
+
+    def test_seeds_measure_only_what_the_seed_changes(self, planted):
+        X, _ = planted
+        y = X[:, 0] + X[:, 1] + np.random.default_rng(0).normal(0, 1.0, len(X))
+        # Without a selector no step of the fit draws on the seed, so refits
+        # on fixed rows are identical, while new rows move the score.
+        estimator = _fast(BeamFeatRegressor, selector=None)
+        seeds = stability_report(estimator, X, y, n_splits=4, random_state=0, resample="seeds")
+        assert len(seeds.equations) == 1 and np.ptp(seeds.scores) == 0.0
+        splits = stability_report(estimator, X, y, n_splits=4, random_state=0)
+        assert np.ptp(splits.scores) > 0.0
+
+    def test_the_summary_of_seeds_counts_fits(self, planted):
+        X, y = planted
+        report = stability_report(_fast(BeamFeatRegressor), X, y, n_splits=3, random_state=0, resample="seeds")
+        text = report.summary()
+        assert text.startswith(
+            "BeamFeatRegressor refitted with 3 seeds on one random split (random_state=0), "
+            "fitted on 150 rows and scored on the other 50; only the search/selection split "
+            "inside each fit varies."
+        )
+        assert "1 distinct equation in 3 fits: every fit printed it." in text
+        assert "1 distinct feature, selected in 3 of the 3 fits." in text
+        assert "Equations printed in more than one fit, most frequent first:" in text
+
+
 class TestValidation:
     @pytest.mark.parametrize("estimator", [Ridge(), Ridge, BeamFeatRegressor, "BeamFeatRegressor"])
     def test_rejects_anything_but_an_estimator_instance(self, planted, estimator):
@@ -359,6 +401,7 @@ class TestValidation:
             ("test_size", True), ("test_size", "0.25"),
             ("random_state", -1), ("random_state", 1.5), ("random_state", True), ("random_state", "0"),
             ("n_jobs", 0), ("n_jobs", True), ("n_jobs", 1.5),
+            ("resample", "bootstrap"), ("resample", "Seeds"), ("resample", None),
         ],
     )
     def test_rejects_an_argument_out_of_range(self, planted, name, value):
