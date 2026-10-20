@@ -41,6 +41,11 @@ holds.
       engineered features are not, so a warning is recorded whenever it
       runs.
 
+The estimators' ``certify_test="conditional"`` re-tests the terms they
+return with a Freedman-Lane permutation test of each term given the others.
+It is not a screen and is not exported; its null and the assumptions behind
+it are stated with that parameter and on the guarantees page.
+
 **Selective inference caveat.** Every guarantee above is for testing a
 candidate set that is *fixed before seeing the data used for testing*. If
 candidates were chosen by a search on the same data — chosen, in part,
@@ -442,12 +447,14 @@ class PermutationSelector(Selector):
             scale = float(np.sum(1.0 / np.arange(1, n_features + 1)))
         return int(np.ceil(2.0 * scale * n_features / self.target_fdr))
 
-    def select(self, features: np.ndarray, target: np.ndarray) -> SelectionResult:
-        features, target = self._validate(features, target)
-        n_samples, n_features = features.shape
-        rng = np.random.default_rng(self.random_state)
-        messages: list[str] = []
+    def _permutation_budget(self, n_features: int) -> tuple[int, list[str]]:
+        """The number of permutations to draw for ``n_features`` tests.
 
+        ``n_permutations``, raised to :meth:`_required_permutations` when
+        ``auto_permutations`` allows and capped at ``max_permutations``,
+        with a message when the configured correction stays unsatisfiable.
+        """
+        messages: list[str] = []
         n_permutations = self.n_permutations
         required = self._required_permutations(n_features)
         if self.auto_permutations and n_permutations < required:
@@ -473,6 +480,13 @@ class PermutationSelector(Selector):
                 "n_permutations or set auto_permutations=True"
             )
             logger.warning("[beamfeat.selection] %s", messages[-1])
+        return n_permutations, messages
+
+    def select(self, features: np.ndarray, target: np.ndarray) -> SelectionResult:
+        features, target = self._validate(features, target)
+        n_samples, n_features = features.shape
+        rng = np.random.default_rng(self.random_state)
+        n_permutations, messages = self._permutation_budget(n_features)
 
         standardised = _standardise(features)
 
@@ -519,6 +533,175 @@ class PermutationSelector(Selector):
         statistics = 1.0 - p_values
         threshold = float(np.min(statistics[selected])) if selected.size else float("inf")
 
+        return SelectionResult(
+            selected=np.sort(selected),
+            statistics=statistics,
+            p_values=p_values,
+            q_values=q_values,
+            threshold=threshold,
+            target_fdr=self.target_fdr,
+            n_candidates=n_features,
+            method=self.name,
+            warnings_raised=messages,
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Conditional permutation test: the estimators' conditional re-test
+# --------------------------------------------------------------------------- #
+
+# Elements in one block of permuted residual vectors, so that a block stays
+# near 32 MB however many rows are tested.
+_BLOCK_ELEMENTS = 1 << 22
+
+
+def _orthonormal_basis(matrix: np.ndarray) -> np.ndarray:
+    """Orthonormal columns spanning the columns of ``matrix``.
+
+    Taken from the SVD at numpy's ``matrix_rank`` tolerance, so a column that
+    is a linear combination of the others adds no direction of its own, where
+    a QR factorisation would add an arbitrary one.
+    """
+    left, singular, _ = np.linalg.svd(matrix, full_matrices=False)
+    if singular.size == 0 or singular[0] == 0.0:
+        return left[:, :0]
+    tolerance = singular[0] * max(matrix.shape) * np.finfo(np.float64).eps
+    return left[:, singular > tolerance]
+
+
+def _residual(basis: np.ndarray, values: np.ndarray) -> np.ndarray:
+    """``values`` (one vector, or one per row) less its part in the span of ``basis``.
+
+    Applied twice, which keeps the result orthogonal to the basis in floating
+    point where a single pass loses it on nearly collinear columns.
+    """
+    for _ in range(2):
+        values = values - (values @ basis) @ basis.T
+    return values
+
+
+def _partial_correlations(rows: np.ndarray, basis: np.ndarray, direction: np.ndarray) -> np.ndarray:
+    """|Correlation| of each row, residualised on ``basis``, with ``direction``.
+
+    ``direction`` is the unit residual of the tested feature on the same
+    basis, so this is the partial correlation of each row with the feature
+    given the basis; a row with nothing left after residualising scores 0.
+    """
+    rows = _residual(basis, rows)
+    norms = np.linalg.norm(rows, axis=-1)
+    inner = np.abs(rows @ direction)
+    return np.divide(inner, norms, out=np.zeros_like(inner), where=norms > 0)
+
+
+class _ConditionalPermutationSelector(PermutationSelector):
+    """Freedman-Lane permutation test of each feature given the others.
+
+    The test behind the estimators' ``certify_test="conditional"``, which
+    re-tests a set of terms fixed before the rows it is tested on were seen.
+    It is not offered as a screen: on hundreds of collinear candidates a test
+    of each given all the rest would have little power, at a cost that grows
+    with the square of their number.
+
+    **Statistic.** For feature ``j``, the target and the feature are each
+    residualised on an intercept and the other features by least squares,
+    and the statistic is the absolute correlation of the two residuals: the
+    partial correlation of the feature with the target given the others.
+
+    **P-values.** The target's residuals are permuted, residualised on the
+    other features again and correlated with the feature's residual
+    (Freedman & Lane, 1983). The p-value is the add-one estimator of
+    :class:`PermutationSelector`, over the number of permutations its budget
+    rule sets, and its step-up correction is applied. Every feature is
+    tested against the same permutations.
+
+    **Null and validity.** The null for feature ``j`` is that its
+    coefficient is zero in the linear model of the target on all the
+    features and an intercept: given the others, it adds nothing linear. A
+    feature that stands in for a signal the others leave out is not null in
+    this sense, and is kept. The p-values are approximate. Permuting
+    residuals treats them as exchangeable, which rests on the errors of the
+    linear model of the target on the other features being exchangeable
+    (independent and identically distributed, so of constant variance), and
+    even then estimated residuals are only nearly exchangeable (Anderson &
+    Robinson, 2001; Winkler et al., 2014). The test is exact for a single
+    feature, where it is the marginal permutation test.
+
+    A feature whose residual on the others vanishes (it is a linear
+    combination of them on these rows), or one left with no residual
+    degrees of freedom, cannot be tested: its p-value is 1 and a message in
+    ``warnings_raised`` counts it. Regression only.
+
+    References:
+        Anderson, M. J. & Robinson, J. (2001). Permutation tests for linear
+        models. *Aust. N. Z. J. Stat.*, 43(1), 75-88.
+
+        Freedman, D. & Lane, D. (1983). A nonstochastic interpretation of
+        reported significance levels. *J. Bus. Econ. Stat.*, 1(4), 292-298.
+
+        Winkler, A. M., Ridgway, G. R., Webster, M. A., Smith, S. M. &
+        Nichols, T. E. (2014). Permutation inference for the general linear
+        model. *NeuroImage*, 92, 381-397.
+    """
+
+    name = "conditional_permutation"
+
+    def select(self, features: np.ndarray, target: np.ndarray) -> SelectionResult:
+        features, target = self._validate(features, target)
+        if self.problem_type != "regression":
+            raise ValueError("the conditional permutation test needs a regression target")
+        n_samples, n_features = features.shape
+        n_permutations, messages = self._permutation_budget(n_features)
+        numeric = target.astype(np.float64)
+        standardised = _standardise(features)
+        intercept = np.ones((n_samples, 1))
+        block_size = int(max(1, min(512, _BLOCK_ELEMENTS // n_samples)))
+
+        p_values = np.ones(n_features)
+        untestable = 0
+        for index in range(n_features):
+            basis = _orthonormal_basis(
+                np.hstack([intercept, np.delete(standardised, index, axis=1)])
+            )
+            term = standardised[:, index]
+            residual_term = _residual(basis, term)
+            term_norm = float(np.linalg.norm(residual_term))
+            residual_target = _residual(basis, numeric)
+            target_norm = float(np.linalg.norm(residual_target))
+            if (
+                term_norm <= 1e-10 * float(np.linalg.norm(term))
+                or target_norm <= 1e-10 * float(np.linalg.norm(numeric - numeric.mean()))
+                or basis.shape[1] + 1 >= n_samples
+            ):
+                untestable += 1
+                continue
+            direction = residual_term / term_norm
+            observed = float(_partial_correlations(residual_target[None, :], basis, direction)[0])
+            # One stream per feature, from the same seed: every feature sees
+            # the same permutations, as in the marginal test.
+            rng = np.random.default_rng(self.random_state)
+            exceedances = 0
+            for start in range(0, n_permutations, block_size):
+                size = min(block_size, n_permutations - start)
+                order = rng.permuted(np.tile(np.arange(n_samples), (size, 1)), axis=1)
+                null = _partial_correlations(residual_target[order], basis, direction)
+                # Ties within rounding count against the feature.
+                exceedances += int(np.count_nonzero(null >= observed - 1e-12))
+            p_values[index] = (exceedances + 1.0) / (n_permutations + 1.0)
+
+        if untestable:
+            messages.append(
+                f"{untestable} of {n_features} features could not be tested given the others "
+                f"on these {n_samples} rows: each is a linear combination of the others, the "
+                "others leave nothing of the target, or the rows are too few for the features. "
+                "Their p-value is 1"
+            )
+            logger.warning("[beamfeat.selection] %s", messages[-1])
+
+        correct = _benjamini_hochberg if self.correction == "bh" else _benjamini_yekutieli
+        selected = correct(p_values, self.target_fdr)
+        q_values = _adjusted_p_values(p_values, self.correction)
+        statistics = 1.0 - p_values
+        threshold = float(np.min(statistics[selected])) if selected.size else float("inf")
         return SelectionResult(
             selected=np.sort(selected),
             statistics=statistics,
