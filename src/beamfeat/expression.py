@@ -1036,7 +1036,10 @@ register_operator(
 # - exp(a*x): |a| from 1e-3 to 10 over max|x|, each sign, so that |a*x| stays
 #   at most 10. Small |a| makes exp(a*x) a linear function of x, and large
 #   |a| a step; a fit that runs to either end has found neither shape.
-# - x^a: a from -4 to 4 in steps of 0.1, on positive operands.
+# - x^a: a from -4 to 4 in steps of 0.1, on positive operands. A negative
+#   power has its pole at 0, so the negative half is used only when the
+#   smallest operand lies more than the margin (below) above 0; otherwise a
+#   runs from 0.1 to 4.
 # - 1/(x + a) and log(x + a): the shift places the pole a distance d below
 #   the smallest operand (or, for 1/(x + a), above the largest), log-spaced
 #   at ten points a decade from a margin (below) up to 100 times the
@@ -1061,6 +1064,12 @@ register_operator(
 # 6% losing while keeping 1,086 fits instead of 1,213.
 # A fit that wants its pole inside the margin runs into the grid's bound and
 # is discarded.
+#
+# The same margin decides whether x^a may have a negative power, whose pole
+# is fixed at 0: a new row at 0 evaluates to an infinity, and to NaN where it
+# is multiplied by a zero. Where it may not, a fit that runs down to the
+# smallest positive power, 0.1, is discarded as well: as a approaches 0, x^a
+# takes the shape of log(x), which has the same pole.
 
 _SCALE_MAGNITUDES = np.logspace(-3.0, 1.0, 41)
 
@@ -1097,7 +1106,9 @@ def _scale_grid(x: np.ndarray) -> list[np.ndarray]:
 
 
 def _power_grid(x: np.ndarray) -> list[np.ndarray]:
-    return [np.round(np.arange(-40, 41) * 0.1, 10)]
+    below, _ = pole_margins(x)
+    steps = np.arange(-40, 41) if float(np.min(x)) > below else np.arange(1, 41)
+    return [np.round(steps * 0.1, 10)]
 
 
 def pole_margins(x: np.ndarray) -> tuple[float, float]:
@@ -1106,6 +1117,11 @@ def pole_margins(x: np.ndarray) -> tuple[float, float]:
     Each is the larger of :data:`POLE_MARGIN_SPREADS` times the spread of the
     :data:`POLE_MARGIN_ROWS` most extreme values at that end (all of them,
     for fewer rows) and :data:`POLE_MARGIN_FLOOR` times the range of ``x``.
+
+    The shifts of ``inv_shift`` and ``log_shift`` place their pole at least
+    this far from the values. ``pow`` has its pole at 0 when its exponent is
+    negative, so a negative exponent is fitted only when the smallest value
+    exceeds the margin below; otherwise only exponents from 0.1 to 4 are.
     """
     x = np.asarray(x, dtype=np.float64)
     span = _span(x)
