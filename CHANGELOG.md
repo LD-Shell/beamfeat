@@ -13,9 +13,11 @@ Notable changes to `beamfeat`. Format follows
   unchanged): operators with one constant fitted inside the expression,
   `exp_scaled` (`exp(a*x)`), `pow` (`x^a`), `inv_shift` (`1/(x + a)`) and
   `log_shift` (`log(x + a)`). At each depth each is fitted to each member of
-  the previous depth's beam, and as a factor of another member where the
-  depth limit allows, by maximising |corr| with the target on the search
-  rows. The constant snaps to a simple value (0, ±1, ±2, ±3, ±1/2, ±3/2,
+  the previous depth's beam and to that depth's `beam_width` best candidates
+  the redundancy check kept out of the beam (a linear near-duplicate need not
+  stay one under `1/(x + a)` or `exp(a*x)`), and as a factor of a beam member
+  where the depth limit allows, by maximising |corr| with the target on the
+  search rows. The constant snaps to a simple value (0, ±1, ±2, ±3, ±1/2, ±3/2,
   ±1/3, ±1/4) when a likelihood-ratio test cannot tell it from the optimum,
   and is exact in `to_sympy()` and `latex()`. The screen sees fixed
   expressions, so its guarantee is unchanged. `Node.const`,
