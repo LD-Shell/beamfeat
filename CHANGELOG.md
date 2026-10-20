@@ -11,7 +11,7 @@ listed under "Fixed". The default path (correlation scoring, permutation
 screening with Benjamini-Yekutieli) gives the same results as 0.4.4 except
 where a fix applies; "Changed" lists the cases that differ. The new options
 leave a default fit unchanged, and the search is faster and needs far less
-memory on wide data: the high-dimensional study runs 4 to 28 times faster per
+memory on wide data: the high-dimensional study runs 2 to 28 times faster per
 dataset, and the speed-up changes no feature, p-value or prediction.
 
 ### Added
@@ -72,6 +72,12 @@ dataset, and the speed-up changes no feature, p-value or prediction.
   return nothing.
 - `SearchResult.n_evaluated_total` no longer counts the input columns,
   matching `n_proposed_total`.
+- `joblib` is a declared dependency (`>=1.2`, scikit-learn 1.6's own
+  minimum), since the search imports it directly; scikit-learn already
+  installs it, and the oldest-stack CI job tests 1.2.0.
+- The API reference documents every public module and the methods the three
+  estimators share. `ColumnStats`, `column_stats`, `EvaluationBatch` and
+  `BatchOutcome` are listed in their modules' `__all__`.
 - The release workflow runs the full CI suite and publishes only after it
   passes; a tag push previously published before the tests finished.
   `CONTRIBUTING.md` describes the release flow.
