@@ -187,8 +187,68 @@ no subset note. The cost is real: comfortable above a few hundred rows,
 unaffordable below roughly a hundred, where `parsimony=None` is the better
 choice. If a compact certified equation cannot be produced, the whole screened
 set is returned rather than a pruned subset — the pruned subset is the one
-thing a caller asking for certification did not want. The two-stage procedure
-has not been FDR-calibrated; it is offered as an option, not a measured result.
+thing a caller asking for certification did not want.
+
+**Measured.** `benchmarks/parsimony_holdout/` calibrates the procedure over
+48,000 fits: a global null, and `y = a*b/c` plus noise among 5 or 20
+distractors, with and without a column correlated 0.9 with `a`, at
+signal-to-noise ratios 1 and 3 and with 300 and 1,000 rows, 200 replicates
+per cell, at q = 0.1 and 0.2, beside the default and `parsimony=None` on the
+same data. The figures below are means over replicates. Their Monte Carlo
+standard errors are in the study's report, and are at most 0.012 for a
+design pooled over its four cells.
+
+- *In the marginal sense, the guarantee's,* the printed equation's realised
+  FDR stayed far below q under every setting. On the global null it was 0.009
+  to 0.018 at q = 0.1 and 0.021 to 0.029 at q = 0.2 (a term printed in 7 to
+  14 and 17 to 23 fits of 800), and on the planted and proxy designs no
+  setting printed a term built only from distractors in 3,200 fits per
+  level. The re-test added nothing measurable here. On null data it rejected
+  the screen's rare false picks, in 20 of 22 fits at q = 0.1, and the
+  fallback to the screened set then printed them anyway, so the printed
+  equation's error is the screen's own.
+- *In the conditional sense*, counting a printed term that uses any column
+  outside the generating formula, such as a rider `(a*b/c) * x7`, no setting
+  controls the rate and the marginal re-test does not lower it. It was 0.67
+  to 0.77 under every setting at a signal-to-noise ratio of 1, where the
+  forward step keeps 18 terms on average. At a ratio of 3 it was 0.42 to 0.44
+  at the default and 0.53 to 0.62 with the re-test: on its smaller share of
+  rows the forward step keeps more riders, and each rider is associated with
+  the target, so the re-test keeps it.
+- Power to print the generating term (0.85 to 0.93 at a ratio of 1, 0.99 to
+  1.00 at 3) and held-out R² (within 0.0033 of the default, paired) hardly
+  moved under any setting.
+
+**`certify_test="conditional"`** re-tests each frozen term given the others
+rather than on its own, with a Freedman–Lane permutation test (Freedman &
+Lane, 1983): the target and the term are residualised on the other terms and
+an intercept, the target's residuals are permuted, the statistic is the
+partial correlation, and the screen's step-up correction is applied at the
+screen's level. The null for a term is that its coefficient is zero in the
+linear model of the target on all the frozen terms: given the others, it
+adds nothing linear. That null is relative to the frozen set, so a term
+standing in for a true one the set leaves out is not null under it and is
+kept. The p-values are approximate. For a single term the test is the
+marginal permutation test and exact. With others present its validity rests
+on the errors of a linear model of the target on the other terms being
+exchangeable (independent and identically distributed, so of constant
+variance), and even then the residuals it permutes are estimated and only
+nearly exchangeable, so the p-values are close to exact rather than exact
+(Anderson & Robinson, 2001; Winkler et al., 2014). The test is for
+regression only, and the step-up correction inherits its own condition:
+Benjamini–Yekutieli holds under any dependence among the p-values,
+Benjamini–Hochberg needs positive dependence.
+
+Measured in the same study, at a signal-to-noise ratio of 3 it brought the
+conditional rate to 0.18 to 0.22, paired −0.21 to −0.26 against the default.
+In the fits where it certified something it printed 1.1 to 1.2 terms, with a
+conditional rate of 0.026 to 0.040 at q = 0.1 and 0.052 to 0.073 at q = 0.2,
+and power 0.98 to 0.99. Its weakness is the fallback. When the frozen subset
+is long and its terms nearly reproduce one another, no term adds anything
+given the rest, nothing passes, and the screened set is returned, which
+carries the screen's marginal guarantee only. That happened in 87 to 92% of
+fits at a ratio of 1 and in 18 to 26% at 3 (37 to 52% with 300 rows, under
+1% with 1,000). `certification_result_.n_selected` is 0 on such a fit.
 
 **The equation list.** `equations()` and `equations_` record the forward path
 through the whole screened set, one equation per number of terms, at every
