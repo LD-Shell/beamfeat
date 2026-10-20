@@ -39,7 +39,7 @@ from beamfeat._compat import logistic_regression
 from beamfeat.expression import OPERATORS, Evaluator, Node, _sympy_symbols
 from beamfeat.scoring import Scorer, is_constant
 from beamfeat.search import DEFAULT_BINARY, DEFAULT_UNARY, BeamSearch, report
-from beamfeat.selection import Selector, make_selector  # noqa: F401
+from beamfeat.selection import Selector, _ConditionalPermutationSelector, make_selector  # noqa: F401
 
 __all__ = [
     "BeamFeatClassifier",
@@ -494,6 +494,7 @@ class _BeamFeatBase(BaseEstimator):
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = (),
+        certify_test: str = "marginal",
     ) -> None:
         self.scorer = scorer
         self.selector = selector
@@ -517,6 +518,7 @@ class _BeamFeatBase(BaseEstimator):
         self.n_jobs = n_jobs
         self.max_inputs = max_inputs
         self.fitted_ops = fitted_ops
+        self.certify_test = certify_test
 
     # -- fitting ------------------------------------------------------------ #
 
@@ -648,6 +650,16 @@ class _BeamFeatBase(BaseEstimator):
             )
         if self.parsimony not in ("forward", None):
             raise ValueError(f"parsimony must be 'forward' or None, got {self.parsimony!r}")
+        if not isinstance(self.certify_test, str) or self.certify_test not in ("marginal", "conditional"):
+            raise ValueError(
+                f"certify_test must be 'marginal' or 'conditional', got {self.certify_test!r}"
+            )
+        if self.certify_test == "conditional" and self._problem_type == "classification":
+            raise ValueError(
+                "certify_test='conditional' is for regression only: its test residualises "
+                "the target on a linear model of the other terms, which a class label does "
+                "not support. Use certify_test='marginal' for classification."
+            )
 
     def _make_selector(self, warn: bool = False) -> Selector:
         """Build the configured selector.
@@ -695,6 +707,31 @@ class _BeamFeatBase(BaseEstimator):
             problem_type=self._problem_type,
             random_state=self.random_state,
             **selector_kwargs,
+        )
+
+    def _make_certify_selector(self) -> Selector:
+        """The test the ``parsimony_holdout`` re-test applies.
+
+        ``certify_test="marginal"`` re-runs the configured selector, exactly
+        as the screen ran it. ``"conditional"`` tests each term given the
+        others with a Freedman-Lane permutation test, at the screen's level,
+        seed and permutation budget, with its step-up correction: the
+        estimator's ``selection_correction``, or a permutation selector
+        instance's own ``correction``.
+        """
+        screen = self._make_selector()
+        if self.certify_test != "conditional":
+            return screen
+        budget = {
+            name: getattr(screen, name)
+            for name in ("n_permutations", "auto_permutations", "max_permutations")
+            if hasattr(screen, name)
+        }
+        return _ConditionalPermutationSelector(
+            target_fdr=screen.target_fdr,
+            random_state=screen.random_state,
+            correction=getattr(screen, "correction", self.selection_correction),
+            **budget,
         )
 
     def _setting(self, name: str) -> Any:
@@ -780,17 +817,23 @@ class _BeamFeatBase(BaseEstimator):
         # A lone survivor still has to earn its place on rows it has not seen;
         # only the multiplicity correction is trivial in that case, not the
         # test itself.
-        selector = self._make_selector()
+        selector = self._make_certify_selector()
         result = selector.select(np.column_stack(columns), y[rows])
         self.certification_result_ = result
         for diagnostic in result.warnings_raised:
             warnings.warn(f"beamfeat certification: {diagnostic}", UserWarning, stacklevel=2)
         if result.n_selected == 0:
+            carries = (
+                "it carries the screen's marginal guarantee, not a conditional one, and it "
+                "is not compact."
+                if self.certify_test == "conditional"
+                else "it does carry the guarantee, but it is not compact."
+            )
             warnings.warn(
                 "beamfeat: no term of the parsimonious equation survived re-testing on the "
                 f"held-back rows at target FDR {selector.target_fdr:.3g}, so no compact "
                 "certified equation is available on this sample. The whole screened set is "
-                "returned instead: it does carry the guarantee, but it is not compact.",
+                f"returned instead: {carries}",
                 NoDiscoveriesWarning,
                 stacklevel=2,
             )
@@ -1110,7 +1153,12 @@ class _BeamFeatBase(BaseEstimator):
                     nodes = [candidate_nodes[index] for index in keep_order]
                     kept = set(keep_order)
                     self.fdr_controlled_ = bool(nodes)
-                    if use_certify:
+                    if use_certify and self.certify_test == "conditional":
+                        scope = (
+                            " re-certified on held-back rows, each term given the others;"
+                            " the guarantee covers the fitted equation"
+                        )
+                    elif use_certify:
                         scope = (
                             " re-certified on held-back rows; the guarantee covers the"
                             " fitted equation"
@@ -1611,7 +1659,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             :attr:`fdr_controlled_` is then ``False``).
         parsimony_holdout: Fraction of the selection rows held back to
             re-test the returned terms, strictly between 0 and 1, or ``None``
-            (default) for no re-test.
+            (default) for no re-test. ``certify_test`` sets the test.
         selection_correction: ``"by"`` (Benjamini-Yekutieli, default) or
             ``"bh"`` (Benjamini-Hochberg), used when ``selector`` is the name
             ``"permutation"``. A selector instance keeps its own correction
@@ -1667,6 +1715,29 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             the expression: ``transform`` and ``predict`` reuse it, and the
             formulas and :meth:`to_sympy` show it, as an exact fraction when
             it was snapped to one.
+        certify_test: The test the ``parsimony_holdout`` re-test applies to
+            each returned term on the held-back rows. ``"marginal"``
+            (default) re-runs the configured selector, whose null is that the
+            term is independent of the target; a term that only rides on a
+            true one, ``x0*x7`` when the target depends on ``x0`` alone,
+            passes it. ``"conditional"`` tests each term given the other
+            returned terms, with a Freedman-Lane permutation test: the target
+            and the term are residualised on the other terms and an
+            intercept, the target's residuals are permuted, the statistic is
+            the partial correlation, and the screen's step-up correction is
+            applied at the screen's level. Its null is that the term's
+            coefficient is zero in a linear model of the target on all the
+            returned terms. A term standing in for a true one the others
+            leave out is not null in that sense and is kept. Its p-values are
+            approximate: they rest on the errors of a linear model of the
+            target on the other terms being exchangeable (independent and
+            identically distributed, say, so of constant variance), and are
+            close to exact rather than exact even then, except for a single
+            term, where the test is the marginal one. If no term passes, the
+            screened set is returned, which carries the screen's marginal
+            guarantee only. Regression only; ignored when
+            ``parsimony_holdout`` is ``None``. See the guarantees page for
+            its measured calibration.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
@@ -1713,7 +1784,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             nothing was certified.
         certification_result_: The :class:`~beamfeat.selection.SelectionResult`
             of the ``parsimony_holdout`` re-test, or ``None`` when it did not
-            run.
+            run. Its ``method`` is ``"conditional_permutation"`` under
+            ``certify_test="conditional"``.
         n_features_out_: Number of features produced.
         n_features_in_: Number of input columns seen during fit.
         feature_names_in_: Names of the input columns, when ``X`` had string
@@ -1751,6 +1823,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = (),
+        certify_test: str = "marginal",
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1775,6 +1848,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             n_jobs=n_jobs,
             max_inputs=max_inputs,
             fitted_ops=fitted_ops,
+            certify_test=certify_test,
         )
         self.problem_type = problem_type
 
@@ -1871,6 +1945,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = (),
+        certify_test: str = "marginal",
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1895,6 +1970,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             n_jobs=n_jobs,
             max_inputs=max_inputs,
             fitted_ops=fitted_ops,
+            certify_test=certify_test,
         )
         self.alpha = alpha
 
@@ -2119,6 +2195,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = (),
+        certify_test: str = "marginal",
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -2143,6 +2220,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             n_jobs=n_jobs,
             max_inputs=max_inputs,
             fitted_ops=fitted_ops,
+            certify_test=certify_test,
         )
         self.C = C
 

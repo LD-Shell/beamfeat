@@ -19,6 +19,7 @@ from beamfeat.selection import (
     Selector,
     _benjamini_hochberg,
     _benjamini_yekutieli,
+    _ConditionalPermutationSelector,
     knockoff_threshold,
     make_selector,
 )
@@ -738,3 +739,93 @@ class TestPermutationResolution:
             max_permutations=100,
         ).select(features, target)
         assert any("BY" in message for message in result.warnings_raised)
+
+
+class TestConditionalPermutation:
+    """The Freedman-Lane test behind ``certify_test="conditional"``: each
+    feature is tested given the others, so a term that only rides on a true
+    one fails where the marginal test passes it."""
+
+    @staticmethod
+    def _rider_design(rng, n=600):
+        X = rng.uniform(0.5, 3.0, (n, 8))
+        y = 2 * X[:, 0] + rng.normal(0, 0.5, n)
+        return np.column_stack([X[:, 0], X[:, 0] * X[:, 7]]), y
+
+    def test_drops_a_rider_the_marginal_test_keeps(self):
+        features, target = self._rider_design(np.random.default_rng(1))
+        marginal = PermutationSelector(correction="by", random_state=1).select(features, target)
+        conditional = _ConditionalPermutationSelector(correction="by", random_state=1).select(
+            features, target
+        )
+        assert marginal.selected.tolist() == [0, 1]
+        assert conditional.selected.tolist() == [0]
+        assert conditional.method == "conditional_permutation"
+        assert conditional.p_values[1] > 0.5
+
+    def test_keeps_every_true_term(self):
+        rng = np.random.default_rng(2)
+        X = rng.uniform(0.5, 3.0, (300, 4))
+        y = X[:, 0] + X[:, 1] * X[:, 2] + rng.normal(0, 0.5, 300)
+        features = np.column_stack([X[:, 0], X[:, 1] * X[:, 2], X[:, 3]])
+        result = _ConditionalPermutationSelector(correction="by", random_state=0).select(features, y)
+        assert result.selected.tolist() == [0, 1]
+
+    def test_null_rejection_rate_is_at_most_q(self):
+        """A term that adds nothing given the others is rejected at a rate of
+        at most the level, before and after the step-up correction."""
+        q, draws = 0.1, 200
+        raw, fdps = 0, []
+        for draw in range(draws):
+            rng = np.random.default_rng(5000 + draw)
+            X = rng.uniform(0.5, 3.0, (80, 3))
+            y = 2 * X[:, 0] + rng.normal(0, 1.0, 80)
+            # x0 is true; x0*x1 rides on it, x2 is noise: both are null given the rest.
+            features = np.column_stack([X[:, 0], X[:, 0] * X[:, 1], X[:, 2]])
+            result = _ConditionalPermutationSelector(
+                target_fdr=q, correction="bh", random_state=draw, n_permutations=500
+            ).select(features, y)
+            raw += int(result.p_values[1] <= q)
+            fdps.append(float(np.isin(result.selected, [1, 2]).sum()) / max(result.n_selected, 1))
+        # 0.1 plus three standard errors of a proportion over 200 draws.
+        assert raw / draws <= q + 3 * np.sqrt(q * (1 - q) / draws)
+        assert float(np.mean(fdps)) <= q
+
+    def test_a_single_feature_is_the_marginal_test(self):
+        rng = np.random.default_rng(3)
+        x = rng.normal(size=(40, 1))
+        y = 0.5 * x[:, 0] + rng.normal(size=40)
+        conditional = _ConditionalPermutationSelector(random_state=0, n_permutations=20000).select(x, y)
+        marginal = PermutationSelector(random_state=0, n_permutations=20000).select(x, y)
+        assert conditional.p_values[0] == pytest.approx(marginal.p_values[0], abs=0.01)
+
+    def test_a_linear_combination_of_the_others_cannot_be_tested(self):
+        rng = np.random.default_rng(4)
+        X = rng.normal(size=(50, 3))
+        features = np.column_stack([X, X[:, 0] - 2 * X[:, 1]])
+        result = _ConditionalPermutationSelector(random_state=0).select(features, X[:, 2] + rng.normal(size=50))
+        assert result.p_values[[0, 1, 3]].tolist() == [1.0, 1.0, 1.0]
+        assert 2 in result.selected
+        assert any("could not be tested" in message for message in result.warnings_raised)
+
+    def test_too_few_rows_for_the_features_cannot_be_tested(self):
+        rng = np.random.default_rng(5)
+        features = rng.normal(size=(6, 5))
+        result = _ConditionalPermutationSelector(random_state=0).select(features, rng.normal(size=6))
+        assert result.n_selected == 0
+        assert np.all(result.p_values == 1.0)
+        assert any("could not be tested" in message for message in result.warnings_raised)
+
+    def test_classification_is_refused(self):
+        rng = np.random.default_rng(6)
+        features = rng.normal(size=(40, 2))
+        with pytest.raises(ValueError, match="regression"):
+            _ConditionalPermutationSelector(problem_type="classification").select(
+                features, (features[:, 0] > 0).astype(int)
+            )
+
+    def test_budget_follows_the_correction(self):
+        selector = _ConditionalPermutationSelector(target_fdr=0.1, correction="by")
+        assert selector._required_permutations(40) == PermutationSelector(
+            target_fdr=0.1, correction="by"
+        )._required_permutations(40)

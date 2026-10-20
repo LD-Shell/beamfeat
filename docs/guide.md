@@ -106,7 +106,58 @@ twenty-five times shorter, with no case where pruning inflated the realised
 false discovery proportion. The measurement is
 `benchmarks/PARSIMONY_COST.md`. Short *and* certified costs rows instead of
 the guarantee: see `parsimony_holdout` on the
-[guarantees page](guarantees.md).
+[guarantees page](guarantees.md), and the next section.
+
+## Re-testing the printed terms
+
+`parsimony_holdout` holds back that fraction of the selection rows.
+Screening and the forward step run on the rest, and the terms they return,
+fixed at that point, are tested again on the rows held back; terms that fail
+are dropped. By default the re-test is the screen again
+(`certify_test="marginal"`), which tests each term's association with the
+target on its own. A term that only rides on a true one passes it, since it
+is associated with the target through that term. `certify_test="conditional"`
+tests each term given the other printed terms instead:
+
+```python
+import numpy as np
+from beamfeat import BeamFeatRegressor
+
+rng = np.random.default_rng(0)
+X = rng.uniform(0.5, 3.0, (600, 8))
+y = 2 * X[:, 0] + rng.normal(0, 0.5, 600)  # x0 alone
+
+# Products only, and the whole screened set: every product of x0 with
+# another column rides on x0, and the re-test sees them all.
+options = dict(max_depth=1, binary_ops=("mul",), unary_ops=(), parsimony=None,
+               parsimony_holdout=0.5, random_state=0)
+marginal = BeamFeatRegressor(**options).fit(X, y)
+conditional = BeamFeatRegressor(**options, certify_test="conditional").fit(X, y)
+print(marginal.formulas())
+print(conditional.equation())
+```
+
+```text
+['x0', '(x0 * x7)', '(x0 * x6)', '(x0 * x3)', '(x0 * x2)', '(x0 * x1)', '(x0 * x5)', '(x0 * x4)']
+y = 2.009*x0 - 0.003251
+```
+
+The conditional re-test is a permutation test for regression only, and its
+p-values are approximate; the guarantees page states its null and what its
+validity rests on. It works when the subset it receives is short. When the
+subset is long and its terms nearly reproduce one another, no term adds
+anything given the rest, nothing passes, and the estimator returns the whole
+screened set, which carries only the screen's marginal guarantee;
+`certification_result_.n_selected` is then 0, and a `NoDiscoveriesWarning`
+says so. In the calibration study (`benchmarks/parsimony_holdout/`) that
+happened in about nine fits in ten at a signal-to-noise ratio of 1, where
+the forward step keeps 18 terms on average, and in about one in five at a
+ratio of 3. At that ratio, the share of printed terms using a column outside
+the generating formula was 0.42 to 0.44 at the defaults, 0.53 to 0.62 with
+the marginal re-test and 0.18 to 0.22 with the conditional one, which
+printed about one term in the fits it did not hand back to the screened
+set. Both re-tests cost rows: hold back a fraction only when the selection
+rows number a few hundred or more.
 
 ## The equation at every size
 

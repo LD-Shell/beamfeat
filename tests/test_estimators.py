@@ -1320,6 +1320,129 @@ class TestParsimonyHoldout:
         assert model.predict(X).shape == y.shape
 
 
+
+class TestCertifyTest:
+    """``certify_test`` sets the test the ``parsimony_holdout`` re-test runs.
+
+    ``"marginal"``, the default, re-runs the screen, whose null is
+    independence from the target, so a term that only rides on a true one
+    passes. ``"conditional"`` tests each term given the others and drops it.
+    """
+
+    @staticmethod
+    def _rider_data(seed=0, n=600):
+        rng = np.random.default_rng(seed)
+        X = rng.uniform(0.5, 3.0, (n, 8))
+        return X, 2 * X[:, 0] + rng.normal(0, 0.5, n)
+
+    @staticmethod
+    def _products(**kwargs):
+        """Depth one with products only: the screened set is x0 and its products."""
+        return BeamFeatRegressor(
+            max_depth=1, binary_ops=("mul",), unary_ops=(), parsimony=None,
+            parsimony_holdout=0.5, random_state=0, **kwargs,
+        )
+
+    def test_conditional_drops_x0_x7_and_keeps_x0(self):
+        X, y = self._rider_data()
+        marginal = self._products().fit(X, y)
+        conditional = self._products(certify_test="conditional").fit(X, y)
+        assert "x0" in marginal.formulas() and "(x0 * x7)" in marginal.formulas()
+        assert conditional.formulas() == ["x0"]
+        assert conditional.certification_result_.method == "conditional_permutation"
+        assert conditional.fdr_scope_ == "printed equation"
+
+    def test_conditional_keeps_true_terms(self):
+        rng = np.random.default_rng(0)
+        X = rng.uniform(0.5, 3.0, (600, 5))
+        y = X[:, 0] + X[:, 1] * X[:, 2] + rng.normal(0, 0.5, 600)
+        fits = {
+            test: BeamFeatTransformer(
+                max_depth=1, parsimony_holdout=0.5, certify_test=test, random_state=0
+            ).fit(X, y)
+            for test in ("marginal", "conditional")
+        }
+        conditional = fits["conditional"]
+        columns = [node.columns() for node in conditional.features_]
+        assert {"x0"} in columns
+        product = conditional.transform(X)[:, columns.index({"x1", "x2"})]
+        assert abs(np.corrcoef(product, X[:, 1] * X[:, 2])[0, 1]) > 0.999
+        assert sorted(map(sorted, columns)) == [["x0"], ["x1", "x2"]]
+        assert fits["marginal"].n_features_out_ > conditional.n_features_out_
+
+    def test_conditional_keeps_the_planted_formula(self, regression_data):
+        X, y = regression_data
+        model = BeamFeatTransformer(
+            max_depth=2, beam_width=20, parsimony_holdout=0.5, certify_test="conditional",
+            random_state=0,
+        ).fit(X, y)
+        assert model.certification_result_.n_selected == model.n_features_out_ >= 1
+        planted = (X[:, 0] * X[:, 1]) / X[:, 2]
+        assert any(abs(np.corrcoef(column, planted)[0, 1]) > 0.999 for column in model.transform(X).T)
+
+    def test_marginal_is_the_default_and_unchanged(self, regression_data):
+        X, y = regression_data
+        assert BeamFeatRegressor().get_params()["certify_test"] == "marginal"
+        implicit = _fast(BeamFeatRegressor, selector="permutation", parsimony_holdout=0.5).fit(X, y)
+        explicit = _fast(
+            BeamFeatRegressor, selector="permutation", parsimony_holdout=0.5, certify_test="marginal"
+        ).fit(X, y)
+        assert implicit.certification_result_.method == "permutation"
+        assert explicit.formulas() == implicit.formulas()
+        np.testing.assert_array_equal(
+            explicit.certification_result_.p_values, implicit.certification_result_.p_values
+        )
+        np.testing.assert_array_equal(explicit.predict(X), implicit.predict(X))
+
+    def test_ignored_without_parsimony_holdout(self, regression_data):
+        X, y = regression_data
+        plain = _fast(BeamFeatRegressor, selector="permutation").fit(X, y)
+        conditional = _fast(BeamFeatRegressor, selector="permutation", certify_test="conditional").fit(X, y)
+        assert conditional.certification_result_ is None
+        assert conditional.formulas() == plain.formulas()
+        np.testing.assert_array_equal(conditional.predict(X), plain.predict(X))
+
+    def test_runs_at_the_screens_level_and_correction(self, regression_data):
+        from beamfeat.selection import _adjusted_p_values
+
+        X, y = regression_data
+        selector = PermutationSelector(target_fdr=0.2, correction="bh", random_state=3)
+        with warnings.catch_warnings():
+            # the instance's settings override the estimator's, which it says
+            warnings.simplefilter("ignore", UserWarning)
+            model = _fast(
+                BeamFeatRegressor, selector=selector, parsimony_holdout=0.5, certify_test="conditional"
+            ).fit(X, y)
+        result = model.certification_result_
+        assert result.target_fdr == 0.2
+        np.testing.assert_allclose(result.q_values, _adjusted_p_values(result.p_values, "bh"))
+
+    def test_nothing_testable_returns_the_screened_set_and_says_what_it_carries(self):
+        """x0, x1, x0 + x1 and x0 - x1 are each a combination of the others,
+        so none can be tested given the rest."""
+        rng = np.random.default_rng(0)
+        X = rng.uniform(0.5, 3.0, (400, 2))
+        y = X[:, 0] + rng.normal(0, 0.3, 400)
+        with (
+            pytest.warns(UserWarning, match="could not be tested"),
+            pytest.warns(NoDiscoveriesWarning, match="marginal guarantee"),
+        ):
+            model = BeamFeatRegressor(
+                max_depth=1, binary_ops=("add", "sub"), unary_ops=(), parsimony=None,
+                parsimony_holdout=0.5, certify_test="conditional", random_state=0,
+            ).fit(X, y)
+        assert model.certification_result_.n_selected == 0
+        assert model.n_features_out_ == model.selection_result_.n_selected
+
+    @pytest.mark.parametrize("cls", [BeamFeatClassifier, BeamFeatTransformer])
+    def test_classification_is_refused(self, cls, classification_data):
+        X, y = classification_data
+        kwargs = {"problem_type": "classification"} if cls is BeamFeatTransformer else {}
+        with pytest.raises(ValueError, match="regression only"):
+            _fast(cls, selector="permutation", parsimony_holdout=0.5, certify_test="conditional",
+                  **kwargs).fit(X, y)
+
+
 class TestConstantColumns:
     """A column with no variation standardises to zeros, so it can never be
     selected. That is correct and costs nothing, but in the output it is
@@ -1424,6 +1547,8 @@ class TestParameterValidation:
             ("parsimony_holdout", True),
             ("selection_correction", "holm"),
             ("parsimony", "backward"),
+            ("certify_test", "partial"),
+            ("certify_test", None),
         ],
     )
     @pytest.mark.parametrize("cls", ESTIMATORS)
