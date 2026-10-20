@@ -128,7 +128,8 @@ The FDR guarantee covers the screened set of 25 terms (line 25), not an equation
 ```
 
 Complexity counts the nodes in each term's expression tree — operators and
-input columns, `(x0 * x1)` being 3 — plus one per term for its coefficient.
+input columns, `(x0 * x1)` being 3 — plus one per term for its coefficient
+and one per [fitted constant](#constants-inside-expressions).
 The lines are written `y ~ a + b`, without coefficients, because only the
 marked one has been fitted; `equation()` prints its coefficients. For a
 classifier the R² is that of the integer-coded labels, the heuristic the
@@ -245,6 +246,78 @@ because it looks careful and is not. Give the genuinely unitless columns
 `"dimensionless"`; the estimator warns when coverage is partial, and raises
 when the keys match no column at all. Keys are column names, so a DataFrame
 lets you write `{"rho": "kg/m**3"}` rather than `{"x0": ...}`.
+
+## Constants inside expressions
+
+Expressions are free of constants by default; the linear model supplies the
+coefficients outside them. That cannot write `exp(-x²/2)`, `x^1.5` or
+`(x0 + x1)/(1 + x0·x1)`, where the constant sits inside a nonlinearity.
+`fitted_ops` adds operators that carry one fitted constant each:
+
+| name | expression | operand |
+|---|---|---|
+| `"exp_scaled"` | `exp(a·x)` | dimensionless |
+| `"pow"` | `x^a` | positive, dimensionless |
+| `"inv_shift"` | `1/(x + a)` | any; `a` takes the operand's unit |
+| `"log_shift"` | `log(x + a)` | `x + a` positive, dimensionless |
+
+```python
+rng = np.random.default_rng(0)
+X = rng.uniform(0.1, 1.0, (500, 2))
+y = np.exp(-X[:, 0] ** 2 / 2) + rng.normal(0, 1e-3, 500)
+model = BeamFeatRegressor(max_depth=2, fitted_ops=("exp_scaled",), random_state=0).fit(X, y)
+print(model.formulas(), model.to_sympy())
+```
+
+```text
+['exp(-0.5*(x0)^2)'] [exp(-x0**2/2)]
+```
+
+Without `fitted_ops` the same data give `(x0 + (x0)^2)` and `log(x0)`, a
+surrogate that scores well on this range and says nothing about the law.
+
+How the constants are chosen:
+
+- **Where.** At each depth, every listed operator is fitted to every
+  expression in the previous depth's beam (at the first depth, the
+  `beam_width` best input columns), and the results join that depth's
+  candidates, to be scored, pruned and kept like any other. The ceiling
+  `max_candidates_per_depth` counts the operator proposals only.
+- **How.** Each constant maximises the absolute correlation with the target:
+  a coarse grid scaled to the operand (for `exp_scaled`, `|a|` up to
+  10/max|x|; for the shifts, poles kept off the observed range), then a
+  golden-section refinement. A fit that runs to the edge of its grid, or
+  that does not clearly beat the operand on its own (each operator becomes
+  linear in `x` at one end of its range), is discarded. Correlation is used
+  whatever the `scorer`; the scorer then ranks the result.
+- **In context.** `1/(x0·x1 + a)` on its own correlates best with the target
+  as `a` runs to the pole; only as the denominator of `(x0 + x1)` is `a = 1`
+  identifiable. While the depth limit leaves room, each constant is also
+  fitted as a factor of another beam member, and that product joins the
+  next depth's candidates.
+- **Snapping.** The constant is replaced by the simplest of 0, ±1, ±2, ±3,
+  ±1/2, ±3/2, ±1/3, ±1/4 that the data cannot tell apart from the optimum
+  (a likelihood-ratio test at the 99.9% point), so `exp(-0.49991·x²)` is
+  reported as `exp(-x²/2)`; failing that it is rounded to the fewest
+  significant digits that cost nothing measurable. A snapped constant is
+  exact in `to_sympy()`, `latex()` and the printed formulas.
+- **Stored.** The constant is part of the expression: `transform`,
+  `predict` and a pickled model reuse it on new data without refitting.
+
+The constants are fitted inside the search, on the search rows only, so the
+screen on the selection rows sees fixed expressions and its guarantee is
+unchanged; see the [guarantees page](guarantees.md#selective-inference-why-the-estimators-split-their-data).
+
+What it costs. Fitting adds a few candidates per beam member and operator,
+and roughly triples the search time on the Feynman panel (about 0.2 s to
+0.6 s per equation). Fitted expressions also take beam slots, so enabling
+them can change what else a depth keeps: a constant-free candidate is never
+dropped as a near-duplicate of a fitted one, but it can be out-ranked. And
+constants are fitted one at a time, greedily: a law needs its constant-free
+parts to survive the beam first. On the panel's relativistic-velocity data
+`x0·x1` and `x0 + x1` correlate at 0.95, the default `redundancy_threshold`,
+so `x0·x1` is dropped at depth 1 and `1/(1 + x0·x1)` is never built; at
+`redundancy_threshold=0.97` the law is recovered exactly.
 
 ## Columns that carry no data
 
@@ -383,7 +456,9 @@ alone, the certified features are adding nothing to prediction on that data.
 ## When to reach for something else
 
 If a tree model beats beamfeat by a wide margin, your signal is likely
-piecewise, not algebraic — use the tree. If you need constants fitted
-*inside* expressions (`exp(-3.2*x)`), use a symbolic regressor such as
-PySR. The [guarantees page](guarantees.md) states every boundary with the
+piecewise, not algebraic — use the tree. `fitted_ops` covers one constant
+per operator, fitted one operator at a time; if your law needs several
+constants fitted jointly (`exp(-a·x)·cos(b·x + c)`), constants inside sums
+or products (`a·x0 + b·x1` under a logarithm), or deeper nesting than the
+beam reaches, use a symbolic regressor such as PySR. The [guarantees page](guarantees.md) states every boundary with the
 measurement behind it.

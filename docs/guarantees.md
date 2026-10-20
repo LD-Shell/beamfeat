@@ -134,6 +134,18 @@ job, not as a power measurement at the margin.
 disabled, the estimator refuses to claim the guarantee
 (`fdr_controlled_ = False`).
 
+Constants fitted inside expressions (`fitted_ops`) are part of the search.
+Each is chosen inside the search, on the search rows, before selection sees
+the candidates, and the selection rows receive every expression with its
+constant fixed, as they receive its structure. The fixed-candidate-set
+premise therefore holds as before and the guarantee is unchanged. A fitted
+constant is one more way the search adapts to its sample, so with
+`selection_holdout=None`, where search and screen share rows, it adds to
+the optimism for which the estimator already declines the claim. On
+pure-noise targets (50 seeds, 200 rows, 5 columns, defaults otherwise) the
+fraction of fits with any discovery was the same with all four fitted
+operators as without: 0/50 for regression, 2/50 for classification.
+
 ## Parsimony within the screened set
 
 Three things can be wanted of the fitted equation: that it be short, that the
