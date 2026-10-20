@@ -280,8 +280,11 @@ How the constants are chosen:
 
 - **Where.** At each depth, every listed operator is fitted to every
   expression in the previous depth's beam (at the first depth, the
-  `beam_width` best input columns), and the results join that depth's
-  candidates, to be scored, pruned and kept like any other. The ceiling
+  `beam_width` best input columns), and to the previous depth's
+  `beam_width` best candidates that the beam dropped as near-duplicates:
+  two expressions that correlate at 0.95 need not stay alike under
+  `1/(x + a)` or `exp(a·x)`. The results join that depth's candidates, to
+  be scored, pruned and kept like any other. The ceiling
   `max_candidates_per_depth` counts the operator proposals only.
 - **How.** Each constant maximises the absolute correlation with the target:
   a coarse grid scaled to the operand (for `exp_scaled`, `|a|` up to
@@ -293,8 +296,8 @@ How the constants are chosen:
 - **In context.** `1/(x0·x1 + a)` on its own correlates best with the target
   as `a` runs to the pole; only as the denominator of `(x0 + x1)` is `a = 1`
   identifiable. While the depth limit leaves room, each constant is also
-  fitted as a factor of another beam member, and that product joins the
-  next depth's candidates.
+  fitted as a factor of a beam member, and that product joins the next
+  depth's candidates.
 - **Snapping.** The constant is replaced by the simplest of 0, ±1, ±2, ±3,
   ±1/2, ±3/2, ±1/3, ±1/4 that the data cannot tell apart from the optimum
   (a likelihood-ratio test at the 99.9% point), so `exp(-0.49991·x²)` is
@@ -308,16 +311,13 @@ The constants are fitted inside the search, on the search rows only, so the
 screen on the selection rows sees fixed expressions and its guarantee is
 unchanged; see the [guarantees page](guarantees.md#selective-inference-why-the-estimators-split-their-data).
 
-What it costs. Fitting adds a few candidates per beam member and operator,
-and roughly triples the search time on the Feynman panel (about 0.2 s to
-0.6 s per equation). Fitted expressions also take beam slots, so enabling
+What it costs. Fitting adds a few candidates per parent and operator, and
+makes a fit on the Feynman panel about five times slower (about 0.2 s to
+1.1 s per equation). Fitted expressions also take beam slots, so enabling
 them can change what else a depth keeps: a constant-free candidate is never
 dropped as a near-duplicate of a fitted one, but it can be out-ranked. And
 constants are fitted one at a time, greedily: a law needs its constant-free
-parts to survive the beam first. On the panel's relativistic-velocity data
-`x0·x1` and `x0 + x1` correlate at 0.95, the default `redundancy_threshold`,
-so `x0·x1` is dropped at depth 1 and `1/(1 + x0·x1)` is never built; at
-`redundancy_threshold=0.97` the law is recovered exactly.
+parts to be among a depth's best candidates first.
 
 ## Columns that carry no data
 
