@@ -273,8 +273,18 @@ note={}
 ```
 
 The paper describes 0.4.2, archived at
-[10.5281/zenodo.23417132](https://doi.org/10.5281/zenodo.23417132); every release is
-archived under [10.5281/zenodo.21619567](https://doi.org/10.5281/zenodo.21619567). See also
+[10.5281/zenodo.23417132](https://doi.org/10.5281/zenodo.23417132). That archive holds the
+code, the benchmark harnesses and the run records behind the paper's tables and figures,
+with notebooks that rerun the benchmarks and compare the results against those records.
+Later releases fix two bugs that move some of the paper's figures: a harness bug that
+understated featuretools in the comparison study, and a search bug behind three of the
+higher-dimensional results (riboflavin, ct_slices and ujiindoorloc), which takes the
+datasets where beamfeat leads both tree ensembles from five to four. They are also faster,
+so the paper's timings and memory figures describe 0.4.2. The
+[changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md) and
+[`benchmarks/independent/PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md)
+give the corrected values. Every release is archived under
+[10.5281/zenodo.21619567](https://doi.org/10.5281/zenodo.21619567). See also
 [`CITATION.cff`](https://github.com/LD-Shell/beamfeat/blob/main/CITATION.cff). If you use the selection procedures, please also cite the
 underlying statistics: [Benjamini & Hochberg (1995)](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x),
 [Benjamini & Yekutieli (2001)](https://doi.org/10.1214/aos/1013699998), [Barber & Candès (2015)](https://doi.org/10.1214/15-AOS1337),
