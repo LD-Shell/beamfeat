@@ -18,9 +18,18 @@ then scored once on the test part. The partitions and the clones' seeds come
 from a :class:`numpy.random.SeedSequence` of ``random_state``, one child per
 split, so a report is the same on every run with the same ``random_state``,
 whatever ``n_jobs`` is, and the first ``k`` splits are the same whatever
-``n_splits`` is. The paper's study held one test part fixed and varied only
-the estimator's seed; here each split draws its own test part as well, so the
-spread of the scores includes the variation between test parts.
+``n_splits`` is.
+
+**What varies.** By default (``resample="splits"``) each split draws its own
+partition as well as its own seed. The report then measures split-to-split
+variability: how far the equation and the score move with another sample of
+training rows, another test part and another seed, and the spread of the
+scores includes the variation between test parts. With ``resample="seeds"``
+every split keeps the partition of the first, and only the clones' seeds
+differ, as in the paper's study. That measures seed-to-seed variability on
+fixed data: how far the equation moves with the random search/selection
+split inside the fit alone, which is the split the guarantee is conditional
+on, and the scores vary only through it.
 
 **Equivalence.** Formulas spelled differently can be the same feature:
 ``log((x0 * x1))`` and ``(log(x0) + log(x1))``, or ``(x0 - x1)`` and
@@ -174,6 +183,9 @@ class StabilityReport:
             ``"accuracy"``, followed for a transformer by the model fitted on
             its features.
         test_size: The fraction of the rows each split held out.
+        resample: ``"splits"``, when each split drew its own partition and
+            seed, or ``"seeds"``, when they shared one partition and only
+            the seeds differed.
         random_state: The seed the splits and the clones' seeds came from.
         splits: One :class:`SplitResult` per split, in order.
         features: The distinct features selected, one
@@ -186,6 +198,7 @@ class StabilityReport:
     estimator: Any = field(repr=False)
     score_name: str
     test_size: float
+    resample: str
     random_state: int | None
     splits: tuple[SplitResult, ...] = field(repr=False)
     features: tuple[FeatureClass, ...] = field(repr=False)
@@ -195,6 +208,11 @@ class StabilityReport:
     def scores(self) -> np.ndarray:
         """The held-out score of each split, NaN where it is undefined."""
         return np.array([split.score for split in self.splits], dtype=np.float64)
+
+    @property
+    def _unit(self) -> str:
+        """What the summary calls one refit: a split, or a fit when only the seed varied."""
+        return "fit" if self.resample == "seeds" else "split"
 
     def summary(self, max_rows: int = 5) -> str:
         """The report as text: scores, equations and features.
@@ -211,15 +229,21 @@ class StabilityReport:
             raise ValueError(f"max_rows must be a non-negative integer, got {max_rows!r}")
         n_splits = len(self.splits)
         first = self.splits[0]
-        lines = [
-            f"{type(self.estimator).__name__} refitted on {n_splits} random splits "
-            f"(random_state={self.random_state}), each fitted on {len(first.train)} rows "
-            f"and scored on the other {len(first.test)}.",
-            "",
-            self._score_line(),
-            self._equation_line(),
-            self._feature_line(),
-        ]
+        name = type(self.estimator).__name__
+        if self.resample == "seeds":
+            header = (
+                f"{name} refitted with {n_splits} seeds on one random split "
+                f"(random_state={self.random_state}), fitted on {len(first.train)} rows and "
+                f"scored on the other {len(first.test)}; only the search/selection split "
+                "inside each fit varies."
+            )
+        else:
+            header = (
+                f"{name} refitted on {n_splits} random splits "
+                f"(random_state={self.random_state}), each fitted on {len(first.train)} rows "
+                f"and scored on the other {len(first.test)}."
+            )
+        lines = [header, "", self._score_line(), self._equation_line(), self._feature_line()]
         lhs = first.estimator._path_lhs()
         recurring = [equation for equation in self.equations if equation.count > 1]
         if recurring:
@@ -231,7 +255,7 @@ class StabilityReport:
             ]
             lines += [
                 "",
-                "Equations printed in more than one split, most frequent first:",
+                f"Equations printed in more than one {self._unit}, most frequent first:",
                 *_table(rows, max_rows, "equation"),
             ]
         rows = [(f"{feature.count}/{n_splits}", feature.formula) for feature in self.features]
@@ -251,39 +275,39 @@ class StabilityReport:
         scored = scores[np.isfinite(scores)]
         unscored = len(scores) - len(scored)
         reason = "test rows outside a selected formula's domain"
+        unit = self._unit
         if not len(scored):
-            return f"Held-out {self.score_name}: undefined in every split ({reason})."
+            return f"Held-out {self.score_name}: undefined in every {unit} ({reason})."
         line = (
             f"Held-out {self.score_name}: mean {np.mean(scored):.3f}, sd {np.std(scored):.3f}, "
             f"min {np.min(scored):.3f}, max {np.max(scored):.3f}"
         )
         if unscored:
-            line += (
-                f", over the {len(scored)} splits scored; {unscored} "
-                f"{'split was' if unscored == 1 else 'splits were'} not ({reason})"
-            )
+            verb = f"{unit} was" if unscored == 1 else f"{unit}s were"
+            line += f", over the {len(scored)} {unit}s scored; {unscored} {verb} not ({reason})"
         return line + "."
 
     def _equation_line(self) -> str:
         """The ambiguity of the printed equation, in one sentence."""
-        n_splits, n_equations = len(self.splits), len(self.equations)
+        n_splits, n_equations, unit = len(self.splits), len(self.equations), self._unit
         if n_equations == 1:
-            return f"1 distinct equation in {n_splits} splits: every split printed it."
+            return f"1 distinct equation in {n_splits} {unit}s: every {unit} printed it."
         top = self.equations[0].count
         if top == 1:
-            return f"{n_equations} distinct equations in {n_splits} splits; none recurs."
-        return f"{n_equations} distinct equations in {n_splits} splits; the most frequent in {top}."
+            return f"{n_equations} distinct equations in {n_splits} {unit}s; none recurs."
+        return f"{n_equations} distinct equations in {n_splits} {unit}s; the most frequent in {top}."
 
     def _feature_line(self) -> str:
         """How many distinct features were selected, and how often the commonest was."""
+        unit = self._unit
         if not self.features:
-            return "No split selected a feature."
+            return f"No {unit} selected a feature."
         n_features, top = len(self.features), self.features[0].count
         if n_features == 1:
-            return f"1 distinct feature, selected in {top} of the {len(self.splits)} splits."
+            return f"1 distinct feature, selected in {top} of the {len(self.splits)} {unit}s."
         return (
             f"{n_features} distinct features; the most frequent in {top} of the "
-            f"{len(self.splits)} splits."
+            f"{len(self.splits)} {unit}s."
         )
 
     def __str__(self) -> str:
@@ -320,6 +344,7 @@ def stability_report(
     *,
     n_splits: int = 30,
     test_size: float = 0.25,
+    resample: str = "splits",
     random_state: int | None = 0,
     n_jobs: int | None = 1,
 ) -> StabilityReport:
@@ -330,7 +355,8 @@ def stability_report(
     part, which no step of the fit sees. The report counts the distinct
     equations and features the splits printed, up to the equivalence the
     module documentation defines, and records the spread of the scores. See
-    the module documentation for how the splits and seeds are drawn.
+    the module documentation for how the splits and seeds are drawn, and for
+    what each choice of ``resample`` measures.
 
     The score is the estimator's own ``score`` on the test part: R^2 for
     :class:`~beamfeat.estimators.BeamFeatRegressor`, accuracy for
@@ -365,6 +391,12 @@ def stability_report(
             scores on, strictly between 0 and 1. The test part has
             ``ceil(test_size * n_samples)`` rows, as in scikit-learn's
             ``ShuffleSplit``, and both parts need at least 2.
+        resample: ``"splits"`` (default) draws a partition and a seed for
+            each split, and measures split-to-split variability.
+            ``"seeds"`` keeps the first split's partition for every split
+            and varies only the seeds, as the paper's stability study did,
+            and measures seed-to-seed variability on fixed data. The seeds
+            are the same either way, so the first split is too.
         random_state: Seed of the partitions and of the clones'
             ``random_state``: a non-negative integer, or ``None`` for fresh
             entropy, in which case the report differs from run to run.
@@ -392,6 +424,8 @@ def stability_report(
 
     _check_estimator(estimator)
     _check_arguments(n_splits, test_size, random_state, n_jobs)
+    if resample not in ("splits", "seeds"):
+        raise ValueError(f"resample must be 'splits' or 'seeds', got {resample!r}")
     if y is None:
         raise ValueError("stability_report requires y; feature construction is supervised")
     X, y = indexable(X, y)
@@ -411,10 +445,14 @@ def stability_report(
     plans = []
     for child in split_sequence.spawn(int(n_splits)):
         partition_seed, clone_seed = (int(word) for word in child.generate_state(2))
-        train, test = next(
-            splitter(n_splits=1, test_size=float(test_size), random_state=partition_seed).split(X, y)
-        )
-        plans.append((np.sort(train), np.sort(test), clone_seed))
+        if plans and resample == "seeds":
+            # The first split's partition, for every split: only the seed varies.
+            train, test = plans[0][0], plans[0][1]
+        else:
+            train, test = (np.sort(rows) for rows in next(
+                splitter(n_splits=1, test_size=float(test_size), random_state=partition_seed).split(X, y)
+            ))
+        plans.append((train, test, clone_seed))
 
     if n_samples > PROBE_ROWS:
         probe = np.sort(np.random.default_rng(probe_sequence).choice(n_samples, PROBE_ROWS, replace=False))
@@ -485,6 +523,7 @@ def stability_report(
         estimator=template,
         score_name=_score_name(estimator),
         test_size=float(test_size),
+        resample=resample,
         random_state=random_state,
         splits=splits,
         features=tuple(features),
