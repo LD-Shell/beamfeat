@@ -353,8 +353,9 @@ for record in result.trace:
 ## How beam width controls cost
 
 Beam width is the parameter that bounds work. Widening it explores more of the
-space at proportionally greater cost; narrowing it risks pruning a parent whose
-children would have been valuable.
+space at a cost that grows faster than the width, since each expression in the
+beam is combined with every expression kept so far; narrowing it risks pruning
+a parent whose children would have been valuable.
         """
     ),
     code(
@@ -375,8 +376,10 @@ Note that cost grows with beam width but the *quality* of the top feature
 plateaus quickly. The proposals stop growing at 50 only because this problem
 runs out of parents: four columns yield 52 evaluated depth-1 candidates (the
 trace above), fewer than 50 of them survive the redundancy check described
-below, and a wider beam has nothing more to extend. In practice a moderate beam
-is usually enough, and the remaining budget is better spent on depth.
+below, and a wider beam has nothing more to extend. Timings this short are
+noisy, so the proposed column is the steadier measure of cost. In practice a
+moderate beam is usually enough, and the remaining budget is better spent on
+depth.
 
 ## How depth controls expressiveness
 
