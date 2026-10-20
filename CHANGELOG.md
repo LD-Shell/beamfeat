@@ -51,6 +51,31 @@ the features, p-values and predictions of 0.5.0, to the last bit.
   and keywords from `CITATION.cff` but not its `preferred-citation`, so the
   records up to 0.5.0 do not mention the paper.
 
+### Added towards 0.6.0
+
+- `beamfeat.stability`: `stability_report(estimator, X, y, n_splits=30,
+  test_size=0.25, random_state=0, n_jobs=1)`, also exported from
+  `beamfeat`, makes the paper's stability study (Appendix E) a package
+  feature. It refits clones of a regressor, classifier or transformer on
+  random splits. Each split's test part is kept out of every step of its fit
+  and scored once after it, and the clones' seeds are spawned from
+  `random_state` by `SeedSequence`, so the report is the same for every
+  `n_jobs`. The `StabilityReport` holds:
+  - each split's rows, formulas, equation and held-out score;
+  - the distinct features and equations, with how often each recurs;
+  - a summary that states the ambiguity plainly. On diabetes it reads "30
+    distinct equations in 30 splits; none recurs", with held-out R² from
+    0.389 to 0.575.
+
+  Two features are one when their values on the rows of `X` correlate above
+  0.999 in absolute value, as in the paper, and an equation is the set of
+  its features. The regressor and classifier are scored by their own
+  `score`. A transformer is scored by a ridge regression (R²) on its
+  features, or by a logistic regression (accuracy) for classification. The
+  paper held one test part fixed and varied only the seed, so its spread is
+  narrower: on diabetes, an R² standard deviation of 0.015 against 0.050
+  here.
+
 ## [0.5.0] - 2026-10-20
 
 0.4.5 was prepared but not released; its fixes are part of this release and
