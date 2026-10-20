@@ -89,15 +89,10 @@ class TestApiConventions:
         assert cls().get_params()["n_jobs"] == 1
         assert clone(cls(n_jobs=-1)).n_jobs == -1
 
-    def test_constraints_are_parameters(self, cls):
-        params = cls().get_params()
-        assert params["max_inputs"] is None
-        assert params["safe_domain"] is False
-        bounds = {"x0": (0.0, 1.0)}
-        cloned = clone(cls(max_inputs=2, safe_domain=bounds))
-        assert cloned.max_inputs == 2
-        assert cloned.safe_domain == bounds
-        assert cls(max_inputs=0, safe_domain="nonsense").max_inputs == 0
+    def test_max_inputs_is_a_parameter(self, cls):
+        assert cls().get_params()["max_inputs"] is None
+        assert clone(cls(max_inputs=2)).max_inputs == 2
+        assert cls(max_inputs=0).max_inputs == 0
 
     def test_clone(self, cls):
         estimator = cls(max_depth=3, beam_width=17)
@@ -869,51 +864,14 @@ class TestConfiguration:
         assert all(len(node.columns()) <= 2 for node in model.search_result_.nodes)
         assert sum(record.n_rejected_constraints for record in model.search_result_.trace) > 0
 
-    @pytest.mark.parametrize(
-        ("kwargs", "match"),
-        [
-            ({"max_inputs": 0}, "max_inputs"),
-            ({"safe_domain": {"x0": (2.0, 1.0)}}, "safe_domain"),
-            ({"safe_domain": {"nope": (0.0, 1.0)}}, "unknown column"),
-        ],
-    )
-    def test_bad_constraints_raise_at_fit(self, regression_data, kwargs, match):
+    def test_bad_max_inputs_raises_at_fit(self, regression_data):
         X, y = regression_data
-        with pytest.raises(ValueError, match=match):
-            _fast(BeamFeatRegressor, **kwargs).fit(X, y)
+        with pytest.raises(ValueError, match="max_inputs"):
+            _fast(BeamFeatRegressor, max_inputs=0).fit(X, y)
 
-    def test_safe_domain_box_is_the_full_training_range(self, regression_data):
+    def test_recovers_within_max_inputs(self, regression_data):
         X, y = regression_data
-        model = _fast(BeamFeatRegressor, safe_domain={"x3": (-np.inf, np.inf)}).fit(X, y)
-        assert model.input_bounds_["x0"] == (X[:, 0].min(), X[:, 0].max())
-        assert model.input_bounds_["x3"] == (-np.inf, np.inf)
-        assert model.search_result_.domain_bounds == model.input_bounds_
-        assert _fast(BeamFeatRegressor).fit(X, y).input_bounds_ is None
-
-    def test_safe_domain_prevents_nan_on_new_rows(self, rng):
-        """Rows inside the training ranges, but off the training rows, can leave a domain."""
-        n = 600
-        x0 = rng.uniform(1.0, 3.0, 4 * n)
-        x1 = rng.uniform(0.0, 2.0, 4 * n)
-        keep = np.flatnonzero(x0 > x1 + 0.05)[:n]
-        X = np.column_stack([x0[keep], x1[keep], rng.uniform(1.0, 2.0, n)])
-        y = 2.0 * np.log(X[:, 0] - X[:, 1]) + rng.normal(0, 0.05, n)
-        fresh = np.column_stack([rng.uniform(lo, hi, 2000) for lo, hi in zip(X.min(axis=0), X.max(axis=0))])
-
-        plain = BeamFeatRegressor(max_depth=2, beam_width=20).fit(X, y)
-        assert "log((x0 - x1))" in plain.formulas()
-        with pytest.warns(UserWarning, match="could not evaluate"):
-            assert np.isnan(plain.predict(fresh)).any()
-
-        safe = BeamFeatRegressor(max_depth=2, beam_width=20, safe_domain=True).fit(X, y)
-        assert "log((x0 - x1))" not in safe.formulas()
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            assert not np.isnan(safe.predict(fresh)).any()
-
-    def test_recovers_with_both_constraints(self, regression_data):
-        X, y = regression_data
-        model = BeamFeatRegressor(max_depth=2, beam_width=30, safe_domain=True, max_inputs=3).fit(X, y)
+        model = BeamFeatRegressor(max_depth=2, beam_width=30, max_inputs=3).fit(X, y)
         assert model.score(X, y) > 0.99
 
     def test_alpha_affects_regressor(self, regression_data):
