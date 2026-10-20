@@ -36,10 +36,10 @@ holds.
       homoskedastic noise, and a design of full column rank. Columns that
       are constant or linearly dependent on earlier ones are left out of the
       construction and cannot be selected (see :class:`KnockoffSelector`).
-    - **Model-X Gaussian** (Candès et al., 2018), used when ``n <= 2p``.
-      Requires the features to be jointly Gaussian, which engineered
-      features are not; a warning is recorded when the design is visibly
-      degenerate.
+    - **Model-X Gaussian** (Candès et al., 2018), used when ``n <= 2p``, or
+      on request. Requires the features to be jointly Gaussian, which
+      engineered features are not, so a warning is recorded whenever it
+      runs.
 
 **Selective inference caveat.** Every guarantee above is for testing a
 candidate set that is *fixed before seeing the data used for testing*. If
@@ -109,7 +109,12 @@ class SelectionResult:
         statistics: Importance statistic per feature. For the permutation
             selector this is ``1 - p_value`` so that larger is better; for
             knockoffs it is the antisymmetric statistic W.
-        p_values: Permutation p-values, valid in finite samples, where the method produces them.
+        p_values: Permutation p-values, valid in finite samples, where the
+            method produces them.
+        q_values: The p-values adjusted by the selector's step-up correction
+            (Benjamini-Hochberg or Benjamini-Yekutieli); a feature is selected
+            when its q-value is at most :attr:`target_fdr`. ``None`` where the
+            method computes no p-values.
         threshold: The data-dependent cut applied to :attr:`statistics`.
             ``inf`` means nothing met the criterion.
         target_fdr: The nominal FDR level requested.
@@ -585,10 +590,10 @@ class KnockoffSelector(Selector):
     columns, and the fixed-X / model-X routing uses their count.
 
     **Model-X Gaussian** (Candès et al., 2018) is used when ``n <= 2p``, where
-    the fixed-X construction does not exist. It requires the features to be
-    jointly Gaussian, an assumption engineered features violate; a warning is
-    recorded when the design is visibly degenerate. Prefer
-    :class:`PermutationSelector` in that regime.
+    the fixed-X construction does not exist, or when ``construction`` is
+    ``"gaussian"``. It requires the features to be jointly Gaussian, an
+    assumption engineered features violate, and a warning is recorded
+    whenever it runs. Prefer :class:`PermutationSelector` in that regime.
 
     **Power and the offset.** ``offset=1`` requires
     ``(1 + #negatives)/#positives <= target_fdr``, unsatisfiable with fewer
@@ -820,10 +825,14 @@ class KnockoffSelector(Selector):
                 f"and cannot be selected (columns {listed})"
             )
         if not use_fixed and self.warn_on_violation:
+            reason = (
+                "n <= 2p: falling back to model-X Gaussian knockoffs"
+                if self.construction == "auto"
+                else "model-X Gaussian knockoffs (construction='gaussian')"
+            )
             messages.append(
-                "n <= 2p: falling back to model-X Gaussian knockoffs, which assume "
-                "jointly Gaussian features — an assumption engineered features "
-                "violate; prefer the permutation selector in this regime"
+                f"{reason}, which assume jointly Gaussian features — an assumption "
+                "engineered features violate; prefer the permutation selector"
             )
         for message in messages:
             logger.warning("[beamfeat.selection] %s", message)
