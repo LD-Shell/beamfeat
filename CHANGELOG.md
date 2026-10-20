@@ -6,7 +6,8 @@ Notable changes to `beamfeat`. Format follows
 
 ## [Unreleased]
 
-Towards 0.5.1: `beamfeat.__version__` is `0.5.1.dev0` until the release.
+Towards 0.5.1, and on branch `feature/0.6.0` towards 0.6.0, which builds on
+it: `beamfeat.__version__` is `0.5.1.dev0` or `0.6.0.dev0` until the release.
 The new options are off by default, and a fit that leaves them off gives
 the features, p-values and predictions of 0.5.0, to the last bit.
 
