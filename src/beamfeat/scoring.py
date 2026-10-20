@@ -32,6 +32,14 @@ Four strategies are provided, trading signal quality against cost:
 All scorers are deterministic given a ``random_state``, and all handle the
 empty-incumbent case (the first beam round, where there is no residual yet) by
 scoring against the raw target.
+
+A scorer whose score for a candidate depends on that candidate's column alone
+declares itself :attr:`~Scorer.separable`. A round can then be scored in
+pieces: :meth:`~Scorer.prepare` handles the target and the incumbents once,
+and :meth:`~Scorer.score_prepared` scores any chunk of candidates against the
+result, reusing the :class:`ColumnStats` computed when the chunk was
+evaluated. The scores equal those of :meth:`~Scorer.score_batch` on the whole
+round, which is how the search keeps its memory bounded.
 """
 
 from __future__ import annotations
@@ -43,11 +51,13 @@ from typing import Any, Literal, NamedTuple
 import numpy as np
 
 __all__ = [
+    "ColumnStats",
     "CorrelationScorer",
     "GradientBoostingScorer",
     "MutualInformationScorer",
     "Scorer",
     "SpearmanScorer",
+    "column_stats",
     "is_constant",
     "make_scorer",
 ]
@@ -852,7 +862,7 @@ def make_scorer(
             own problem type; a warning is issued when it differs from this
             one.
         random_state: Passed to the constructed scorer.
-        **kwargs: Additional scorer-specific arguments.
+        **kwargs (Any): Additional scorer-specific arguments.
 
     Returns:
         A :class:`Scorer` instance.

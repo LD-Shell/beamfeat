@@ -24,8 +24,17 @@ The check is within a depth: a candidate that restates a feature from an
 earlier depth can occupy a beam slot. Such restatements are removed in the
 final ranking, which applies the same check across all depths.
 
+**Bounded memory.** On a wide table one depth can propose hundreds of
+thousands of candidates. They are evaluated and scored a chunk at a time
+(``chunk_size``, by default as many columns as fit in :data:`CHUNK_BYTES`) and
+only their scores are kept; the candidates the redundancy pass reaches are
+evaluated again. Peak memory then depends on the chunk and the beam rather
+than on the number of candidates. A scorer whose scores depend on the whole
+batch, such as mutual information, still receives a depth at once.
+
 Search is deterministic: given the same data, parameters, and ``random_state``,
-the returned features and their order are identical across runs.
+the returned features and their order are identical across runs, whatever
+``n_jobs`` and ``chunk_size`` are set to.
 """
 
 from __future__ import annotations
@@ -242,8 +251,9 @@ class BeamSearch:
         n_jobs: Workers that evaluate and score a depth's candidates, chunk
             by chunk, through joblib. ``1`` (the default) works in the calling
             thread, ``-1`` uses every core, and ``None`` follows the active
-            ``joblib.parallel_config`` or else means 1. Workers are threads,
-            since numpy releases the GIL, except for
+            joblib configuration (``joblib.parallel_config``, or
+            ``parallel_backend`` before joblib 1.3) or else means 1. Workers
+            are threads, since numpy releases the GIL, except for
             :class:`~beamfeat.scoring.GradientBoostingScorer`, whose model fits
             run in worker processes; a whole-batch scorer such as
             :class:`~beamfeat.scoring.MutualInformationScorer` receives
