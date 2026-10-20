@@ -419,55 +419,28 @@ the batch. A `UserWarning` names the formula and counts the rows. The
 classifier's `predict` cannot return NaN as a label, so it assigns those rows
 the most frequent training class, while `predict_proba` and
 `decision_function` return NaN for them, which is how to find them. The
-regressor's `score` raises rather than scoring the remaining rows. To rule
-such rows out within the training ranges, fit with `safe_domain=True` (next
-section).
+regressor's `score` raises rather than scoring the remaining rows.
 
 Fitted constants do not change this. `(x0)^1.5` is NaN for a negative
 `x0`, as `sqrt(x0)` is. A fitted pole keeps a
 [margin](#constants-inside-expressions) from the training rows, but a row
 far enough outside them can still reach it: `(x1)^(-0.5)`, fitted where
 `x1` lies between 1 and 3, is infinite at `x1 = 0`, as `1/(x1)` would be.
-`safe_domain` with the columns' physical bounds declared, such as
-`{"x1": (0, 3)}`, rules all of these out.
 
 ## Search constraints
 
-Two options restrict what the search will propose. Both are checked as each
-candidate is constructed, before any numerical work, so a rejected candidate
-costs no evaluation and takes no beam slot. Rejections are counted per depth
-in `search_result_.trace` (`n_rejected_constraints`).
+`max_inputs` caps the distinct input columns in one feature: `max_inputs=2`
+admits `x0 * log(x0 / x1)` but not `x0 * x1 / x2`. Use it when a feature that
+mixes many columns would be uninterpretable to you anyway. It is checked as
+each candidate is constructed, before any numerical work, so a rejected
+candidate costs no evaluation and takes no beam slot. Rejections are counted
+per depth in `search_result_.trace` (`n_rejected_constraints`).
 
-**`safe_domain`** rules out the NaN above, inside a box. With `True`, every
-feature is guaranteed defined wherever each input lies in its training range,
-not only on the training rows:
-
-```python
-model = BeamFeatRegressor(safe_domain=True, random_state=0).fit(X, y)
-model.input_bounds_          # {"x0": (lo, hi), ...}: where predict is defined
-```
-
-A feature such as `log(x0 - x1)`, fitted on data where `x0 > x1` on every row
-but whose ranges overlap, is rejected, because the box contains points with
-`x0 < x1`. Declare bounds for columns whose physical range you know, and the
-training range is used for the rest: `safe_domain={"T": (0, np.inf)}` says a
-temperature is never negative. Each operator's bounds come from interval
-arithmetic (every built-in operator has them; an operator registered without
-`interval` and, if it has a `domain`, `interval_domain` is never admitted).
-Interval arithmetic treats repeated columns as independent, so it can
-overestimate: `sqrt(x0 - x0 * x1)` with `x1` below 1 is defined throughout
-but may be rejected. That is the price of the guarantee. See
-[guarantees](guarantees.md#where-predictions-are-defined-safe_domain).
-
-**`max_inputs`** caps the distinct input columns in one feature:
-`max_inputs=2` admits `x0 * log(x0 / x1)` but not `x0 * x1 / x2`. Use it when
-a feature that mixes many columns would be uninterpretable to you anyway.
-
-Neither option makes selection more powerful. The screen's multiple-testing
+It does not make selection more powerful. The screen's multiple-testing
 correction runs over the features that reach selection, which the beam
 already caps at `beam_width` and `max_features` however many expressions were
-proposed; constraints change which features those are and how long the
-search takes.
+proposed; the limit changes which features those are and how long the search
+takes.
 
 ## Real data with missing values or categoricals
 
