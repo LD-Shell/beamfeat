@@ -6,6 +6,10 @@ Notable changes to `beamfeat`. Format follows
 
 ## [Unreleased]
 
+Towards 0.5.1: `beamfeat.__version__` is `0.5.1.dev0` until the release.
+The new options are off by default, and a fit that leaves them off gives
+the features, p-values and predictions of 0.5.0, to the last bit.
+
 ### Added
 
 - `fitted_ops` on `BeamSearch`, `BeamFeatTransformer`, `BeamFeatRegressor`
