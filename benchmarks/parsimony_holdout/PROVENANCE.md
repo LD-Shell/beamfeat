@@ -127,7 +127,7 @@ From the repository root, with this checkout's `src` importable (the run
 used `PYTHONPATH=src`):
 
 ```bash
-python benchmarks/parsimony_holdout/calibration.py --out <dir>   # about 2 h on one core here
+python benchmarks/parsimony_holdout/calibration.py --out <dir>   # 97 minutes on one core here
 python benchmarks/parsimony_holdout/calibration.py --tabulate     # tables from results/
 ```
 

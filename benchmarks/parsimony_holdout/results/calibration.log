@@ -1,0 +1,103 @@
+calibration: 200 seeds per cell, settings ['forward', 'none', 'holdout_0.3', 'holdout_0.5', 'conditional_0.3', 'conditional_0.5'], levels (0.1, 0.2)
+{"commit": "b264d4625a124391f13f6587c56a2bc4f13b751d", "tracked_changes": false, "beamfeat": "0.6.0.dev0", "beamfeat_path": "src/beamfeat", "python": "3.12.14", "numpy": "2.5.4", "scipy": "1.18.1", "scikit-learn": "1.9.1", "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39"}
+  null_n300_p5: seed 50/200, 33 s
+  null_n300_p5: seed 100/200, 52 s
+  null_n300_p5: seed 150/200, 69 s
+  null_n300_p5: seed 200/200, 85 s
+null_n300_p5: done in 85 s, 24 fits matched without the memo
+  null_n300_p20: seed 50/200, 29 s
+  null_n300_p20: seed 100/200, 52 s
+  null_n300_p20: seed 150/200, 74 s
+  null_n300_p20: seed 200/200, 95 s
+null_n300_p20: done in 95 s, 24 fits matched without the memo
+  null_n1000_p5: seed 50/200, 42 s
+  null_n1000_p5: seed 100/200, 72 s
+  null_n1000_p5: seed 150/200, 120 s
+  null_n1000_p5: seed 200/200, 150 s
+null_n1000_p5: done in 150 s, 24 fits matched without the memo
+  null_n1000_p20: seed 50/200, 47 s
+  null_n1000_p20: seed 100/200, 87 s
+  null_n1000_p20: seed 150/200, 124 s
+  null_n1000_p20: seed 200/200, 162 s
+null_n1000_p20: done in 162 s, 24 fits matched without the memo
+  planted_snr1_n300_k5: seed 50/200, 133 s
+  planted_snr1_n300_k5: seed 100/200, 258 s
+  planted_snr1_n300_k5: seed 150/200, 382 s
+  planted_snr1_n300_k5: seed 200/200, 505 s
+planted_snr1_n300_k5: done in 505 s, 24 fits matched without the memo
+  planted_snr1_n300_k20: seed 50/200, 133 s
+  planted_snr1_n300_k20: seed 100/200, 250 s
+  planted_snr1_n300_k20: seed 150/200, 361 s
+  planted_snr1_n300_k20: seed 200/200, 470 s
+planted_snr1_n300_k20: done in 470 s, 24 fits matched without the memo
+  planted_snr1_n1000_k5: seed 50/200, 105 s
+  planted_snr1_n1000_k5: seed 100/200, 184 s
+  planted_snr1_n1000_k5: seed 150/200, 272 s
+  planted_snr1_n1000_k5: seed 200/200, 361 s
+planted_snr1_n1000_k5: done in 361 s, 24 fits matched without the memo
+  planted_snr1_n1000_k20: seed 50/200, 115 s
+  planted_snr1_n1000_k20: seed 100/200, 218 s
+  planted_snr1_n1000_k20: seed 150/200, 316 s
+  planted_snr1_n1000_k20: seed 200/200, 419 s
+planted_snr1_n1000_k20: done in 419 s, 24 fits matched without the memo
+  planted_snr3_n300_k5: seed 50/200, 43 s
+  planted_snr3_n300_k5: seed 100/200, 89 s
+  planted_snr3_n300_k5: seed 150/200, 129 s
+  planted_snr3_n300_k5: seed 200/200, 168 s
+planted_snr3_n300_k5: done in 168 s, 24 fits matched without the memo
+  planted_snr3_n300_k20: seed 50/200, 57 s
+  planted_snr3_n300_k20: seed 100/200, 104 s
+  planted_snr3_n300_k20: seed 150/200, 153 s
+  planted_snr3_n300_k20: seed 200/200, 205 s
+planted_snr3_n300_k20: done in 205 s, 24 fits matched without the memo
+  planted_snr3_n1000_k5: seed 50/200, 70 s
+  planted_snr3_n1000_k5: seed 100/200, 126 s
+  planted_snr3_n1000_k5: seed 150/200, 187 s
+  planted_snr3_n1000_k5: seed 200/200, 241 s
+planted_snr3_n1000_k5: done in 241 s, 24 fits matched without the memo
+  planted_snr3_n1000_k20: seed 50/200, 73 s
+  planted_snr3_n1000_k20: seed 100/200, 129 s
+  planted_snr3_n1000_k20: seed 150/200, 182 s
+  planted_snr3_n1000_k20: seed 200/200, 262 s
+planted_snr3_n1000_k20: done in 262 s, 24 fits matched without the memo
+  proxy_snr1_n300_k5: seed 50/200, 130 s
+  proxy_snr1_n300_k5: seed 100/200, 249 s
+  proxy_snr1_n300_k5: seed 150/200, 375 s
+  proxy_snr1_n300_k5: seed 200/200, 491 s
+proxy_snr1_n300_k5: done in 491 s, 24 fits matched without the memo
+  proxy_snr1_n300_k20: seed 50/200, 139 s
+  proxy_snr1_n300_k20: seed 100/200, 266 s
+  proxy_snr1_n300_k20: seed 150/200, 387 s
+  proxy_snr1_n300_k20: seed 200/200, 510 s
+proxy_snr1_n300_k20: done in 510 s, 24 fits matched without the memo
+  proxy_snr1_n1000_k5: seed 50/200, 106 s
+  proxy_snr1_n1000_k5: seed 100/200, 211 s
+  proxy_snr1_n1000_k5: seed 150/200, 318 s
+  proxy_snr1_n1000_k5: seed 200/200, 416 s
+proxy_snr1_n1000_k5: done in 416 s, 24 fits matched without the memo
+  proxy_snr1_n1000_k20: seed 50/200, 129 s
+  proxy_snr1_n1000_k20: seed 100/200, 247 s
+  proxy_snr1_n1000_k20: seed 150/200, 363 s
+  proxy_snr1_n1000_k20: seed 200/200, 484 s
+proxy_snr1_n1000_k20: done in 484 s, 24 fits matched without the memo
+  proxy_snr3_n300_k5: seed 50/200, 50 s
+  proxy_snr3_n300_k5: seed 100/200, 103 s
+  proxy_snr3_n300_k5: seed 150/200, 151 s
+  proxy_snr3_n300_k5: seed 200/200, 201 s
+proxy_snr3_n300_k5: done in 201 s, 24 fits matched without the memo
+  proxy_snr3_n300_k20: seed 50/200, 62 s
+  proxy_snr3_n300_k20: seed 100/200, 109 s
+  proxy_snr3_n300_k20: seed 150/200, 169 s
+  proxy_snr3_n300_k20: seed 200/200, 227 s
+proxy_snr3_n300_k20: done in 227 s, 24 fits matched without the memo
+  proxy_snr3_n1000_k5: seed 50/200, 50 s
+  proxy_snr3_n1000_k5: seed 100/200, 91 s
+  proxy_snr3_n1000_k5: seed 150/200, 132 s
+  proxy_snr3_n1000_k5: seed 200/200, 172 s
+proxy_snr3_n1000_k5: done in 172 s, 24 fits matched without the memo
+  proxy_snr3_n1000_k20: seed 50/200, 54 s
+  proxy_snr3_n1000_k20: seed 100/200, 99 s
+  proxy_snr3_n1000_k20: seed 150/200, 152 s
+  proxy_snr3_n1000_k20: seed 200/200, 207 s
+proxy_snr3_n1000_k20: done in 207 s, 24 fits matched without the memo
+48000 records -> <out>/summary.json, <out>/tables.md
