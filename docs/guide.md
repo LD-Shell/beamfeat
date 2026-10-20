@@ -297,7 +297,8 @@ How the constants are chosen:
   data they were fitted on: at least twice the spread of the operand's ten
   most extreme values at that end, and at least 1% of its range. A pole
   just past the edge of the data is shaped by the few rows next to it, and
-  the first new row a little further out lands on it and evaluates to NaN.
+  the first new row a little further out falls beyond it: NaN for the
+  logarithm, a value of the wrong sign and any size for the reciprocal.
   A fit that wants its pole closer runs into the bound and is discarded,
   and snapping never moves a constant past it. The margin widens where the
   data thin out towards the edge and narrows where they are dense. On 18

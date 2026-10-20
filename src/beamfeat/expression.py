@@ -1046,7 +1046,8 @@ register_operator(
 # function is dominated by the few rows next to it, and new rows reach past
 # the training extremes: a pole fitted just below the smallest value is
 # crossed by the first new row a little further out, which then evaluates to
-# NaN or an infinity. The margin is the larger of POLE_MARGIN_SPREADS times
+# NaN (the logarithm) or to a value of the wrong sign and any size (the
+# reciprocal). The margin is the larger of POLE_MARGIN_SPREADS times
 # the spread of the POLE_MARGIN_ROWS most extreme operand values at that end
 # and POLE_MARGIN_FLOOR times the range, so it widens where the data thin
 # out towards the edge (a long tail, or few rows) and narrows where they are
