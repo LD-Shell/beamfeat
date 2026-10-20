@@ -900,14 +900,22 @@ one of them has a fix.
     code(
         """
 import re
+import sys
 import warnings
 
 import numpy as np
 import pandas as pd
 
-# beamfeat's warnings, formatted without this machine's file paths
+
+# beamfeat's warnings, in order with the printed output and without this
+# machine's file paths
+def show_warning(message, category, *_):
+    sys.stdout.flush()
+    print(f"{category.__name__}: {message}", file=sys.stderr, flush=True)
+
+
 warnings.filterwarnings("default")
-warnings.formatwarning = lambda message, category, *_: f"{category.__name__}: {message}\\n"
+warnings.showwarning = show_warning
 
 from beamfeat import BeamFeatRegressor
 
@@ -1007,14 +1015,18 @@ print()
 print(deep.equation())
 print(f"R^2: {deep.score(X, y):.4f}")
 print(f"fdr_controlled_: {deep.fdr_controlled_}")
+print(
+    f"candidates proposed: {deep.search_result_.n_proposed_total}, "
+    f"against {model.search_result_.n_proposed_total} at the defaults"
+)
         """
     ),
     markdown(
         """
 The physics is still in there — `(H / eta) * (Q * rho)` — but a junk term
 containing `noise_0` has been bolted onto it, and `fdr_controlled_` is still
-`True`. The R^2 is unchanged to four decimals. We paid three times the runtime
-for an equation nobody can read.
+`True`. The R^2 is unchanged to four decimals. We searched four times as many
+candidates for an equation nobody can read.
 
 ### Why the flag is still True
 
@@ -1086,7 +1098,7 @@ ADDED_NOISE = re.compile(r"(noise_\d+ [+-]|[+-] noise_\d+)")
 
 
 def added_noise(model):
-    full = BeamFeatRegressor(**{**model.get_params(), "parsimony": None}).fit(X, y)
+    full = BeamFeatRegressor(**{**model.get_params(), "parsimony": None, "verbose": 0}).fit(X, y)
     return [f for f in full.formulas() if ADDED_NOISE.search(f)], full.n_features_out_
 
 
@@ -1113,7 +1125,7 @@ tell you a factor is missing.
 
 And a *dimensionless* column is legal almost everywhere. `Q / noise_7` is still
 m³/s, so noise can ride in multiplicatively even under a full labelling, and
-some of the certified set still mentions one. What units removed is the whole
+most of the certified set still mentions one. What units removed is the whole
 class of violations — adding a bare number to a physical quantity — not every
 appearance of an irrelevant column.
         """
@@ -1163,7 +1175,7 @@ nothing; give the genuinely unitless columns `"dimensionless"`.
 
 `equation()` prints the parsimony subset, and its suffix says so. The guarantee
 covers the larger screened set, which `selection_report_` holds in full, with
-an exact p- and q-value per candidate.
+a permutation p-value and its q-value per candidate.
         """
     ),
     code(
