@@ -5,8 +5,9 @@ Everything below is runnable as-is; outputs shown are from real runs.
 ## Install
 
 ```bash
-pip install beamfeat            # core: numpy + scikit-learn only
-pip install "beamfeat[units]"   # + pint, for dimensional analysis
+pip install beamfeat              # core: numpy, scikit-learn, joblib
+pip install "beamfeat[units]"     # + pint, for dimensional analysis
+pip install "beamfeat[display]"   # + sympy, for to_sympy() and latex()
 ```
 
 See [Installation](installation.md) for running the test suite or
@@ -98,7 +99,8 @@ held at their training mean, and their average contribution moves into the
 constant, which is why it differs from the full equation's.
 
 What the default costs you in fit is small, and measured rather than asserted:
-about a thousandth of held-out R² across 308 paired fits, for an equation some
+about a thousandth of R² across 308 paired fits (held out in every study but
+the end-to-end calibration, which scores in-sample), for an equation some
 twenty-five times shorter, with no case where pruning inflated the realised
 false discovery proportion. The measurement is
 `benchmarks/PARSIMONY_COST.md`. Short *and* certified costs rows instead of
@@ -188,8 +190,8 @@ offset = model.intercept_ - raw @ model.scaler_.mean_
 prediction = np.column_stack(features(*X.T)) @ raw + offset  # model.predict(X), to rounding
 ```
 
-`modules="jax"` or `modules="torch"` gives the same function on JAX or
-PyTorch arrays, with `jnp.stack(..., axis=1)` or `torch.stack(..., dim=1)` in
+`modules="jax"` or `modules="torch"` (sympy 1.14 or newer) gives the same
+function on JAX or PyTorch arrays, with `jnp.stack(..., axis=1)` or `torch.stack(..., dim=1)` in
 place of `np.column_stack`; the coefficients and offset are plain arrays to
 convert once. Columns of a DataFrame keep their names as symbols when the
 names are valid identifiers, and are sanitised otherwise; read the symbols
@@ -407,7 +409,9 @@ Memory does not grow with the number of candidates either. Each depth is
 evaluated and scored in chunks of about 8 MiB and only the scores are kept,
 so a default fit on 1000 columns and 600 rows peaks at about 0.35 GB.
 `BeamSearch(chunk_size=...)` sets the chunk size directly, again without
-changing the result.
+changing the result. The exceptions are mutual information, which draws its
+noise for a whole depth, and a custom scorer that does not declare itself
+`separable`: both still receive a depth at once.
 
 ## When to reach for something else
 

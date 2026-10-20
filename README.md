@@ -1,7 +1,7 @@
 # beamfeat
 
 [![CI](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml/badge.svg)](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-671%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-686%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
 [![PyPI](https://img.shields.io/pypi/v/beamfeat)](https://pypi.org/project/beamfeat/)
 [![Python](https://img.shields.io/badge/python-3.10%E2%80%933.15-blue)](https://github.com/LD-Shell/beamfeat)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE)
@@ -33,16 +33,18 @@ model.predict(X_new)
 ## Install
 
 ```bash
-pip install beamfeat            # core: numpy + scikit-learn only
-pip install "beamfeat[units]"   # + pint, for unit-aware search (units as
-                                #   strings like "kg" or as pint quantities)
-pip install "beamfeat[all]"     # + sympy display support and test deps
+pip install beamfeat              # core: numpy, scikit-learn, joblib
+pip install "beamfeat[units]"     # + pint, for unit-aware search (units as
+                                  #   strings like "kg" or as pint quantities)
+pip install "beamfeat[display]"   # + sympy, for to_sympy() and latex()
+pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
-Python ≥ 3.10. There are **no upper version pins**: the 671 tests pass on
-Python 3.10 to 3.15, from scikit-learn 1.6.1 with numpy 1.26 through
-scikit-learn 1.9.1 with numpy 2.5. Running the test suite or reproducing
-the benchmarks needs a little more setup, described in
+Python ≥ 3.10. There are **no upper version pins**: the 686 tests pass on
+Python 3.10 to 3.15 with current releases (scikit-learn 1.9.1, numpy 2.5),
+and on the oldest supported stack, scikit-learn 1.6.1 with numpy 1.26, where
+the unit tests skip because that run leaves pint out. Running the test suite
+or reproducing the benchmarks needs a little more setup, described in
 [`docs/installation.md`](https://github.com/LD-Shell/beamfeat/blob/main/docs/installation.md).
 
 ## What it does
@@ -53,8 +55,9 @@ the benchmarks needs a little more setup, described in
    redundancy pruning, and a cost that grows polynomially in depth and beam
    width (each depth pairs the beam with every expression kept so far) rather
    than the exhaustive O(operators^depth). Candidates are evaluated and
-   scored in fixed-size chunks, so memory does not grow with their number,
-   and `n_jobs` spreads the work over cores without changing the result.
+   scored in fixed-size chunks, so with the default scorer memory does not
+   grow with their number, and `n_jobs` spreads the work over cores without
+   changing the result.
 2. **Selection.** Candidates are tested for association with the target under
    procedures that control the false discovery rate (details below), on a
    held-out split of the training rows that the search never saw.
@@ -192,7 +195,7 @@ benchmark scripts, not asserted:
   marginally-quiet quadratic is priced by the guarantee itself) and an
   achieved 0.780 ± 0.013: about 0.086 lost to what marginal screening cannot
   see, 0.094 to the search — stated rather than hidden.
-- Test suite: 671 tests at 97% statement coverage (a 90% floor is enforced
+- Test suite: 686 tests at 97% statement coverage (a 90% floor is enforced
   in CI), including scikit-learn's full estimator-conformance checks.
 - Selection-only baseline (knockpy on raw columns, modified-FDR offset —
   the only satisfiable configuration at these dimensionalities): 0/15
@@ -204,7 +207,10 @@ benchmark scripts, not asserted:
   LightGBM 0.798, OpenFE 0.736, ridge 0.704, autofeat −1.561 and
   featuretools −2.478 — and a worst single fit of 0.355, none below zero,
   where autofeat reached −103.2 and featuretools −57.3, at ~60× autofeat's
-  speed, with the FDR flag delivered on 45/45 fits.
+  speed, with the FDR flag delivered on 45/45 fits. The archived featuretools
+  figures come from a harness that filled its non-finite test cells with 0;
+  filled with the training medians, as the harness now does, they read 0.461
+  and −12.882 ([`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md#non-finite-test-cells)).
 - Benchmarks (70/30 splits): mean R² over the ten core-suite problems, and
   recovery of the generating columns over the ten synthetic problems that
   declare them — the two sets differ by one dataset each.
@@ -233,11 +239,15 @@ pinned environment, data, and a notebook that reproduces the analysis. Mean
 held-out R²: beamfeat 0.803, random forest 0.810, LightGBM 0.798, OpenFE
 0.736, ridge 0.704, autofeat −1.561, featuretools −2.478 — and worst single
 fit of 45: beamfeat 0.355, autofeat −103.2, featuretools −57.3, with the FDR
-guarantee delivered on 45/45. Read [`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md) first: it records what is
+guarantee delivered on 45/45. The featuretools figures are those of the
+archived run, whose harness filled non-finite test cells with 0; with the
+training-median fill they read 0.461 and −12.882, and beamfeat still leads it
+in the paired test. Read [`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md) first: it records what is
 reproducible (beamfeat: selections bit-identically; the fitted model's
-cross-validated penalty can flip on marginal problems) and what is not (autofeat seeds
-no `random_state` and drawing its decoy features from the global NumPy
-generator, swung from +0.952 to −109.8 across six runs on one identical split).
+cross-validated penalty can flip on marginal problems) and what is not
+(autofeat, which sets no `random_state` and draws its decoy features from the
+global NumPy generator, swung from +0.952 to −109.8 across six runs on one
+identical split).
 
 ## Documentation
 

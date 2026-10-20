@@ -1262,8 +1262,9 @@ the false discovery *proportion*, because the denominator shrinks faster than
 the numerator, and `fdp_inflation_` reports by how much. This is why
 `fdr_controlled_` and `fdr_scope_` are two attributes rather than one: the
 flag is `True` and the scope is the screened set, not the printed equation. What that costs in
-fit is small and has been measured — about a thousandth of held-out R^2 across
-308 paired fits, in `benchmarks/PARSIMONY_COST.md`. Report the screened set
+fit is small and has been measured — about a thousandth of R^2 across 308
+paired fits, held out in every study but one scored in-sample, in
+`benchmarks/PARSIMONY_COST.md`. Report the screened set
 when you need the guarantee; use the equation when you need something to read.
         """
     ),
@@ -1392,8 +1393,8 @@ print(f"agrees with predict(): {np.allclose(exported, model.predict(X))}")
     ),
     markdown(
         """
-`modules="jax"` or `modules="torch"` gives the same function on JAX or PyTorch
-arrays, with `jnp.stack(..., axis=1)` or `torch.stack(..., dim=1)` in place of
+`modules="jax"` or `modules="torch"` (sympy 1.14 or newer) gives the same
+function on JAX or PyTorch arrays, with `jnp.stack(..., axis=1)` or `torch.stack(..., dim=1)` in place of
 `np.column_stack`; the coefficients and offset are plain arrays to convert
 once. Neither library is needed for this notebook, so only NumPy runs here. The
 column names are valid identifiers, so the symbols carry them unchanged; other

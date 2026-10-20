@@ -75,13 +75,15 @@ include = [
   "CITATION.cff",
   "CHANGELOG.md",
   "pyproject.toml",
-  # benchmarks/README.md documents these scripts and result files
+  # the benchmark scripts and the archived results the README's figures
+  # come from
   "benchmarks/*.py",
   "benchmarks/*.ipynb",
   "benchmarks/*.json",
   "benchmarks/*.csv",
 ]
-# The vendored external comparison study is ~540 KB of raw data and notebooks;
+# The vendored external comparison study is ~540 KB of raw data and notebooks,
+# so it stays in the repository and out of the sdist.
 exclude = ["benchmarks/independent"]
 
 [tool.pytest.ini_options]

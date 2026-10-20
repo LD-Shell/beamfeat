@@ -5,15 +5,17 @@ Three levels, depending on what you need. Most people only need the first.
 ## Use the library
 
 ```bash
-pip install beamfeat            # numpy + scikit-learn only
-pip install "beamfeat[units]"   # + pint, for dimensional analysis
-pip install "beamfeat[all]"     # + sympy display and test dependencies
+pip install beamfeat              # numpy, scikit-learn, joblib
+pip install "beamfeat[units]"     # + pint, for dimensional analysis
+pip install "beamfeat[display]"   # + sympy, for to_sympy() and latex()
+pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
 Python 3.10 or newer. There are no upper version pins. The test suite is run
-against the oldest supported stack (numpy 1.26, scikit-learn 1.6) and against
-current releases on Python 3.10 to 3.15: 671 tests pass from scikit-learn 1.6.1
-with numpy 1.26 through scikit-learn 1.9.1 with numpy 2.5. CI repeats this
+against current releases on Python 3.10 to 3.15, where all 686 tests pass
+(scikit-learn 1.9.1, numpy 2.5), and against the oldest supported stack
+(scikit-learn 1.6.1, numpy 1.26, joblib 1.2), which leaves pint out so that
+the unit tests show they skip cleanly without it. CI repeats this
 every week, and runs the suite against the upcoming releases of numpy, SciPy,
 scikit-learn and pandas too, so that a breaking change upstream is seen before
 it ships.
@@ -29,7 +31,7 @@ pip install -e ".[all]"
 pytest
 ```
 
-671 tests, a minute or two, including scikit-learn's `check_estimator`
+686 tests, a minute or two, including scikit-learn's `check_estimator`
 conformance suite. `pytest --cov=beamfeat` reports 97% statement coverage.
 
 The `units` extra matters here: without `pint`, every unit-aware test skips
