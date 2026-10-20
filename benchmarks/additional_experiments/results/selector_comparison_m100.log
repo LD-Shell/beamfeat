@@ -2539,4 +2539,4 @@ beam              knockoff_fixed   q=0.20 FDRm=0.000 FDRc=-- power=0.152 skipped
 [beamfeat.selection] n < 2p: falling back to model-X Gaussian knockoffs, which assume jointly Gaussian features — an assumption engineered features violate; prefer the permutation selector in this regime
 [beamfeat.selection] knockoff+ (offset=1) selected nothing at target FDR 0.2, but offset=0 — which controls only a modified FDR — would have selected 2 feature(s). If that trade-off is acceptable, pass KnockoffSelector(offset=0) as the selector; the permutation selector is the recommended default for engineered candidates
 beam              knockoff_modelx  q=0.20 FDRm=0.000 FDRc=-- power=0.154 skipped=0
-wrote /tmp/claude-1000/-home-dara-Downloads-beamfeat-improved-fixed/3333e157-ac2b-4445-9e44-40c893fdfdf1/scratchpad/selrerun/m100.json
+wrote <tmpdir>/m100.json
