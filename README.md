@@ -1,6 +1,7 @@
 # beamfeat
 
 [![CI](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml/badge.svg)](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-671%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
 [![PyPI](https://img.shields.io/pypi/v/beamfeat)](https://pypi.org/project/beamfeat/)
 [![Python](https://img.shields.io/badge/python-3.10%E2%80%933.15-blue)](https://github.com/LD-Shell/beamfeat)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE)
@@ -38,7 +39,7 @@ pip install "beamfeat[units]"   # + pint, for unit-aware search (units as
 pip install "beamfeat[all]"     # + sympy display support and test deps
 ```
 
-Python ≥ 3.10. There are **no upper version pins**: the 587 tests pass on
+Python ≥ 3.10. There are **no upper version pins**: the 671 tests pass on
 Python 3.10 to 3.15, from scikit-learn 1.6.1 with numpy 1.26 through
 scikit-learn 1.9.1 with numpy 2.5. Running the test suite or reproducing
 the benchmarks needs a little more setup, described in
@@ -50,7 +51,9 @@ the benchmarks needs a little more setup, described in
    compositions of unary (`log`, `sqrt`, `reciprocal`, `square`, `abs`) and
    binary (`*`, `/`, `+`, `-`) operators, with structural deduplication,
    redundancy pruning, and cost O(depth × beam²) rather than the exhaustive
-   O(operators^depth).
+   O(operators^depth). Candidates are evaluated and scored in fixed-size
+   chunks, so memory does not grow with their number, and `n_jobs` spreads
+   the work over cores without changing the result.
 2. **Selection.** Candidates are tested for association with the target under
    procedures that control the false discovery rate (details below), on a
    held-out split of the training rows that the search never saw.
@@ -59,7 +62,9 @@ the benchmarks needs a little more setup, described in
    `.equation()` marks how many of the certified terms it printed — the full
    screened set with per-candidate p- and q-values stays auditable in
    `selection_report_`. `parsimony=None` fits that whole set instead, so the
-   printed equation is itself the certified object.
+   printed equation is itself the certified object. `equations()` lists the
+   equation at every size along the forward path, and `latex()` typesets the
+   fitted one.
 
 Numerical failures (overflow, domain errors) are recorded and excluded, never
 silently masked. Optional unit propagation — units given as pint quantities,
@@ -141,8 +146,10 @@ benchmark scripts, not asserted:
   rate, power 1.000, zero fallbacks; zero selections over 60 global-null
   replicates.
 - Feynman-equation panel (12 physics laws, 0.1% noise): 10/12 solved at the
-  SRBench criterion and exact symbolic form on 8 of the 9 laws that have one, ~0.9 s per equation; the misses are named boundaries (a depth-3 rational, a literal
-  constant, depth-4 nesting, the Gaussian's exponential).
+  SRBench criterion and exact symbolic form on 8 of the 9 laws that have one,
+  about 0.2 s per equation (0.9 s in the archived run, made before the 0.5.0
+  search speed-up); the misses are named boundaries (a depth-3 rational, a
+  literal constant, depth-4 nesting, the Gaussian's exponential).
 - Pure-noise stress ([`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py)): over 100
   global-null pipelines, where every selection is false by construction, BH
   returned features in 6 trials and BY in 1 — false discovery proportions of
@@ -184,7 +191,7 @@ benchmark scripts, not asserted:
   marginally-quiet quadratic is priced by the guarantee itself) and an
   achieved 0.780 ± 0.013: about 0.086 lost to what marginal screening cannot
   see, 0.094 to the search — stated rather than hidden.
-- Test suite: 587 tests at 96% statement coverage (a 90% floor is enforced
+- Test suite: 671 tests at 97% statement coverage (a 90% floor is enforced
   in CI), including scikit-learn's full estimator-conformance checks.
 - Selection-only baseline (knockpy on raw columns, modified-FDR offset —
   the only satisfiable configuration at these dimensionalities): 0/15
@@ -234,7 +241,7 @@ generator, swung from +0.952 to −109.8 across six runs on one identical split)
 ## Documentation
 
 Tutorial notebooks live in [`notebooks/`](https://github.com/LD-Shell/beamfeat/tree/main/notebooks) (getting started; search and scoring;
-selection and units). The statistical guarantees are documented in detail in
+selection and units; reading a fit). The statistical guarantees are documented in detail in
 [`docs/guarantees.md`](https://github.com/LD-Shell/beamfeat/blob/main/docs/guarantees.md) and in the module docstrings of [`beamfeat.selection`](https://github.com/LD-Shell/beamfeat/blob/main/src/beamfeat/selection.py). Users coming
 from autofeat will find a full API mapping and version-compatibility notes
 in [`docs/migrating-from-autofeat.md`](https://github.com/LD-Shell/beamfeat/blob/main/docs/migrating-from-autofeat.md).
