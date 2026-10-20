@@ -1568,8 +1568,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
 
     Args:
         scorer: Scoring strategy for the search. A name
-            (``"correlation"``, ``"mutual_information"``,
-            ``"gradient_boosting"``) or a
+            (``"correlation"``, ``"spearman"``, ``"mutual_information"``,
+            ``"gradient_boosting"``, or an alias such as ``"mi"``) or a
             :class:`~beamfeat.scoring.Scorer` instance.
         selector: FDR-controlled selector, or ``None`` to keep the search
             output unfiltered. A name (``"permutation"``, ``"knockoff"``) or a

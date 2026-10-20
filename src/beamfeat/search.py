@@ -215,9 +215,10 @@ class BeamSearch:
 
     Args:
         scorer: Scoring strategy. Either a name (``"correlation"``,
-            ``"mutual_information"``, ``"gradient_boosting"``, or an alias such
-            as ``"mi"``) or a :class:`~beamfeat.scoring.Scorer` instance.
-            Defaults to ``"correlation"``, which is the only choice cheap
+            ``"spearman"``, ``"mutual_information"``, ``"gradient_boosting"``,
+            or an alias such as ``"mi"`` or ``"rank"``) or a
+            :class:`~beamfeat.scoring.Scorer` instance. Defaults to
+            ``"correlation"``; it and ``"spearman"`` are the choices cheap
             enough for wide beams; see
             :class:`~beamfeat.scoring.GradientBoostingScorer` for the tradeoff.
         problem_type: ``"regression"`` or ``"classification"``.
@@ -225,8 +226,10 @@ class BeamSearch:
             and pairwise combinations of inputs; each further depth composes on
             the results of the last.
         beam_width: Expressions retained at each depth. This is the parameter
-            that bounds cost: total work is roughly
-            ``max_depth * beam_width * n_operators``, rather than compounding.
+            that bounds cost: each depth applies the operators to the beam and
+            pairs it with every expression kept so far, so the work grows
+            polynomially in ``beam_width`` and ``max_depth`` rather than
+            compounding with depth.
         max_features: Maximum features returned. Defaults to ``beam_width``.
         unary_ops: Unary operators to apply. Defaults to log, sqrt, reciprocal,
             square, and abs.

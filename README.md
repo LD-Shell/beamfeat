@@ -50,10 +50,11 @@ the benchmarks needs a little more setup, described in
 1. **Search.** A beam search over an expression DAG proposes and scores
    compositions of unary (`log`, `sqrt`, `reciprocal`, `square`, `abs`) and
    binary (`*`, `/`, `+`, `-`) operators, with structural deduplication,
-   redundancy pruning, and cost O(depth × beam²) rather than the exhaustive
-   O(operators^depth). Candidates are evaluated and scored in fixed-size
-   chunks, so memory does not grow with their number, and `n_jobs` spreads
-   the work over cores without changing the result.
+   redundancy pruning, and a cost that grows polynomially in depth and beam
+   width (each depth pairs the beam with every expression kept so far) rather
+   than the exhaustive O(operators^depth). Candidates are evaluated and
+   scored in fixed-size chunks, so memory does not grow with their number,
+   and `n_jobs` spreads the work over cores without changing the result.
 2. **Selection.** Candidates are tested for association with the target under
    procedures that control the false discovery rate (details below), on a
    held-out split of the training rows that the search never saw.
