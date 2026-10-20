@@ -406,7 +406,7 @@ class TestPoleMargin:
     def test_no_nan_just_below_the_training_minimum(self):
         # The estimator-level regression: a fitted log(x0 - 0.94) returned
         # NaN for rows just below the training minimum of x0. Only the two
-        # operators with a fitted pole are enabled: x^a is undefined below 0
+        # operators with a fitted shift are enabled: x^a is undefined below 0
         # whatever its constant, as sqrt(x) and log(x) are, and a feature
         # such as (log(x0))^(1/3) is NaN on these rows for that reason.
         rng = np.random.default_rng(0)
@@ -423,6 +423,72 @@ class TestPoleMargin:
                 below, above = pole_margins(values)
                 pole = -node.const
                 assert pole <= values.min() - below / 2 or pole >= values.max() + above / 2
+
+
+class TestNegativePowers:
+    """A negative power has its pole at 0, which keeps the margin from the data too."""
+
+    def test_grid_keeps_negative_powers_only_off_the_pole(self):
+        x = np.linspace(0.0, 1.0, 101)  # a margin of 0.18 at either end
+        (far,) = OPERATORS["pow"].constant_grid(x + 0.19)
+        (near,) = OPERATORS["pow"].constant_grid(x + 0.17)
+        assert far[0] == -4.0 and far[-1] == 4.0 and 0.0 in far
+        np.testing.assert_array_equal(near, far[far > 0])
+
+    def test_not_fitted_where_the_data_reach_the_margin(self):
+        # The communities regression in miniature: y = x0 * x1^(-0.127), with
+        # x1 down to 0.02 and its ten lowest values spread so that the margin
+        # is about 0.07. The fit used to find x1^(-0.126) as a factor of x0,
+        # and a new row at x1 = 0 was then predicted as NaN.
+        rng = np.random.default_rng(1)
+        x0 = rng.uniform(0.0, 1.0, 400)
+        x1 = np.r_[0.02, rng.uniform(0.02, 1.0, 399)]
+        y = x0 * x1**-0.127 + rng.normal(0, 0.01, 400)
+        assert x1.min() < pole_margins(x1)[0]
+        assert fit_constants(OPERATORS["pow"], x1, _standardised(y), x0[:, None]) == []
+        # The other operators here have no pole, so only a power could put one at 0.
+        model = BeamFeatRegressor(
+            random_state=0, unary_ops=("sqrt", "square"), binary_ops=("mul", "add", "sub"), fitted_ops=("pow",)
+        ).fit(np.column_stack([x0, x1]), y)
+        assert all(node.const > 0 for feature in model.features_ for node in feature.subnodes() if node.op == "pow")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert np.all(np.isfinite(model.predict(np.array([[0.0, 0.0], [0.5, 0.0]]))))
+
+    def test_fitted_where_the_data_stay_off_the_pole(self):
+        # The same law on x1 in [1, 3]: 0 lies far below the smallest value,
+        # and the negative power is fitted, alone and as a factor of x0.
+        rng = np.random.default_rng(2)
+        x0 = rng.uniform(0.0, 1.0, 400)
+        x1 = rng.uniform(1.0, 3.0, 400)
+        y = x0 * x1**-0.5 + rng.normal(0, 0.01, 400)
+        assert FittedConstant(-0.5, 0) in fit_constants(OPERATORS["pow"], x1, _standardised(y), x0[:, None])
+        alone = x1**-0.5 + rng.normal(0, 1e-3, 400)
+        assert fit_constants(OPERATORS["pow"], x1, _standardised(alone)) == [FittedConstant(-0.5, None)]
+        model = BeamFeatRegressor(
+            random_state=0, unary_ops=("sqrt", "square"), binary_ops=("mul", "add", "sub"), fitted_ops=("pow",)
+        ).fit(np.column_stack([x0, x1]), y)
+        assert model.formulas() == ["(x0 * (x1)^(-0.5))"]
+
+    def test_communities_split_2(self):
+        # The case that showed the gap: communities_p100, split 2 of the
+        # high-dimensional study, with every fitted operator. The fit chose
+        # x44 * x12^(-0.127), where the smallest training x12 is 0.02 and its
+        # margin 0.06, and the test row with x12 = 0 (and x44 = 0) was NaN.
+        from sklearn.model_selection import train_test_split
+
+        path = pathlib.Path(__file__).resolve().parents[1] / "benchmarks" / "additional_experiments"
+        path = path / "data" / "communities_crime_numeric.csv"
+        if not path.exists():
+            pytest.skip("benchmarks/additional_experiments/data is not available")
+        data = np.loadtxt(path, delimiter=",", skiprows=1)
+        X_train, X_test, y_train, _ = train_test_split(data[:, :-1], data[:, -1], test_size=0.25, random_state=2)
+        assert X_train[:, 12].min() < pole_margins(X_train[:, 12])[0] and 0.0 in X_test[:, 12]
+        model = BeamFeatRegressor(random_state=0, fitted_ops=FITTED).fit(X_train, y_train)
+        assert not any("(x12)^(-" in formula for formula in model.formulas())
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert np.all(np.isfinite(model.predict(X_test)))
 
 
 # --------------------------------------------------------------------------- #
