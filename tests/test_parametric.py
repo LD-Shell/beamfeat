@@ -593,38 +593,15 @@ class TestSearch:
         kept, *_ = search._prune_redundant(nodes[::-1], columns[:, ::-1], scores, 5, shield=True)
         assert kept == nodes[::-1][:1]
 
-    @pytest.mark.parametrize(
-        ("op", "constant", "box", "safe"),
-        [
-            ("inv_shift", 1.0, (0.1, 1.0), True),
-            ("inv_shift", -0.5, (0.1, 1.0), False),
-            ("log_shift", 0.5, (-0.4, 1.0), True),
-            ("log_shift", 0.5, (-0.6, 1.0), False),
-            ("pow", 1.5, (0.1, 5.0), True),
-            ("pow", 1.5, (-0.1, 5.0), False),
-            ("exp_scaled", -0.5, (-90.0, 5.0), True),
-            ("exp_scaled", -0.5, (-110.0, 5.0), False),
-        ],
-    )
-    def test_safe_domain_bounds_fitted_nodes(self, op, constant, box, safe):
-        search = BeamSearch(safe_domain={"x": box})
-        search._box = {"x": box}
-        assert search._allowed(transform(op, leaf("x"), const=constant)) is safe
-
-    def test_fitted_nodes_respect_the_constraints(self, rng):
+    def test_fitted_nodes_respect_max_inputs(self, rng):
         X = rng.uniform(0.1, 1.0, (300, 3))
         y = (X[:, 0] + X[:, 1]) / (1.0 + X[:, 0] * X[:, 1]) + 0.3 * np.exp(-X[:, 2])
-        result = BeamSearch(
-            max_depth=3, beam_width=20, fitted_ops=FITTED, max_inputs=2, safe_domain={"x0": (-1.0, 1.0)}
-        ).run(X, y, columns=["x0", "x1", "x2"])
+        result = BeamSearch(max_depth=3, beam_width=20, fitted_ops=FITTED, max_inputs=2).run(
+            X, y, columns=["x0", "x1", "x2"]
+        )
         assert sum(trace.n_rejected_constraints for trace in result.trace) > 0
+        assert any(node.n_constants for node in result.nodes)
         assert all(len(node.columns()) <= 2 for node in result.nodes)
-        probe = {"x0": rng.uniform(-1.0, 1.0, 20_000), "x1": rng.uniform(0.1, 1.0, 20_000), "x2": rng.uniform(0.1, 1.0, 20_000)}
-        evaluator = Evaluator(probe)
-        for node in result.nodes:
-            with np.errstate(all="ignore"):
-                values = evaluator.evaluate(node, apply_filters=False)
-            assert values is not None and np.all(np.isfinite(values)), node.name
 
     def test_n_jobs_does_not_change_the_result(self, rng, monkeypatch):
         import beamfeat.search as search_module

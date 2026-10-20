@@ -31,10 +31,9 @@ the returned features and their order are identical across runs.
 from __future__ import annotations
 
 import logging
-import math
 import numbers
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from typing import Any
@@ -47,13 +46,11 @@ from beamfeat.expression import (
     EvaluationBatch,
     EvaluationLog,
     Evaluator,
-    Interval,
     Node,
     NodeError,
     UnitError,
     UnitRegistryError,
     combine,
-    interval_of,
     parametric_operators,
     transform,
 )
@@ -129,7 +126,7 @@ class SearchTrace:
             depth. At depth 0 this is the score against the raw target.
         elapsed: Wall-clock seconds spent at this depth.
         n_rejected_constraints: Candidates rejected at construction by
-            ``max_inputs`` or ``safe_domain``; 0 when neither is set.
+            ``max_inputs``; 0 when it is not set.
         n_fitted: Of the candidates proposed, those carrying a constant
             fitted at this depth (see ``fitted_ops`` on :class:`BeamSearch`).
     """
@@ -171,9 +168,6 @@ class SearchResult:
         n_rejected_redundant_final: Accumulated features dropped as
             near-duplicates in the final ranking across depths.
         elapsed: Total wall-clock seconds.
-        domain_bounds: Under ``safe_domain``, the box of input values on
-            which every returned feature is defined: column name to
-            ``(lo, hi)``. ``None`` otherwise.
     """
 
     nodes: list[Node] = field(default_factory=list)
@@ -184,7 +178,6 @@ class SearchResult:
     n_evaluated_total: int = 0
     n_rejected_redundant_final: int = 0
     elapsed: float = 0.0
-    domain_bounds: dict[str, tuple[float, float]] | None = None
 
     @property
     def names(self) -> list[str]:
@@ -279,30 +272,6 @@ class BeamSearch:
             Candidates over the limit are rejected as they are constructed,
             before evaluation. Input columns themselves always pass. ``None``
             (default) sets no limit.
-        safe_domain: Admit only expressions that are defined everywhere in a
-            box of input values, not merely on the rows searched. Without it,
-            an operator's domain is checked on those rows alone, so
-            ``log(x0 - x1)`` can be admitted because ``x0 > x1`` on every one
-            of them, and give NaN on new rows where ``x0 < x1``. With
-            ``True``, each column's interval is its observed range on the rows
-            :meth:`run` is given. A mapping of column name to ``(lo, hi)``
-            declares bounds for some columns (infinite bounds allowed) and
-            uses the observed range for the rest. Each candidate is bounded by
-            interval arithmetic from its operands' intervals (see
-            :func:`~beamfeat.expression.interval_of`) and rejected, before
-            evaluation, if an operand interval can leave the operator's
-            domain: ``log`` needs a positive operand, ``sqrt`` a non-negative
-            one, ``reciprocal`` and the divisor of ``div`` must exclude zero,
-            and ``exp`` needs an operand below 50. A candidate whose bounds
-            overflow to infinity from finite operand bounds is rejected too.
-            Operators registered without interval functions are never
-            admitted. The bounds treat each occurrence of a column as
-            independent, so they can be wider than the true range: ``(x0 *
-            x1) / x1`` or ``x0 - x0 * x1`` may be rejected though defined
-            throughout. Such losses are the price of the guarantee. The box
-            is recorded on :attr:`SearchResult.domain_bounds`. The guarantee
-            holds for the default float64 evaluation. ``False`` (default)
-            checks domains on the searched rows only.
         fitted_ops: Parametric operators whose constant is fitted to the
             data, from ``"exp_scaled"`` (``exp(a*x)``), ``"pow"`` (``x^a``,
             for positive ``x``), ``"inv_shift"`` (``1/(x + a)``) and
@@ -346,7 +315,6 @@ class BeamSearch:
         n_jobs: int | None = 1,
         chunk_size: int | None = None,
         max_inputs: int | None = None,
-        safe_domain: bool | Mapping[str, tuple[float, float]] = False,
         fitted_ops: Sequence[str] = (),
     ) -> None:
         if max_depth < 0:
@@ -367,7 +335,6 @@ class BeamSearch:
             isinstance(max_inputs, bool) or not isinstance(max_inputs, numbers.Integral) or max_inputs < 1
         ):
             raise ValueError(f"max_inputs must be an integer of at least 1 or None, got {max_inputs!r}")
-        declared = declared_bounds(safe_domain)
 
         unknown = [op for op in (*unary_ops, *binary_ops) if op not in OPERATORS]
         if unknown:
@@ -402,17 +369,12 @@ class BeamSearch:
         self.n_jobs = n_jobs
         self.chunk_size = chunk_size
         self.max_inputs = max_inputs
-        self.safe_domain = safe_domain
 
-        self._declared_bounds = declared
-        self._constrained = max_inputs is not None or declared is not None
-        # Interval of each input column under safe_domain, set by run().
-        self._box: dict[str, Interval] | None = None
-        # What the constraints need to know of each operand, by node key: its
-        # input columns and interval, either None when not needed. A value of
-        # None marks a node that breaks a constraint. Filled during a run and
-        # cleared at its start and end.
-        self._profiles: dict[str, tuple[frozenset[str] | None, Interval | None] | None] = {}
+        self._constrained = max_inputs is not None
+        # The input columns of each operand, by node key, for max_inputs; None
+        # marks a node over the limit. Filled during a run and cleared at its
+        # start and end.
+        self._profiles: dict[str, frozenset[str] | None] = {}
         self.fitted_ops = fitted_ops
 
         self.result_: SearchResult | None = None
@@ -431,8 +393,8 @@ class BeamSearch:
         combine each beam member with each pool member. Candidates already
         seen are skipped, so the DAG's structural unification does the
         deduplication rather than a separate pass. Candidates that break
-        ``max_inputs`` or ``safe_domain`` are skipped too; they are not added
-        to ``seen`` and do not count towards the ceiling.
+        ``max_inputs`` are skipped too; they are not added to ``seen`` and do
+        not count towards the ceiling.
 
         Returns:
             Tuple of (new candidate nodes, count rejected for unit mismatch,
@@ -490,89 +452,55 @@ class BeamSearch:
     # -- constraints -------------------------------------------------------- #
 
     def _allowed(self, node: Node) -> bool:
-        """Whether a constructed candidate satisfies ``max_inputs`` and ``safe_domain``.
+        """Whether a constructed candidate satisfies ``max_inputs``.
 
         Takes the node as constructed, after any rewrite by
         :func:`~beamfeat.expression.transform` or
         :func:`~beamfeat.expression.combine`, since that is the expression
-        that would be evaluated. What the check needs of each operand is
+        that would be evaluated. The input columns of each operand are
         computed once and cached by node key, so a candidate costs a set union
-        and an interval operation rather than a walk of its tree.
+        rather than a walk of its tree.
         """
         if not self._constrained:
             return True
         return self._profile(node) is not None
 
-    def _profile(self, node: Node) -> tuple[frozenset[str] | None, Interval | None] | None:
-        """Input columns and interval of ``node``, or ``None`` if it breaks a constraint.
+    def _profile(self, node: Node) -> frozenset[str] | None:
+        """Input columns of ``node``, or ``None`` if it uses more than ``max_inputs``.
 
-        Each part is ``None`` when its constraint is off. Operands are looked
-        up in, or added to, the cache; ``node`` itself is not cached.
+        Operands are looked up in, or added to, the cache; ``node`` itself is
+        not cached.
         """
         if not node.children:
             # An input column; a childless node without one reads no input.
-            name = None if node.column is None else str(node.column)
-            columns = None
-            if self.max_inputs is not None:
-                columns = frozenset(()) if name is None else frozenset((name,))
-            interval = None
-            if self._box is not None:
-                interval = self._box.get(name, (-math.inf, math.inf)) if name else (-math.inf, math.inf)
-            return columns, interval
-
+            return frozenset(()) if node.column is None else frozenset((str(node.column),))
         below = []
         for child in node.children:
-            profile = self._operand_profile(child)
-            if profile is None:
+            columns = self._operand_profile(child)
+            if columns is None:
                 return None
-            below.append(profile)
-        columns = None
-        if self.max_inputs is not None:
-            columns = frozenset().union(*(child_columns for child_columns, _ in below if child_columns))
-            if len(columns) > self.max_inputs:
-                return None
-        interval = None
-        if self._box is not None:
-            operands = [child_interval for _, child_interval in below if child_interval is not None]
-            interval = interval_of(node, operands)
-            if interval is None:
-                return None
-            # Infinite bounds from finite operands mean the result can
-            # overflow inside the box.
-            if not (math.isfinite(interval[0]) and math.isfinite(interval[1])) and all(
-                math.isfinite(lo) and math.isfinite(hi) for lo, hi in operands
-            ):
-                return None
-        return columns, interval
+            below.append(columns)
+        columns = frozenset().union(*below)
+        if self.max_inputs is not None and len(columns) > self.max_inputs:
+            return None
+        return columns
 
-    def _operand_profile(self, node: Node) -> tuple[frozenset[str] | None, Interval | None] | None:
+    def _operand_profile(self, node: Node) -> frozenset[str] | None:
         """:meth:`_profile` of an operand, cached by node key."""
         key = node.key
         if key not in self._profiles:
             self._profiles[key] = self._profile(node)
         return self._profiles[key]
 
-    def _start_constraints(self, evaluator: Evaluator) -> dict[str, Interval] | None:
-        """Reset the constraint cache and set the box for a run on ``evaluator``'s data."""
-        self._profiles.clear()
-        self._box = None
-        if self._declared_bounds is not None:
-            columns = evaluator.columns
-            self._box = domain_box(
-                columns, {name: evaluator.column(name) for name in columns}, self._declared_bounds
-            )
-        return self._box
-
     def _can_reach_ceiling(self, leaves: list[Node]) -> bool:
         """Whether proposing from ``leaves`` alone can reach the depth ceiling.
 
         Counts every operator application, and each unordered pair once for a
         commutative operator, so the count bounds the distinct candidates.
-        Candidates the constraints would reject are counted as well, so with
-        ``max_inputs`` or ``safe_domain`` the bound can overestimate. The
-        caller then proposes in score order first, finds that the ceiling did
-        not bind, and proposes again in column order: a second pass, but the
-        same result.
+        Candidates ``max_inputs`` would reject are counted as well, so with it
+        the bound can overestimate. The caller then proposes in score order
+        first, finds that the ceiling did not bind, and proposes again in
+        column order: a second pass, but the same result.
         """
         n = len(leaves)
         n_proposals = n * len(self.unary_ops)
@@ -919,7 +847,7 @@ class BeamSearch:
         target = np.asarray(target).ravel()
         if target.shape[0] != evaluator.n_rows:
             raise ValueError(f"target has {target.shape[0]} rows, data has {evaluator.n_rows}")
-        box = self._start_constraints(evaluator)
+        self._profiles.clear()
 
         scorer = make_scorer(self.scorer, problem_type=self.problem_type, random_state=self.random_state)
         absolute = scorer.prepare(target) if scorer.scores_by_column() else None
@@ -1118,7 +1046,6 @@ class BeamSearch:
         result = self._finalise(selected, selected_values, final_scores, evaluator, trace, started)
         result.n_proposed_total = n_proposed_total
         result.n_evaluated_total = n_evaluated_total
-        result.domain_bounds = box
         self.result_ = result
         self._profiles.clear()
         depth_reached = trace[-1].depth
@@ -1165,69 +1092,6 @@ class BeamSearch:
             f"BeamSearch(scorer={self.scorer!r}, max_depth={self.max_depth}, "
             f"beam_width={self.beam_width}, problem_type={self.problem_type!r})"
         )
-
-
-def declared_bounds(safe_domain: Any) -> dict[str, Interval] | None:
-    """Validate a ``safe_domain`` value and return its declared bounds.
-
-    Returns:
-        ``None`` for ``False``, an empty mapping for ``True``, else the
-        declared ``(lo, hi)`` of each named column, as floats.
-
-    Raises:
-        ValueError: If ``safe_domain`` is neither a bool nor a mapping, or a
-            bound is not a pair of numbers with ``lo <= hi`` (NaN is refused,
-            infinities are allowed).
-    """
-    if isinstance(safe_domain, (bool, np.bool_)):
-        return {} if safe_domain else None
-    if not isinstance(safe_domain, Mapping):
-        raise ValueError(
-            f"safe_domain must be True, False or a mapping of column name to (lo, hi), got {safe_domain!r}"
-        )
-    bounds: dict[str, Interval] = {}
-    for name, pair in safe_domain.items():
-        try:
-            lo, hi = (float(value) for value in pair)
-        except (TypeError, ValueError):
-            raise ValueError(f"safe_domain bounds for {name!r} must be a pair (lo, hi), got {pair!r}") from None
-        if math.isnan(lo) or math.isnan(hi) or lo > hi:
-            raise ValueError(f"safe_domain bounds for {name!r} must satisfy lo <= hi, got {pair!r}")
-        bounds[str(name)] = (lo, hi)
-    return bounds
-
-
-def domain_box(
-    columns: Sequence[str], values: Mapping[str, np.ndarray], declared: Mapping[str, Interval]
-) -> dict[str, Interval]:
-    """Interval of each column: declared bounds where given, else the observed range.
-
-    The observed range is the minimum and maximum of the column's finite
-    values. A column whose values fall outside its declared bounds is named
-    in a logged warning: features are then guaranteed defined on the declared
-    box, which does not cover all of the data.
-
-    Raises:
-        ValueError: If a declared column is not among ``columns``.
-    """
-    unknown = sorted(set(declared) - set(columns))
-    if unknown:
-        raise ValueError(f"safe_domain names unknown column(s): {unknown}; columns are {list(columns)}")
-    box: dict[str, Interval] = {}
-    outside: list[str] = []
-    for name in columns:
-        column = np.asarray(values[name])
-        finite = column[np.isfinite(column)]
-        observed = (float(finite.min()), float(finite.max())) if finite.size else (-math.inf, math.inf)
-        if name in declared:
-            box[name] = declared[name]
-            if finite.size and (observed[0] < declared[name][0] or observed[1] > declared[name][1]):
-                outside.append(name)
-        else:
-            box[name] = observed
-    if outside:
-        logger.warning("[beamfeat] data fall outside the declared safe_domain bounds of %s", outside)
-    return box
 
 
 def _rank(nodes: Sequence[Node], scores: np.ndarray) -> np.ndarray:
