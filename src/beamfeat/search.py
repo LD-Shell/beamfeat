@@ -51,9 +51,11 @@ from beamfeat.expression import (
     UnitError,
     UnitRegistryError,
     combine,
+    parametric_operators,
     transform,
 )
-from beamfeat.scoring import ProblemType, Scorer, make_scorer
+from beamfeat.parametric import fit_constants
+from beamfeat.scoring import CorrelationScorer, ProblemType, Scorer, make_scorer
 
 __all__ = ["BeamSearch", "SearchResult", "SearchTrace"]
 
@@ -123,6 +125,8 @@ class SearchTrace:
         best_score: Highest ranking score among the candidates kept at this
             depth. At depth 0 this is the score against the raw target.
         elapsed: Wall-clock seconds spent at this depth.
+        n_fitted: Of the candidates proposed, those carrying a constant
+            fitted at this depth (see ``fitted_ops`` on :class:`BeamSearch`).
     """
 
     depth: int
@@ -134,6 +138,7 @@ class SearchTrace:
     n_kept: int
     best_score: float
     elapsed: float
+    n_fitted: int = 0
 
     def __str__(self) -> str:  # pragma: no cover - display only
         return (
@@ -259,6 +264,21 @@ class BeamSearch:
             :class:`~beamfeat.scoring.MutualInformationScorer`, still score a
             depth at once (see :meth:`~beamfeat.scoring.Scorer.scores_by_column`).
             The result does not depend on this value.
+        fitted_ops: Parametric operators whose constant is fitted to the
+            data, from ``"exp_scaled"`` (``exp(a*x)``), ``"pow"`` (``x^a``,
+            for positive ``x``), ``"inv_shift"`` (``1/(x + a)``) and
+            ``"log_shift"`` (``log(x + a)``). Empty by default, which leaves
+            every expression free of constants. At each depth, each operator
+            is fitted to each expression of the previous depth's beam (at
+            the first depth, the ``beam_width`` best input columns), and the
+            fitted expressions join that depth's candidates, to be scored,
+            pruned and kept like the rest; they are not counted against
+            ``max_candidates_per_depth``. The constant maximises the absolute
+            correlation with the target, alone and, while the depth limit
+            leaves room for a product, as a factor of an expression in the
+            beam, and is snapped to a simple value such as 1/2 when the data
+            cannot tell the two apart; see :mod:`beamfeat.parametric`. The
+            fit sees only the rows the search is given.
 
     Attributes:
         result_: :class:`SearchResult` from the most recent :meth:`run`.
@@ -280,6 +300,7 @@ class BeamSearch:
         verbose: int = 0,
         n_jobs: int | None = 1,
         chunk_size: int | None = None,
+        fitted_ops: Sequence[str] = (),
     ) -> None:
         if max_depth < 0:
             raise ValueError(f"max_depth must be non-negative, got {max_depth}")
@@ -298,13 +319,21 @@ class BeamSearch:
 
         unknown = [op for op in (*unary_ops, *binary_ops) if op not in OPERATORS]
         if unknown:
-            raise ValueError(f"unknown operator(s): {sorted(unknown)}; available: {sorted(OPERATORS)}")
+            available = sorted(op for op, spec in OPERATORS.items() if not spec.parametric)
+            raise ValueError(f"unknown operator(s): {sorted(unknown)}; available: {available}")
         bad_unary = [op for op in unary_ops if OPERATORS[op].arity != 1]
         if bad_unary:
             raise ValueError(f"not unary operator(s): {sorted(bad_unary)}")
         bad_binary = [op for op in binary_ops if OPERATORS[op].arity != 2]
         if bad_binary:
             raise ValueError(f"not binary operator(s): {sorted(bad_binary)}")
+        fitted_ops = _check_fitted_ops(fitted_ops)
+        needs_constant = [op for op in (*unary_ops, *binary_ops) if OPERATORS[op].parametric]
+        if needs_constant:
+            raise ValueError(
+                f"operator(s) {sorted(needs_constant)} take a fitted constant; list them in "
+                "fitted_ops rather than unary_ops"
+            )
 
         self.scorer = scorer
         self.problem_type = problem_type
@@ -320,6 +349,7 @@ class BeamSearch:
         self.verbose = verbose
         self.n_jobs = n_jobs
         self.chunk_size = chunk_size
+        self.fitted_ops = fitted_ops
 
         self.result_: SearchResult | None = None
 
@@ -395,6 +425,71 @@ class BeamSearch:
             n_proposals += n_pairs // 2 if OPERATORS[op].commutative else n_pairs
         return n_proposals >= self.max_candidates_per_depth
 
+    # -- fitted constants --------------------------------------------------- #
+
+    def _fit(
+        self,
+        parents: list[Node],
+        values: np.ndarray,
+        prepared: np.ndarray | None,
+        seen: set[Node],
+    ) -> tuple[list[Node], int]:
+        """Fit each of ``fitted_ops`` to each parent.
+
+        Each fit gives the parent with the operator applied, one level above
+        it. A constant fitted as a factor of another parent (see
+        :func:`~beamfeat.parametric.fit_constants`) also gives that product,
+        one level higher still, when ``"mul"`` is among ``binary_ops`` and
+        the product stays within ``max_depth``.
+
+        Args:
+            parents: Beam members to fit on, best first.
+            values: Their values, one column per parent; these are also the
+                partners a fitted node may be multiplied by.
+            prepared: The standardised target, or ``None`` when it is
+                constant and there is nothing to fit.
+            seen: Nodes already proposed. New fitted nodes are added.
+
+        Returns:
+            Tuple of (new fitted nodes, count rejected for unit mismatch).
+        """
+        fitted: list[Node] = []
+        n_unit_rejected = 0
+        if prepared is None:
+            return fitted, n_unit_rejected
+
+        def add(node: Node) -> None:
+            if node.depth <= self.max_depth and node not in seen:
+                seen.add(node)
+                fitted.append(node)
+
+        for index, parent in enumerate(parents):
+            # A product with a partner is two levels above the parent.
+            products = "mul" in self.binary_ops and parent.depth + 2 <= self.max_depth
+            for op in self.fitted_ops:
+                spec = OPERATORS[op]
+                try:
+                    if spec.unit_fn is not None:
+                        spec.unit_fn(parent.unit)
+                except UnitRegistryError:
+                    raise
+                except UnitError:
+                    n_unit_rejected += 1
+                    continue
+                found = fit_constants(spec, values[:, index], prepared, values if products else None)
+                for constant, partner in found:
+                    try:
+                        node = transform(op, parent, const=constant)
+                    except NodeError:
+                        continue
+                    add(node)
+                    if partner is not None:
+                        try:
+                            add(combine("mul", parents[partner], node))
+                        except NodeError:
+                            continue
+        return fitted, n_unit_rejected
+
     # -- redundancy --------------------------------------------------------- #
 
     def _prune_redundant(
@@ -403,12 +498,14 @@ class BeamSearch:
         values: np.ndarray,
         scores: np.ndarray,
         limit: int,
+        shield: bool = False,
     ) -> tuple[list[Node], np.ndarray, np.ndarray, int]:
         """Greedily admit candidates in score order, skipping near-duplicates.
 
         A candidate is admitted if its absolute correlation against every
         already-admitted candidate stays below ``redundancy_threshold``.
         Correlations within :data:`EXACT_COPY_TOL` of 1 count as reaching it.
+        With ``shield``, see :meth:`_admit`.
 
         Returns:
             Tuple of (kept nodes, their values, their scores, count dropped).
@@ -418,7 +515,9 @@ class BeamSearch:
 
         order = _rank(nodes, scores)
         standardised = _standardise_columns(values)
-        kept_indices, n_dropped = self._admit(order, lambda index: standardised[:, index], limit, values.shape[0])
+        kept_indices, n_dropped = self._admit(
+            order, lambda index: standardised[:, index], limit, values.shape[0], _fitted_mask(nodes, shield)
+        )
         kept_nodes = [nodes[i] for i in kept_indices]
         return kept_nodes, values[:, kept_indices], scores[kept_indices], n_dropped
 
@@ -428,6 +527,7 @@ class BeamSearch:
         scores: np.ndarray,
         limit: int,
         evaluator: Evaluator,
+        shield: bool = False,
     ) -> tuple[list[Node], np.ndarray, np.ndarray, int]:
         """:meth:`_prune_redundant` for a round whose values were not kept.
 
@@ -441,7 +541,9 @@ class BeamSearch:
 
         order = _rank(nodes, scores)
         columns = _RankedColumns(order, nodes, evaluator, block=max(2, min(limit, 256)))
-        kept_indices, n_dropped = self._admit(order, columns.standardised, limit, n_samples)
+        kept_indices, n_dropped = self._admit(
+            order, columns.standardised, limit, n_samples, _fitted_mask(nodes, shield)
+        )
         kept_values = np.empty((n_samples, len(kept_indices)), dtype=evaluator.dtype, order="F")
         for position, index in enumerate(kept_indices):
             kept_values[:, position] = columns.raw(index)
@@ -453,6 +555,7 @@ class BeamSearch:
         standardised: Callable[[int], np.ndarray],
         limit: int,
         n_samples: int,
+        fitted: np.ndarray | None = None,
     ) -> tuple[list[int], int]:
         """Walk candidates in ``order``, admitting each that duplicates none admitted.
 
@@ -462,6 +565,16 @@ class BeamSearch:
                 its index. Called in ``order``.
             limit: Most candidates to admit.
             n_samples: Rows per column.
+            fitted: Optional flag per candidate, true for one with a fitted
+                constant. When given, a candidate without one is checked only
+                against admitted candidates without one. A fitted node is its
+                parent tuned to the target, so it correlates closely with the
+                parent's constant-free transforms, such as ``x^2`` beside
+                ``x^1.69``; were it to mask them, a depth would trade the
+                building blocks of deeper expressions (``exp(-x^2/2)`` is
+                built on ``x^2``) for one fit. Fitted candidates are still
+                checked against everything admitted, and take beam slots
+                like any other.
 
         Returns:
             Tuple of (admitted indices in admission order, count dropped).
@@ -479,6 +592,8 @@ class BeamSearch:
             column = standardised(index)
             if kept_indices:
                 correlations = np.abs(admitted[: len(kept_indices)] @ column) / n_samples
+                if fitted is not None and not fitted[index]:
+                    correlations = np.where(fitted[kept_indices], 0.0, correlations)
                 if float(np.max(correlations)) >= cutoff:
                     n_dropped += 1
                     continue
@@ -613,6 +728,9 @@ class BeamSearch:
 
         scorer = make_scorer(self.scorer, problem_type=self.problem_type, random_state=self.random_state)
         absolute = scorer.prepare(target) if scorer.scores_by_column() else None
+        # Constants are fitted by correlation with the raw target, whatever
+        # the scorer; see beamfeat.parametric.
+        fit_target = CorrelationScorer(self.problem_type).prepare(target) if self.fitted_ops else None
 
         # Depth 0: the input columns themselves.
         leaf_nodes = evaluator.leaf_nodes()
@@ -628,6 +746,8 @@ class BeamSearch:
         selected_scores = list(beam_scores) if self.include_originals else []
 
         seen: set[Node] = set(beam)
+        # Fitted nodes waiting for the round of their depth.
+        waiting: dict[int, list[Node]] = {}
         trace: list[SearchTrace] = []
         n_proposed_total = 0
         n_evaluated_total = 0
@@ -672,6 +792,22 @@ class BeamSearch:
                     candidates, n_unit_rejected = self._propose(beam, pool, seen)
             else:
                 candidates, n_unit_rejected = self._propose(beam, pool, seen)
+            n_fitted = 0
+            if self.fitted_ops:
+                if depth == 1:
+                    order = _rank(beam, beam_scores)[: self.beam_width]
+                    parents, parent_values = [beam[i] for i in order], beam_values[:, order]
+                else:
+                    parents, parent_values = beam, beam_values
+                fitted, n_fit_unit_rejected = self._fit(parents, parent_values, fit_target, seen)
+                n_unit_rejected += n_fit_unit_rejected
+                # A fitted node joins the round of its own depth: a product
+                # with a partner is a level above this one, and waits for it.
+                for node in fitted:
+                    waiting.setdefault(max(node.depth, depth), []).append(node)
+                arrived = waiting.pop(depth, [])
+                candidates = candidates + arrived
+                n_fitted = len(arrived)
             n_proposed_total += len(candidates)
             if not candidates:
                 report(self.verbose, 2, f"  depth {depth}: no new candidates; stopping")
@@ -704,11 +840,11 @@ class BeamSearch:
 
             if values is None:
                 beam, beam_values, kept_scores, n_redundant = self._prune_evaluated(
-                    evaluated, scores, self.beam_width, evaluator
+                    evaluated, scores, self.beam_width, evaluator, shield=bool(self.fitted_ops)
                 )
             else:
                 beam, beam_values, kept_scores, n_redundant = self._prune_redundant(
-                    evaluated, values, scores, self.beam_width
+                    evaluated, values, scores, self.beam_width, shield=bool(self.fitted_ops)
                 )
             del values
             if not beam:
@@ -734,6 +870,7 @@ class BeamSearch:
                     n_kept=len(beam),
                     best_score=float(np.max(kept_scores)),
                     elapsed=time.perf_counter() - depth_started,
+                    n_fitted=n_fitted,
                 )
             )
             dropped = []
@@ -746,7 +883,9 @@ class BeamSearch:
             report(
                 self.verbose,
                 2,
-                f"  depth {depth}: {len(candidates)} proposed -> {len(evaluated)} evaluated"
+                f"  depth {depth}: {len(candidates)} proposed"
+                + (f" ({n_fitted} with a fitted constant)" if n_fitted else "")
+                + f" -> {len(evaluated)} evaluated"
                 f" -> {len(beam)} kept by beam"
                 + (f" ({', '.join(dropped)} rejected)" if dropped else "")
                 + f", best {float(np.max(kept_scores)):.4f}"
@@ -821,12 +960,13 @@ def _rank(nodes: Sequence[Node], scores: np.ndarray) -> np.ndarray:
     """Order candidates best first, as beam admission sees them.
 
     Scores within SCORE_TIE_TOL of each other - a difference below scoring
-    noise - are tied, and the structurally simpler expression goes first, so
-    that the more complex near-duplicate is the one the correlation check
-    drops. Remaining ties keep their given order. lexsort uses its last key as
-    primary and is stable.
+    noise - are tied, and the structurally simpler expression (counting
+    operators and fitted constants) goes first, so that the more complex
+    near-duplicate is the one the correlation check drops. Remaining ties
+    keep their given order. lexsort uses its last key as primary and is
+    stable.
     """
-    sizes = np.array([node.n_operators for node in nodes])
+    sizes = np.array([node.n_operators + node.n_constants for node in nodes])
     quantised = np.round(np.asarray(scores, dtype=np.float64) / SCORE_TIE_TOL)
     return np.lexsort((sizes, -quantised))
 
@@ -886,6 +1026,27 @@ class _RankedColumns:
         if values is None:  # pragma: no cover - defensive
             raise RuntimeError(f"candidate {self._nodes[index].name} no longer evaluates")
         return values
+
+
+def _fitted_mask(nodes: Sequence[Node], shield: bool) -> np.ndarray | None:
+    """Per node, whether it carries a fitted constant; ``None`` unless ``shield``."""
+    if not shield:
+        return None
+    return np.array([node.n_constants > 0 for node in nodes], dtype=bool)
+
+
+def _check_fitted_ops(fitted_ops: Sequence[str]) -> tuple[str, ...]:
+    """Validate ``fitted_ops`` against the registered parametric operators."""
+    if isinstance(fitted_ops, str):
+        fitted_ops = (fitted_ops,)
+    fitted_ops = tuple(fitted_ops)
+    available = parametric_operators()
+    unknown = [op for op in fitted_ops if op not in available]
+    if unknown:
+        raise ValueError(f"unknown fitted operator(s): {sorted(unknown)}; available: {available}")
+    if len(set(fitted_ops)) != len(fitted_ops):
+        raise ValueError(f"fitted_ops lists an operator more than once: {list(fitted_ops)}")
+    return fitted_ops
 
 
 def _run_chunk(
