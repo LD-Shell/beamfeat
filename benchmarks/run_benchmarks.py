@@ -192,10 +192,12 @@ def real_datasets() -> list[Dataset]:
     # reproducible preprocessing rather than an implicit encoding choice.
     seaborn_specs = [
         ("mpg", "mpg", ["cylinders", "displacement", "horsepower", "weight", "acceleration", "model_year"], None),
-        # diamonds is capped: memory during the search grows roughly linearly
-        # with rows (about 530 MB at 2,000 and 1.7 GB at 8,000 on one core),
-        # and the full 53,940 rows exhaust a 4 GB machine. Raise or remove the
-        # cap if the run has the headroom.
+        # diamonds is capped. On 0.1.0, when the cap was set, memory during
+        # the search grew roughly linearly with rows (about 530 MB at 2,000
+        # and 1.7 GB at 8,000 on one core) and the full 53,940 rows exhausted
+        # a 4 GB machine. Under 0.5.0 a fit on all 53,940 rows peaks below
+        # 0.4 GB; the cap stays so that results remain comparable with the
+        # archived ones.
         ("diamonds", "price", ["carat", "depth", "table", "x", "y", "z"], 1400),
         ("penguins", "body_mass_g", ["bill_length_mm", "bill_depth_mm", "flipper_length_mm"], None),
         ("tips", "tip", ["total_bill", "size"], None),
