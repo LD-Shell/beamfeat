@@ -84,6 +84,14 @@ dataset, and the speed-up changes no feature, p-value or prediction.
 - The release workflow runs the full CI suite and publishes only after it
   passes; a tag push previously published before the tests finished.
   `CONTRIBUTING.md` describes the release flow.
+- The logistic models fitted internally are built with the arguments the
+  installed scikit-learn expects: `alpha = 1/C` from 1.10 rather than the
+  deprecated `C`, `l1_ratios` rather than `penalty` from 1.8, accuracy as the
+  cross-validation score explicitly (1.11 changes the default), and
+  `newton-cd` rather than the deprecated `liblinear` from 1.10. Fits on
+  scikit-learn 1.6 to 1.9 are unchanged. Their warnings are silenced by
+  category, user and runtime warnings only, so a deprecation of an argument
+  beamfeat passes is no longer hidden with the convergence notices.
 - CI also runs weekly, a weekly workflow tests the pre-releases and nightly
   builds of numpy, SciPy, scikit-learn and pandas, and the test suite fails on
   any `FutureWarning` and on a `DeprecationWarning` raised from beamfeat or its
@@ -97,6 +105,10 @@ dataset, and the speed-up changes no feature, p-value or prediction.
 
 ### Fixed
 
+- `KnockoffSelector` on a classification target with three or more classes,
+  and `BeamFeatClassifier(selector="knockoff")` on one, raised on
+  scikit-learn 1.8 and later, where the `liblinear` solver fits two classes
+  only. The statistic is computed one class against the rest, as it was.
 - A row on which a fitted formula is undefined, such as the logarithm of a
   negative value, no longer changes the predictions for the other rows of the
   batch. The formula's whole column was replaced with zeros for every row
