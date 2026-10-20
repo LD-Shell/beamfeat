@@ -309,8 +309,10 @@ class BeamSearch:
             ``"log_shift"`` (``log(x + a)``). Empty by default, which leaves
             every expression free of constants. At each depth, each operator
             is fitted to each expression of the previous depth's beam (at
-            the first depth, the ``beam_width`` best input columns), and the
-            fitted expressions join that depth's candidates, to be scored,
+            the first depth, the ``beam_width`` best input columns), and to
+            the previous depth's ``beam_width`` best candidates that the
+            redundancy check kept out of the beam; the fitted expressions
+            join that depth's candidates, to be scored,
             pruned and kept like the rest; they are not counted against
             ``max_candidates_per_depth``. The constant maximises the absolute
             correlation with the target, alone and, while the depth limit
@@ -583,6 +585,7 @@ class BeamSearch:
         values: np.ndarray,
         prepared: np.ndarray | None,
         seen: set[Node],
+        n_partners: int | None = None,
     ) -> tuple[list[Node], int]:
         """Fit each of ``fitted_ops`` to each parent.
 
@@ -593,12 +596,14 @@ class BeamSearch:
         the product stays within ``max_depth``.
 
         Args:
-            parents: Beam members to fit on, best first.
-            values: Their values, one column per parent; these are also the
-                partners a fitted node may be multiplied by.
+            parents: Expressions to fit on: the beam members, best first,
+                then any further parents (see :meth:`_extra_parents`).
+            values: Their values, one column per parent.
             prepared: The standardised target, or ``None`` when it is
                 constant and there is nothing to fit.
             seen: Nodes already proposed. New fitted nodes are added.
+            n_partners: How many of the leading parents a fitted node may
+                be multiplied by: the beam members. Defaults to all.
 
         Returns:
             Tuple of (new fitted nodes, count rejected for unit mismatch).
@@ -613,6 +618,7 @@ class BeamSearch:
                 seen.add(node)
                 fitted.append(node)
 
+        partners = values if n_partners is None else values[:, :n_partners]
         for index, parent in enumerate(parents):
             # A product with a partner is two levels above the parent.
             products = "mul" in self.binary_ops and parent.depth + 2 <= self.max_depth
@@ -626,7 +632,7 @@ class BeamSearch:
                 except UnitError:
                     n_unit_rejected += 1
                     continue
-                found = fit_constants(spec, values[:, index], prepared, values if products else None)
+                found = fit_constants(spec, values[:, index], prepared, partners if products else None)
                 for constant, partner in found:
                     try:
                         node = transform(op, parent, const=constant)
@@ -639,6 +645,40 @@ class BeamSearch:
                         except NodeError:
                             continue
         return fitted, n_unit_rejected
+
+    def _extra_parents(
+        self,
+        evaluated: list[Node],
+        scores: np.ndarray,
+        beam: list[Node],
+        evaluator: Evaluator,
+    ) -> tuple[list[Node], np.ndarray]:
+        """Candidates of a round worth fitting on although the beam dropped them.
+
+        The redundancy check judges candidates by linear correlation, and a
+        near-duplicate under it need not stay one under a nonlinear
+        transform: ``x0*x1`` and ``x0 + x1`` correlate at 0.95 on the unit
+        square, yet only the first can be the denominator of
+        ``(x0 + x1)/(1 + x0*x1)``. The round's ``beam_width`` best candidates,
+        ranked as the beam ranks them but before the redundancy check, are
+        therefore fitted on too; those in the beam already are skipped, so a
+        depth fits on at most twice ``beam_width`` parents. Their values are
+        evaluated again, since a round's values are not all kept.
+
+        Returns:
+            Tuple of (parents not in the beam, best first, their values).
+        """
+        in_beam = set(beam)
+        order = _rank(evaluated, scores)[: self.beam_width]
+        extras = [evaluated[i] for i in order if evaluated[i] not in in_beam]
+        values = np.empty((evaluator.n_rows, len(extras)), dtype=evaluator.dtype)
+        kept: list[Node] = []
+        for node in extras:
+            column = evaluator.evaluate(node)
+            if column is not None:  # pragma: no branch - evaluated this round
+                values[:, len(kept)] = column
+                kept.append(node)
+        return kept, values[:, : len(kept)]
 
     # -- redundancy --------------------------------------------------------- #
 
@@ -897,8 +937,11 @@ class BeamSearch:
         selected_scores = list(beam_scores) if self.include_originals else []
 
         seen: set[Node] = set(beam)
-        # Fitted nodes waiting for the round of their depth.
+        # Fitted nodes waiting for the round of their depth, and the parents
+        # beyond the beam that the next round fits on.
         waiting: dict[int, list[Node]] = {}
+        extra_parents: list[Node] = []
+        extra_values = np.empty((evaluator.n_rows, 0))
         trace: list[SearchTrace] = []
         n_proposed_total = 0
         n_evaluated_total = 0
@@ -949,8 +992,11 @@ class BeamSearch:
                     order = _rank(beam, beam_scores)[: self.beam_width]
                     parents, parent_values = [beam[i] for i in order], beam_values[:, order]
                 else:
-                    parents, parent_values = beam, beam_values
-                fitted, n_fit_unit_rejected = self._fit(parents, parent_values, fit_target, seen)
+                    parents = beam + extra_parents
+                    parent_values = np.column_stack([beam_values, extra_values]) if extra_parents else beam_values
+                fitted, n_fit_unit_rejected = self._fit(
+                    parents, parent_values, fit_target, seen, n_partners=len(beam) if depth > 1 else None
+                )
                 n_unit_rejected += n_fit_unit_rejected
                 allowed = [node for node in fitted if self._allowed(node)]
                 n_constrained += len(fitted) - len(allowed)
@@ -1004,6 +1050,8 @@ class BeamSearch:
             if not beam:
                 report(self.verbose, 2, f"  depth {depth}: beam collapsed after redundancy pruning; stopping")
                 break
+            if self.fitted_ops and depth < self.max_depth:
+                extra_parents, extra_values = self._extra_parents(evaluated, scores, beam, evaluator)
 
             selected.extend(beam)
             selected_scores.extend(float(s) for s in kept_scores)
