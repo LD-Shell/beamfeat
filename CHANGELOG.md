@@ -28,21 +28,10 @@ Notable changes to `beamfeat`. Format follows
   `Node.n_constants`, `transform(..., const=...)`,
   `OperatorSpec.constant_grid`, `pole_margins`, `SearchTrace.n_fitted` and
   `beamfeat.parametric` support it.
-- `safe_domain` on the same four classes (default `False`). Every admitted
-  feature is then defined everywhere in a box of input values, not only on
-  the rows searched: `log(x0 - x1)` fitted where `x0 > x1` on every row, but
-  with overlapping ranges, is rejected rather than returning NaN from
-  `predict` on new rows. The box is each column's range on the full training
-  `X`, or bounds declared per column, and is stored on `input_bounds_` and
-  `SearchResult.domain_bounds`. Candidates are bounded by interval
-  arithmetic, through new `interval` and `interval_domain` functions on
-  `OperatorSpec` (an operator without them is never admitted), and rejected
-  before evaluation. Interval bounds treat repeated columns as independent,
-  so some features defined throughout the box are rejected too.
 - `max_inputs` on the same four classes (default `None`): the most distinct
   input columns one feature may use, checked before evaluation.
-- `SearchTrace.n_rejected_constraints`, the candidates `max_inputs` or
-  `safe_domain` rejected at each depth (0 when both are off).
+- `SearchTrace.n_rejected_constraints`, the candidates `max_inputs` rejected
+  at each depth (0 when it is off).
 
 ## [0.5.0] - Unreleased
 
