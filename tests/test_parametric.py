@@ -30,9 +30,10 @@ from beamfeat.expression import (
     combine,
     leaf,
     parametric_operators,
+    pole_margins,
     transform,
 )
-from beamfeat.parametric import SNAP_VALUES, FittedConstant, fit_constants
+from beamfeat.parametric import SNAP_VALUES, FittedConstant, _simplify, fit_constants
 from beamfeat.scoring import CorrelationScorer
 
 FITTED = ("exp_scaled", "pow", "inv_shift", "log_shift")
@@ -344,6 +345,84 @@ class TestFitConstants:
     def test_plain_operator_rejected(self, rng):
         with pytest.raises(ValueError, match="no constant"):
             fit_constants(OPERATORS["log"], rng.uniform(1, 2, 10), np.zeros(10))
+
+
+class TestPoleMargin:
+    """A fitted pole keeps its distance from the data it was fitted on."""
+
+    def test_margins(self):
+        x = np.linspace(0.0, 1.0, 101)
+        assert pole_margins(x) == pytest.approx((0.18, 0.18))
+        # Ties at the minimum give no spread there; the floor applies.
+        tied = np.r_[np.zeros(20), np.linspace(0.0, 2.0, 81)]
+        below, above = pole_margins(tied)
+        assert below == pytest.approx(0.02) and above == pytest.approx(0.45)
+        # With fewer rows than the margin counts, all of them are used.
+        assert pole_margins(np.array([1.0, 2.0, 4.0])) == pytest.approx((6.0, 6.0))
+        assert pole_margins(np.array([3.0])) == pytest.approx((0.03, 0.03))
+
+    @pytest.mark.parametrize("op", ["inv_shift", "log_shift"])
+    def test_grid_starts_at_the_margin(self, rng, op):
+        x = rng.uniform(1.0, 3.0, 200)
+        below, above = pole_margins(x)
+        segments = OPERATORS[op].constant_grid(x)
+        assert segments[-1][0] == pytest.approx(below - x.min())
+        if op == "inv_shift":
+            assert segments[0][-1] == pytest.approx(-x.max() - above)
+
+    @pytest.mark.parametrize(("op", "law"), [("log_shift", np.log), ("inv_shift", np.reciprocal)])
+    def test_pole_at_the_edge_of_the_data_is_not_fitted(self, op, law):
+        # A pole 0.06 below the smallest of 200 values on [1, 3] (3% of the
+        # range): the curvature next to the edge rewards it on these rows,
+        # and the first new row a little further out lands on it. The ten
+        # lowest values spread over about 0.1, so the margin is about 0.2
+        # and the fit runs into it.
+        rng = np.random.default_rng(5)
+        x = rng.uniform(1.0, 3.0, 200)
+        y = law(x - 0.94) + rng.normal(0, 0.01, 200)
+        assert fit_constants(OPERATORS[op], x, _standardised(y)) == []
+
+    def test_snapping_does_not_carry_a_pole_into_the_data(self):
+        # A column of six levels, where 1/(x - 1.5) fits far better than any
+        # pole outside the data; the snap to -3/2 used to be accepted as an
+        # improvement on the optimum, putting the pole between two levels.
+        rng = np.random.default_rng(3)
+        x = rng.choice(np.arange(6.0), 1500, p=[0.3, 0.1, 0.1, 0.2, 0.2, 0.1])
+        y = rng.uniform(0.05, 0.6) / (x - 1.5) + 0.3 * x + rng.normal(0, 1.0, 1500)
+        below, above = pole_margins(x)
+        for constant, _ in fit_constants(OPERATORS["inv_shift"], x, _standardised(y)):
+            pole = -constant
+            assert pole <= x.min() - below or pole >= x.max() + above
+
+    def test_simplify_respects_the_bounds(self):
+        def flat(constant):
+            return 0.5
+
+        # Every value fits alike: a snap value without bounds, the optimum
+        # rounded to one digit when the bounds exclude every snap value.
+        assert _simplify(flat, 7.3, 0.5, 100) in {float(value) for value in SNAP_VALUES}
+        assert _simplify(flat, 7.3, 0.5, 100, admissible=lambda c: c >= 5.0) == 7.0
+
+    def test_no_nan_just_below_the_training_minimum(self):
+        # The estimator-level regression: a fitted log(x0 - 0.94) returned
+        # NaN for rows just below the training minimum of x0. Only the two
+        # operators with a fitted pole are enabled: x^a is undefined below 0
+        # whatever its constant, as sqrt(x) and log(x) are, and a feature
+        # such as (log(x0))^(1/3) is NaN on these rows for that reason.
+        rng = np.random.default_rng(0)
+        X = np.column_stack([rng.uniform(1.0, 3.0, 400), rng.uniform(0.0, 1.0, 400)])
+        y = np.log(X[:, 0] - 0.94) + 0.5 * X[:, 1] + rng.normal(0, 0.01, 400)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = BeamFeatRegressor(random_state=0, fitted_ops=("inv_shift", "log_shift")).fit(X, y)
+            probe = np.column_stack([np.full(5, X[:, 0].min() - 0.07), np.linspace(0.1, 0.9, 5)])
+            assert np.all(np.isfinite(model.predict(probe)))
+        for node in (sub for feature in model.features_ for sub in feature.subnodes()):
+            if node.op in ("inv_shift", "log_shift"):
+                values = Evaluator(X).transform_values(node.children[0])
+                below, above = pole_margins(values)
+                pole = -node.const
+                assert pole <= values.min() - below / 2 or pole >= values.max() + above / 2
 
 
 # --------------------------------------------------------------------------- #
