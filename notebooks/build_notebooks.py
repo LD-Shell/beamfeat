@@ -557,12 +557,16 @@ selected features that are spurious.
     ),
     code(
         """
+import logging
 import warnings
 
 import numpy as np
 import pandas as pd
 
 warnings.filterwarnings("ignore")
+# The selectors also log each diagnostic they record. The cells below print
+# them from warnings_raised where they matter, so the logged copies are muted.
+logging.getLogger("beamfeat").setLevel(logging.ERROR)
 
 from beamfeat.selection import KnockoffSelector, PermutationSelector
 
@@ -646,9 +650,9 @@ Realised FDR tracks the nominal level, and power is full. Two reading notes,
 both scientifically important. First, FDR is an **expectation**: individual
 trials may exceed the level, and a mean over 15 trials carries visible Monte
 Carlo noise, so values a little above nominal are consistent with control.
-Second, an exact test *spends* its error budget — realised FDR near nominal
-is the signature of a calibrated procedure, where a realised FDR pinned at
-zero would signal wasted power.
+Second, a well-calibrated test *spends* its error budget — realised FDR near
+nominal is the signature of a calibrated procedure, where a realised FDR
+pinned at zero would signal wasted power.
 
 ## Knockoffs: two constructions, two sets of assumptions
 
@@ -656,16 +660,23 @@ The knockoff filter comes in two forms, and it matters which one you mean.
 
 **Fixed-X knockoffs** (Barber & Candès, 2015) treat the design as fixed and
 make *no assumption about the distribution of the features* — deterministic
-engineered columns are admissible. The guarantee needs `n >= 2p` and Gaussian
-noise in `y = Xβ + ε`. Its weakness on engineered designs is **power,
-not validity**: near-duplicate columns drive the construction's `s` toward
-zero, the knockoffs become nearly identical to the originals, and the filter
-loses the ability to tell them apart.
+engineered columns are admissible. The guarantee needs `n > 2p` and Gaussian
+noise in `y = Xβ + ε`. Engineered designs strain it in two ways. Near-duplicate
+columns drive the construction's `s` toward zero, the knockoffs become nearly
+identical to the originals, and the filter loses the ability to tell them
+apart: a cost in **power, not validity**. Exact dependence is worse. When the
+design covariance has an eigenvalue below 1e-6 — a constant column, or one that
+is a linear combination of others, as `a + b` is of `a` and `b` — the knockoffs
+of the columns involved can only equal the originals, the lasso's tie-breaking
+then favours the originals, and that costs validity. beamfeat leaves such
+columns out of the construction, so they cannot be selected, and names them in
+its warning.
 
 **Model-X knockoffs** (Candès et al., 2018) instead assume the features are
 jointly Gaussian — which engineered features are not: `log(a)` and `a * b`
 are deterministic functions of shared parents. beamfeat only uses this
-construction when `n < 2p`, where fixed-X does not exist, and warns.
+construction when `n <= 2p`, where the fixed-X construction does not exist,
+and warns.
 
 beamfeat routes between the two automatically and reports which assumptions
 are under strain, rather than pretending otherwise.
@@ -706,9 +717,10 @@ print(f"\\npermutation selector warnings: {permutation_result.warnings_raised or
     markdown(
         """
 So the practical division of labour: the permutation selector is the default
-because its exactness does not depend on the design at all; fixed-X knockoffs
-are a strong choice for wide-enough problems with roughly Gaussian *noise*
-(the features can be anything); model-X is a last resort for `n < 2p`.
+because its validity does not depend on the design at all; fixed-X knockoffs
+are a strong choice when there are more than twice as many rows as candidates
+and the *noise* is roughly Gaussian (the features can be anything); model-X is
+a last resort for `n <= 2p`.
 
 One further caveat, measured rather than assumed: the `offset` parameter
 dominates knockoff power on narrow designs. `offset=1` (knockoff+) requires
