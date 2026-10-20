@@ -600,7 +600,8 @@ class _ConditionalPermutationSelector(PermutationSelector):
     re-tests a set of terms fixed before the rows it is tested on were seen.
     It is not offered as a screen: on hundreds of collinear candidates a test
     of each given all the rest would have little power, at a cost that grows
-    with the square of their number.
+    with the cube of their number (each of m features is residualised on the
+    other m - 1, over a number of permutations that grows with m).
 
     **Statistic.** For feature ``j``, the target and the feature are each
     residualised on an intercept and the other features by least squares,
@@ -611,8 +612,8 @@ class _ConditionalPermutationSelector(PermutationSelector):
     other features again and correlated with the feature's residual
     (Freedman & Lane, 1983). The p-value is the add-one estimator of
     :class:`PermutationSelector`, over the number of permutations its budget
-    rule sets, and its step-up correction is applied. Every feature is
-    tested against the same permutations.
+    rule sets, and its step-up correction is applied. With a fixed
+    ``random_state`` every feature is tested against the same permutations.
 
     **Null and validity.** The null for feature ``j`` is that its
     coefficient is zero in the linear model of the target on all the
