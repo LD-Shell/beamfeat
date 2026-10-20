@@ -110,7 +110,7 @@ Documented in full in `PROVENANCE.md`; in brief:
    dataset here is the red-only variant (1598×11) where autofeat evaluated
    red and white combined (6497×12). Boston housing is included for that
    comparability despite its removal from scikit-learn over documented
-   ethical concerns; the repository's own six-dataset real panel contains
+   ethical concerns; the repository's own seven-dataset real panel contains
    no contested data.
 3. **`featuretools`' negative R² on Boston is a harness artefact.** The
    archived run filled non-finite test cells with 0 instead of the training

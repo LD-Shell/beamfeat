@@ -116,8 +116,11 @@ repository's own real-data panel contains no contested dataset.
 - Default or paper-recommended settings only, with no hyperparameter search.
 - `OpenFE` is run into a linear model rather than the gradient-boosted setting
   it is designed for, which understates it.
-- The wine dataset here is the red-only variant (1,598 rows as archived: the file ships headerless and the loader formerly consumed UCI's first observation as a header; it now reads all 1,599, so fresh runs will differ by one row from every archived result; 11 columns; autofeat's
-  published table used red and white combined (6497 x 12).
+- The wine dataset here is the red-only variant (1,598 rows as archived, 11
+  columns); autofeat's published table used red and white combined
+  (6497 x 12). The file ships headerless and the loader formerly consumed
+  UCI's first observation as a header; it now reads all 1,599 rows, so fresh
+  runs will differ by one row from every archived result.
 - `recovered` measures column membership, not symbolic form: it asks whether
   some returned feature references all of the generating columns, not whether
   the operators combining them are right. See the docstring in `bench.py`.
