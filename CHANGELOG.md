@@ -51,6 +51,56 @@ the features, p-values and predictions of 0.5.0, to the last bit.
   and keywords from `CITATION.cff` but not its `preferred-citation`, so the
   records up to 0.5.0 do not mention the paper.
 
+### Towards 0.6.0
+
+On branch `feature/0.6.0` only. `certify_test` defaults to `"marginal"`, and
+a fit that leaves it there gives the results of 0.5.1 to the last bit.
+Figures below are from `benchmarks/parsimony_holdout/`: 48,000 fits of a
+global null and of `y = a*b/c` plus noise among 5 or 20 distractors, with
+and without a column correlated 0.9 with `a`, at signal-to-noise ratios 1
+and 3, 300 and 1,000 rows, 200 replicates per cell, q = 0.1 and 0.2. A
+printed term counts as false in the conditional sense when it uses any
+column outside the formula, as a rider such as `(a*b/c) * x7` does.
+
+#### Added
+
+- `certify_test` on `BeamFeatTransformer`, `BeamFeatRegressor` and
+  `BeamFeatClassifier`: the test the `parsimony_holdout` re-test applies.
+  `"marginal"` re-runs the screen, as before, and so keeps a term that only
+  rides on a true one, `x0*x7` when the target depends on `x0` alone.
+  `"conditional"` tests each re-tested term given the others with a
+  Freedman-Lane permutation test: the target and the term are residualised
+  on the other terms and an intercept, the target's residuals are permuted,
+  the statistic is the partial correlation, and the screen's step-up
+  correction is applied at the screen's level. Its null is a zero
+  coefficient in a linear model of the target on the re-tested terms, and
+  its p-values are approximate: exact for a single term, otherwise resting
+  on exchangeable errors of a linear model of the target on the other terms.
+  Regression only; classification raises. At a signal-to-noise ratio of 3 it
+  brought the conditional rate of the printed equation to 0.18 to 0.22,
+  against 0.42 to 0.44 at the defaults and 0.53 to 0.62 with the marginal
+  re-test, and in the fits where it certified something it printed 1.1 to
+  1.2 terms at a rate of 0.026 to 0.040 (q = 0.1), with power 0.98 to 0.99.
+  When the re-tested subset is long and its terms nearly reproduce one
+  another nothing passes, and the screened set, which carries the marginal
+  guarantee only, is returned: in 87 to 92% of fits at a ratio of 1, where
+  the forward step keeps 18 terms on average, and in 18 to 26% at 3.
+
+#### Changed
+
+- `parsimony_holdout` is calibrated, and the guarantees page reports the
+  figures in place of the sentence saying it had not been. In the marginal
+  sense, the guarantee's, the printed equation's realised FDR stays far
+  below q under every setting: 0.009 to 0.018 at q = 0.1 and 0.021 to 0.029
+  at q = 0.2 on the null, and no term built only from distractors printed in
+  the 3,200 planted and proxy fits per setting and level. The re-test adds nothing
+  measurable there: on null data it rejected the screen's false picks in 20
+  of 22 fits at q = 0.1, and the fallback to the screened set printed them
+  anyway. In the conditional sense no setting controls the rate: 0.67 to
+  0.77 under every setting at a signal-to-noise ratio of 1, and at 3, 0.42
+  to 0.44 at the defaults and 0.53 to 0.62 with the marginal re-test. Power
+  and held-out R² hardly move (R² within 0.0033 of the default, paired).
+
 ## [0.5.0] - 2026-10-20
 
 0.4.5 was prepared but not released; its fixes are part of this release and
