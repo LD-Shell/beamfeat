@@ -188,8 +188,9 @@ def fig_false_features(bench: pathlib.Path, out: pathlib.Path) -> None:
 
     Counts rather than a mean: with five scoreable datasets a mean carries a
     standard error of order 0.1, which is the reason the README's "Measured,
-    not assumed" section reports the count. Drawn as markers rather than bars so that a result of
-    zero is visible — a zero-height bar renders the best outcome as nothing.
+    not assumed" section reports the count. Drawn as markers rather than bars
+    so that a result of zero is visible — a zero-height bar renders the best
+    outcome as nothing.
     """
     df = _load(bench, "results_robustness", "results_autofeat_robustness",
                "results_knockpy")
