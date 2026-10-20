@@ -474,6 +474,254 @@ class TestUnits:
 
 
 # --------------------------------------------------------------------------- #
+# Constraints: max_inputs and safe_domain
+# --------------------------------------------------------------------------- #
+
+
+def _ordered_data(rng, n=400):
+    """``x0 > x1`` on every row, though their ranges overlap, and y = log(x0 - x1)."""
+    x0 = rng.uniform(1.0, 3.0, 4 * n)
+    x1 = rng.uniform(0.0, 2.0, 4 * n)
+    keep = np.flatnonzero(x0 > x1 + 0.05)[:n]
+    data = {"x0": x0[keep], "x1": x1[keep], "x2": rng.uniform(1.0, 2.0, n)}
+    target = np.log(data["x0"] - data["x1"]) + rng.normal(0, 0.01, n)
+    return data, target
+
+
+def _prepared(data, **kwargs):
+    """A search with its constraints set up for ``data``, as run() does."""
+    search = BeamSearch(**kwargs)
+    search._start_constraints(Evaluator(data))
+    return search
+
+
+class TestConstraintValidation:
+    @pytest.mark.parametrize("value", [0, -1, 1.5, True, "2"])
+    def test_bad_max_inputs_rejected(self, value):
+        with pytest.raises(ValueError, match="max_inputs"):
+            BeamSearch(max_inputs=value)
+
+    @pytest.mark.parametrize(
+        "value",
+        ["yes", 1, {"a": (2.0, 1.0)}, {"a": (float("nan"), 1.0)}, {"a": 1.0}, {"a": (0.0, 1.0, 2.0)}],
+    )
+    def test_bad_safe_domain_rejected(self, value):
+        with pytest.raises(ValueError, match="safe_domain"):
+            BeamSearch(safe_domain=value)
+
+    def test_infinite_bounds_accepted(self):
+        search = BeamSearch(safe_domain={"a": (0.0, float("inf")), "b": (float("-inf"), -1)})
+        assert search._declared_bounds == {"a": (0.0, float("inf")), "b": (float("-inf"), -1.0)}
+
+    def test_unknown_column_rejected_at_run(self, rng):
+        data = _positive_data(rng)
+        with pytest.raises(ValueError, match="unknown column"):
+            BeamSearch(safe_domain={"z": (0.0, 1.0)}).run(data, data["a"])
+
+    def test_off_by_default(self):
+        search = BeamSearch()
+        assert search.max_inputs is None
+        assert search.safe_domain is False
+        assert not search._constrained
+
+
+class TestMaxInputs:
+    def test_counts_distinct_columns(self):
+        a, b, c = leaf("a"), leaf("b"), leaf("c")
+        data = {name: np.arange(1.0, 6.0) for name in "abc"}
+        search = _prepared(data, max_inputs=2)
+        assert search._allowed(combine("mul", a, b))
+        assert search._allowed(combine("add", combine("mul", a, b), transform("log", a)))
+        assert not search._allowed(combine("add", combine("mul", a, b), c))
+        assert not search._allowed(transform("log", combine("add", combine("mul", a, b), c)))
+        assert _prepared(data, max_inputs=1)._allowed(combine("div", transform("square", a), a))
+
+    def test_inputs_always_pass(self, rng):
+        data = _positive_data(rng, k=4)
+        result = BeamSearch(max_depth=0, max_inputs=1).run(data, data["a"] * data["b"])
+        assert set(result.names) == set(data)
+
+    def test_search_respects_and_counts(self, rng):
+        data = _positive_data(rng, k=4)
+        target = data["a"] * data["b"] * data["c"] + rng.normal(0, 0.05, len(data["a"]))
+        result = BeamSearch(max_depth=3, beam_width=20, max_inputs=2).run(data, target)
+        assert all(len(node.columns()) <= 2 for node in result.nodes)
+        assert sum(record.n_rejected_constraints for record in result.trace) > 0
+        free = BeamSearch(max_depth=3, beam_width=20).run(data, target)
+        assert any(len(node.columns()) > 2 for node in free.nodes)
+
+
+class TestSafeDomain:
+    def test_rejects_an_operand_that_can_leave_the_domain(self):
+        data = {"x0": np.array([1.0, 3.0]), "x1": np.array([0.0, 2.0])}
+        search = _prepared(data, safe_domain=True)
+        x0, x1 = leaf("x0"), leaf("x1")
+        assert search._allowed(combine("sub", x0, x1))
+        assert not search._allowed(transform("log", combine("sub", x0, x1)))
+        assert not search._allowed(transform("log", x1))
+        assert search._allowed(transform("sqrt", x1))
+        assert not search._allowed(transform("reciprocal", x1))
+        assert not search._allowed(combine("div", x0, x1))
+        assert search._allowed(combine("div", x1, x0))
+        assert search._allowed(transform("log", combine("add", x0, x1)))
+
+    def test_kept_when_ranges_do_not_overlap(self):
+        data = {"x0": np.array([3.0, 5.0]), "x1": np.array([0.0, 2.0])}
+        search = _prepared(data, safe_domain=True)
+        assert search._allowed(transform("log", combine("sub", leaf("x0"), leaf("x1"))))
+
+    def test_declared_bounds_override_observed(self):
+        data = {"x0": np.array([1.0, 3.0]), "x1": np.array([0.5, 2.0])}
+        log_x1 = transform("log", leaf("x1"))
+        assert _prepared(data, safe_domain=True)._allowed(log_x1)
+        assert not _prepared(data, safe_domain={"x1": (0.0, 2.0)})._allowed(log_x1)
+        unbounded = _prepared(data, safe_domain={"x0": (1.0, float("inf"))})
+        assert unbounded._box == {"x0": (1.0, float("inf")), "x1": (0.5, 2.0)}
+        assert unbounded._allowed(combine("mul", leaf("x0"), leaf("x1")))
+        assert not unbounded._allowed(transform("exp", leaf("x0")))
+
+    def test_data_outside_declared_bounds_warned(self, caplog):
+        data = {"x0": np.array([1.0, 3.0])}
+        with caplog.at_level("WARNING", logger="beamfeat.search"):
+            _prepared(data, safe_domain={"x0": (2.0, 3.0)})
+        assert "outside the declared" in caplog.text
+
+    def test_overflow_rejected(self):
+        data = {"x0": np.array([1e200, 2e200]), "x1": np.array([1.0, 2.0])}
+        search = _prepared(data, safe_domain=True)
+        assert not search._allowed(transform("square", leaf("x0")))
+        assert search._allowed(transform("square", leaf("x1")))
+
+    def test_operator_without_interval_rejected(self, monkeypatch):
+        import dataclasses
+
+        from beamfeat.expression import OPERATORS
+
+        data = {"x0": np.array([1.0, 3.0])}
+        search = _prepared(data, safe_domain=True)
+        node = transform("square", leaf("x0"))
+        monkeypatch.setitem(OPERATORS, "square", dataclasses.replace(OPERATORS["square"], interval=None))
+        assert not search._allowed(node)
+        monkeypatch.setitem(
+            OPERATORS, "log", dataclasses.replace(OPERATORS["log"], interval_domain=None)
+        )
+        assert not search._allowed(transform("log", leaf("x0")))
+
+    def test_dependency_overestimate(self):
+        """Interval bounds treat repeated columns as independent, so some defined features are lost."""
+        data = {"x0": np.array([1.0, 2.0]), "x1": np.array([0.5, 1.0])}
+        search = _prepared(data, safe_domain=True)
+        x0, x1 = leaf("x0"), leaf("x1")
+        # x0 - x0 * x1 = x0 * (1 - x1) >= 0 throughout, but the bounds say [-1, 1.5].
+        assert not search._allowed(transform("sqrt", combine("sub", x0, combine("mul", x0, x1))))
+
+    def test_search_drops_the_unsafe_feature(self, rng):
+        data, target = _ordered_data(rng)
+        plain = BeamSearch(max_depth=2, beam_width=20).run(data, target)
+        safe = BeamSearch(max_depth=2, beam_width=20, safe_domain=True).run(data, target)
+        assert "log((x0 - x1))" in plain.names
+        assert "log((x0 - x1))" not in safe.names
+        assert sum(record.n_rejected_constraints for record in safe.trace) > 0
+        assert plain.domain_bounds is None
+        assert safe.domain_bounds["x0"] == (float(data["x0"].min()), float(data["x0"].max()))
+
+    def test_admitted_features_defined_on_the_box(self, rng):
+        from beamfeat.expression import OPERATORS
+
+        data, target = _ordered_data(rng)
+        ops = (*beamfeat.search.DEFAULT_UNARY, "exp", "cube")
+        result = BeamSearch(max_depth=3, beam_width=30, unary_ops=ops, safe_domain=True).run(data, target)
+        box = result.domain_bounds
+        fresh = {name: rng.uniform(lo, hi, 20_000) for name, (lo, hi) in box.items()}
+        for name, (lo, hi) in box.items():
+            fresh[name][:2] = (lo, hi)
+
+        def evaluate(node):
+            if node.is_leaf:
+                return fresh[node.column]
+            with np.errstate(all="ignore"):
+                return OPERATORS[node.op].fn(*(evaluate(child) for child in node.children))
+
+        for node in result.nodes:
+            assert np.all(np.isfinite(evaluate(node))), node.name
+
+    def test_rewritten_candidate_is_checked(self):
+        """(1/a)/b is built as 1/(a*b); the check sees the built node."""
+        data = {"a": np.array([1.0, 2.0]), "b": np.array([-1.0, 1.0])}
+        search = _prepared(data, unary_ops=(), binary_ops=("div",), safe_domain=True)
+        assert search._propose([transform("reciprocal", leaf("a"))], [leaf("b")], set()) == ([], 0, 1)
+
+    def test_rejected_candidates_skip_the_ceiling(self):
+        data = {"a": np.array([-1.0, 2.0])}
+        search = _prepared(data, unary_ops=("log", "square"), binary_ops=(), max_candidates_per_depth=1,
+                           safe_domain=True)
+        a = leaf("a")
+        seen = {a}
+        candidates, n_units, n_constrained = search._propose([a], [a], seen)
+        assert candidates == [transform("square", a)]
+        assert (n_units, n_constrained) == (0, 1)
+        assert transform("log", a) not in seen
+
+    def test_cache_cleared_after_run(self, rng):
+        data, target = _ordered_data(rng)
+        search = BeamSearch(max_depth=2, beam_width=10, safe_domain=True, max_inputs=2)
+        search.run(data, target)
+        assert search._profiles == {}
+
+    def test_recovers_planted_law_with_both(self, rng):
+        n = 400
+        data = {name: rng.uniform(1.0, 5.0, n) for name in ("x0", "x1", "x2", "x3")}
+        target = data["x0"] * data["x1"] / data["x2"]
+        target = target + rng.normal(0, 0.01 * target.std(), n)
+        result = BeamSearch(max_depth=3, beam_width=40, safe_domain=True, max_inputs=3).run(data, target)
+        assert result.scores[0] > 0.999
+        assert result.nodes[0].columns() == {"x0", "x1", "x2"}
+
+
+class TestConstraintsChangeNothingWhenOff:
+    def test_non_binding_constraints_propose_the_same_list(self, rng):
+        data = _positive_data(rng)
+        target = data["a"] * data["b"] + rng.normal(0, 0.05, len(data["a"]))
+        beam = BeamSearch(max_depth=1, beam_width=10).run(data, target).nodes
+        pool = [leaf(name) for name in data] + beam
+        unconstrained = BeamSearch()._propose(beam, pool, set(pool))
+        idle = _prepared(data, max_inputs=10)
+        assert idle._propose(beam, pool, set(pool)) == unconstrained
+        assert unconstrained[2] == 0
+
+    def test_non_binding_max_inputs_changes_nothing(self, rng):
+        data, target = _awkward_data(rng)
+        plain = BeamSearch(max_depth=3, beam_width=15).run(data, target)
+        idle = BeamSearch(max_depth=3, beam_width=15, max_inputs=8).run(data, target)
+        assert _signature(idle) == _signature(plain)
+        assert all(record.n_rejected_constraints == 0 for record in idle.trace)
+
+    def test_trace_without_constraint_count(self):
+        record = beamfeat.search.SearchTrace(
+            depth=1, n_proposed=3, n_evaluated=3, n_rejected_units=0, n_rejected_numeric=0,
+            n_rejected_redundant=0, n_kept=3, best_score=0.5, elapsed=0.0,
+        )
+        assert record.n_rejected_constraints == 0
+
+    def test_constraints_reported(self, rng, capsys):
+        data, target = _ordered_data(rng)
+        BeamSearch(max_depth=2, beam_width=20, safe_domain=True, verbose=2).run(data, target)
+        assert "constraint" in capsys.readouterr().out
+
+    def test_workers_do_not_change_a_constrained_run(self, rng, monkeypatch):
+        monkeypatch.setattr(beamfeat.search, "MIN_PARALLEL_CANDIDATES", 0)
+        data, target = _ordered_data(rng)
+        runs = [
+            BeamSearch(max_depth=3, beam_width=12, safe_domain=True, max_inputs=2, n_jobs=n_jobs,
+                       chunk_size=7).run(data, target)
+            for n_jobs in (1, 2)
+        ]
+        assert _signature(runs[1]) == _signature(runs[0])
+        counts = [[record.n_rejected_constraints for record in run.trace] for run in runs]
+        assert counts[1] == counts[0]
+
+
+# --------------------------------------------------------------------------- #
 # Reporting
 # --------------------------------------------------------------------------- #
 
