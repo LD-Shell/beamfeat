@@ -239,10 +239,8 @@ pinned environment, data, and a notebook that reproduces the analysis. Mean
 held-out R²: beamfeat 0.803, random forest 0.810, LightGBM 0.798, OpenFE
 0.736, ridge 0.704, autofeat −1.561, featuretools −2.478 — and worst single
 fit of 45: beamfeat 0.355, autofeat −103.2, featuretools −57.3, with the FDR
-guarantee delivered on 45/45. The featuretools figures are those of the
-archived run, whose harness filled non-finite test cells with 0; with the
-training-median fill they read 0.461 and −12.882, and beamfeat still leads it
-in the paired test. Read [`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md) first: it records what is
+guarantee delivered on 45/45 (for featuretools, see the zero-fill note
+above). Read [`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md) first: it records what is
 reproducible (beamfeat: selections bit-identically; the fitted model's
 cross-validated penalty can flip on marginal problems) and what is not
 (autofeat, which sets no `random_state` and draws its decoy features from the
