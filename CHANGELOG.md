@@ -93,13 +93,14 @@ column outside the formula, as a rider such as `(a*b/c) * x7` does.
   sense, the guarantee's, the printed equation's realised FDR stays far
   below q under every setting: 0.009 to 0.018 at q = 0.1 and 0.021 to 0.029
   at q = 0.2 on the null, and no term built only from distractors printed in
-  the 3,200 planted and proxy fits per setting and level. The re-test adds nothing
-  measurable there: on null data it rejected the screen's false picks in 20
-  of 22 fits at q = 0.1, and the fallback to the screened set printed them
-  anyway. In the conditional sense no setting controls the rate: 0.67 to
-  0.77 under every setting at a signal-to-noise ratio of 1, and at 3, 0.42
-  to 0.44 at the defaults and 0.53 to 0.62 with the marginal re-test. Power
-  and held-out R² hardly move (R² within 0.0033 of the default, paired).
+  the 3,200 planted and proxy fits per setting and level. The re-test adds
+  nothing measurable there: on null data it rejected the screen's false
+  picks in 20 of 22 fits at q = 0.1, and the fallback to the screened set
+  printed them anyway. In the conditional sense no setting controls the
+  rate: 0.67 to 0.77 under every setting at a signal-to-noise ratio of 1,
+  and at 3, 0.42 to 0.44 at the defaults and 0.53 to 0.62 with the marginal
+  re-test. Power and held-out R² hardly move (R² within 0.0033 of the
+  default, paired).
 
 ## [0.5.0] - 2026-10-20
 

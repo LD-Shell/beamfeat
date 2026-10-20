@@ -7,8 +7,8 @@ the script record the path it imported beamfeat from relative to the
 repository; none changes what a fit computes. `PROVENANCE.md` says what was
 fixed in advance, what was added after a smoke run (the second noise level)
 and what a rerun reproduces. Every figure is a mean over replicates with its
-Monte Carlo standard error, and each design is pooled over its four cells (n
-= 300 and 1,000, with 5 and 20 distractors or columns) with equal weight.
+Monte Carlo standard error, and each design is pooled over its four cells
+(n = 300 and 1,000, with 5 and 20 distractors or columns) with equal weight.
 The 480 fits checked against the unmemoised search all matched to the bit,
 and no test-set R² was undefined.
 
