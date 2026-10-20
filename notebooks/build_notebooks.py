@@ -266,8 +266,8 @@ for formula in classifier.formulas():
         """
 ## What to read next
 
-- **02: Search and scoring** — how the beam search works, and how the three
-  scoring strategies differ in what they detect and what they cost.
+- **02: Search and scoring** — how the beam search works, and how the scoring
+  strategies differ in what they detect and what they cost.
 - **03: Selection and units** — how false discovery rate control works, why the
   default is not knockoffs, and how dimensional analysis constrains the search.
 - **04: Reading a fit** — what to do when the equation contains columns you did
@@ -371,8 +371,11 @@ for width in (5, 10, 25, 50, 100):
     markdown(
         """
 Note that cost grows with beam width but the *quality* of the top feature
-plateaus quickly. In practice a moderate beam is usually enough, and the
-remaining budget is better spent on depth.
+plateaus quickly. The proposals stop growing at 50 only because this problem
+runs out of parents: four columns yield 52 evaluated depth-1 candidates (the
+trace above), fewer than 50 of them survive the redundancy check described
+below, and a wider beam has nothing more to extend. In practice a moderate beam
+is usually enough, and the remaining budget is better spent on depth.
 
 ## How depth controls expressiveness
 
@@ -393,11 +396,14 @@ for depth in (0, 1, 2, 3):
         """
 ## Choosing a scorer
 
-Three scoring strategies are available, and they differ in what they can detect
+Four scoring strategies are available, and they differ in what they can detect
 and what they cost.
 
 - `"correlation"` — absolute Pearson correlation against the residual. One
-  matrix product per batch. The default.
+  dot product per candidate. The default.
+- `"spearman"` — absolute rank correlation against the same residual, for a
+  sort per column more. Sees any monotone relationship and is insensitive to
+  outlying values.
 - `"mutual_information"` — nearest-neighbour mutual information. Detects
   dependence that correlation misses.
 - `"gradient_boosting"` — measured out-of-fold predictive improvement. Scores
@@ -405,15 +411,17 @@ and what they cost.
 
 ### Where they agree
 
-On a relationship whose nonlinearity is captured by the expression itself, all
-three find the same thing, and correlation is much cheaper.
+On a relationship whose nonlinearity is captured by the expression itself, the
+first three find the same thing, and correlation is much the cheapest. Gradient
+boosting is left out: it fits models for every candidate, which on a round of
+this size takes far longer still.
         """
     ),
     code(
         """
 import time
 
-for name in ("correlation", "mutual_information"):
+for name in ("correlation", "spearman", "mutual_information"):
     started = time.perf_counter()
     outcome = BeamSearch(scorer=name, max_depth=2, beam_width=20, random_state=0).run(data, target)
     elapsed = time.perf_counter() - started
@@ -470,9 +478,11 @@ print(f"correlation on the squared column:   {CorrelationScorer().score(squared,
 ## Redundancy control
 
 A beam scored purely on individual merit fills with variants of the same
-signal. beamfeat scores candidates against the residual left by what is already
-selected, and additionally drops candidates too correlated with the current
-beam.
+signal. beamfeat scores each candidate against the residual left by what is
+already selected as well as against the target, and ranks it on the larger of
+the two, so a refinement of a selected feature survives while novelty is still
+rewarded. It also drops a candidate too correlated with one already admitted at
+the same depth; the final ranking applies the same check across depths.
         """
     ),
     code(
@@ -501,8 +511,9 @@ for threshold in (0.5, 0.9, 0.999):
 
 Candidates excluded during evaluation are recorded rather than silently
 dropped. This matters when a search returns less than expected: the log tells
-you whether candidates were numerically invalid, degenerate, or simply never
-proposed.
+you whether candidates were numerically invalid, degenerate, copies of a column
+already there — `abs` of a column that is never negative is the column itself —
+or simply never proposed.
         """
     ),
     code(
