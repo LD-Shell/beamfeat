@@ -233,6 +233,34 @@ R² (regression) or held-out accuracy below the majority-class rate
 Rank-based scoring deserves particular attention here, since rank
 transformation hides exactly the magnitudes that cause the problem.
 
+## Where predictions are defined (`safe_domain`)
+
+By default an operator's domain is checked on the rows the search evaluates,
+and nowhere else. `log(x0 - x1)` is admitted when `x0 > x1` on every search
+row, and returns NaN on a new row where `x0 < x1`, even if both values lie
+inside the ranges seen in training. With `safe_domain=True` every admitted
+feature is defined everywhere in a box of input values: each column's
+training range, or bounds you declare for it. The bound on each feature
+comes from interval arithmetic over that box, so the guarantee does not
+depend on which rows happened to be sampled. It covers domain errors only
+(a logarithm of a non-positive value, a square root of a negative one,
+division by zero, `exp` beyond 50) and overflow from finite bounds; outside
+the box nothing is promised. The box is recorded on `input_bounds_`.
+
+The estimators compute the box from the full training `X`, selection rows
+included. That does not touch the FDR guarantee. The box depends on `X`
+alone, never on `y`, so the candidate set it shapes is the same under every
+permutation of the selection rows' targets, and the screen still tests a
+set fixed before it sees them.
+
+The price is conservatism. Interval arithmetic treats each occurrence of a
+column as independent, so `x0 - x0 * x1` is bounded as if `x0` could take two
+different values at once, and a feature defined throughout the box can be
+rejected. Constraints shrink what the search proposes. They do not increase
+the screen's power, since its multiple-testing correction runs over the
+features that reach selection, which the beam caps at `beam_width` and
+`max_features` however many expressions were proposed.
+
 ## Honest failure
 
 When selection passes nothing, the default (`on_no_discoveries="empty"`)
