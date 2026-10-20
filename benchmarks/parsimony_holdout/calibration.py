@@ -288,11 +288,16 @@ def provenance() -> dict:
     def git(*args: str) -> str:
         return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout.strip()
 
+    # Relative to the repository when imported from it, so that the record
+    # names the checkout rather than the machine.
+    imported = Path(beamfeat.__file__).resolve().parent
+    if imported.is_relative_to(ROOT):
+        imported = imported.relative_to(ROOT)
     return {
         "commit": git("rev-parse", "HEAD"),
         "tracked_changes": bool(git("status", "--porcelain", "--untracked-files=no")),
         "beamfeat": beamfeat.__version__,
-        "beamfeat_path": str(Path(beamfeat.__file__).parent),
+        "beamfeat_path": str(imported),
         "python": platform.python_version(),
         "numpy": np.__version__,
         "scipy": scipy.__version__,
