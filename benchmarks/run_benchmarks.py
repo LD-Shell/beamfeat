@@ -12,8 +12,9 @@ quantities are recorded for every method on every dataset:
 
 Two dataset families are used. *Synthetic* datasets have a known generating
 formula, so recovery can be measured directly rather than inferred from
-accuracy. *Real* datasets come from scikit-learn and OpenML, where no ground
-truth exists and only predictive performance is comparable.
+accuracy. *Real* datasets come from scikit-learn and the seaborn-data
+repository, where no ground truth exists and only predictive performance is
+comparable.
 
 Run with ``python benchmarks/run_benchmarks.py``. Results are written to
 ``benchmarks/results.csv`` and summarised on stdout.
