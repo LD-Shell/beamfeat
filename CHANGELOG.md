@@ -33,7 +33,16 @@ the features, p-values and predictions of 0.5.0, to the last bit.
   `OperatorSpec.constant_grid`, `pole_margins`, `SearchTrace.n_fitted` and
   `beamfeat.parametric` support it.
 - `max_inputs` on the same four classes (default `None`): the most distinct
-  input columns one feature may use, checked before evaluation.
+  input columns one feature may use, checked before evaluation. An
+  expression of depth d uses at most 2^d columns, so at the default depth a
+  value of 4 or more changes nothing. Measured at `max_inputs=3` on the
+  development branch, against 0.5.0, mean held-out R² over 5 splits:
+  - gains on wide data with diffuse signal: eyedata 0.416 to 0.488,
+    ct_slices 0.664 to 0.684, riboflavin 0.340 to 0.378;
+  - losses: the twelve-law panel loses the gravitational law, which needs
+    four inputs, and diabetes falls from 0.382 to 0.360;
+  - one blogfeedback split falls from 0.533 to −2.14, where a three-input
+    product extrapolates far past its training range on one test row.
 - `SearchTrace.n_rejected_constraints`, the candidates `max_inputs` rejected
   at each depth (0 when it is off).
 - `.zenodo.json`, so that the Zenodo record of each release links the TMLR

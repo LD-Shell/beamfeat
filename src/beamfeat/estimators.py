@@ -1650,7 +1650,10 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             every value.
         max_inputs: Most distinct input columns one feature may use, or
             ``None`` (default) for no limit. Candidates over it are rejected
-            during the search, before evaluation.
+            during the search, before evaluation. A feature of depth d uses
+            at most 2**d columns, so at the default ``max_depth`` of 2 a value
+            of 4 or more has no effect. A law that needs more inputs than
+            the limit cannot be found.
         fitted_ops: Parametric operators whose one constant is fitted
             inside the expression: ``"exp_scaled"`` (``exp(a*x)``),
             ``"pow"`` (``x^a``), ``"inv_shift"`` (``1/(x + a)``) and

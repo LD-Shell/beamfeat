@@ -452,6 +452,36 @@ already caps at `beam_width` and `max_features` however many expressions were
 proposed; the limit changes which features those are and how long the search
 takes.
 
+It is off by default (`None`), and it only ever narrows the search. An
+expression of depth d combines at most 2^d input columns, so at the default
+`max_depth=2` no feature uses more than four, and `max_inputs=4` or more
+changes nothing; at `max_depth=3` the limit matters up to 8. Set it at or
+above the number of inputs any law you look for needs. A law that needs more
+cannot be built, and the search returns the best expression within the limit
+instead:
+
+```python
+import numpy as np
+from beamfeat import BeamSearch
+
+rng = np.random.default_rng(0)
+X = rng.uniform(0.5, 3, (400, 8))
+y = X[:, 0] * X[:, 1] + X[:, 2] * X[:, 3] + rng.normal(0, 0.1, 400)
+for limit in (None, 3):
+    search = BeamSearch(max_depth=2, beam_width=30, random_state=0, max_inputs=limit).run(X, y)
+    print(limit, search.names[0])
+```
+
+```text
+None ((x0 * x1) + (x2 * x3))
+3 ((x0 + x2) * sqrt(x1))
+```
+
+On wide data whose signal is spread over many columns, a low limit can
+still help, because it keeps the beam from filling with combinations of many
+columns. Compare the held-out score with and without it rather than assuming
+either way.
+
 ## Real data with missing values or categoricals
 
 beamfeat never imputes or encodes silently — compose explicitly:

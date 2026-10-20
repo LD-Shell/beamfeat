@@ -284,7 +284,11 @@ class BeamSearch:
         max_inputs: Most distinct input columns one expression may use.
             Candidates over the limit are rejected as they are constructed,
             before evaluation. Input columns themselves always pass. ``None``
-            (default) sets no limit.
+            (default) sets no limit. An expression of depth d uses at most
+            2**d columns, so a value of 2**max_depth or more has no effect.
+            Set it at or above the number of inputs the laws you look for
+            need: one that needs more cannot be built, and the search
+            returns the best expression within the limit instead.
         fitted_ops: Parametric operators whose constant is fitted to the
             data, from ``"exp_scaled"`` (``exp(a*x)``), ``"pow"`` (``x^a``,
             for positive ``x``), ``"inv_shift"`` (``1/(x + a)``) and
