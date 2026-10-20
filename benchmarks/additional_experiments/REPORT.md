@@ -14,6 +14,20 @@ candidates in bounded chunks: beamfeat's times and peak memory below are
 those of the earlier search, and the 0.5.0 entry of the changelog measures
 the change on fits from this study.
 
+The fixes in that entry also change two results recorded here. When
+`max_candidates_per_depth` binds at depth 1, as it does on riboflavin,
+ct_slices and ujiindoorloc, 0.5.0 proposes the first round in score order
+rather than column order. Rerun under 0.4.4 and 0.5.0, mean R² moves from
+0.523 to 0.340 on riboflavin (the 0.544 in §1 was recorded on an earlier
+version), from 0.687 to 0.664 on ct_slices and from 0.812 to 0.816 on
+ujiindoorloc, so beamfeat beats both tree ensembles on four datasets rather
+than five; §2's rows for the three and §6's riboflavin row rest on the same
+search. Knockoffs now leave constant and linearly dependent columns out of the
+construction, and the candidates of §5's beam regime include such columns:
+rerun for 30 trials, knockoff power at q = 0.10 falls from 0.03 under 0.4.4 to
+0.00 (fixed-X) and from 0.04 to 0.01 (model-X), and at q = 0.20 from 0.16 to
+0.12 and from 0.17 to 0.11, while realised FDR stays zero.
+
 ## 1. Comparison on high-dimensional data
 
 Nine datasets, p from 81 to 4,088, five splits each, 900 s per-fit budget.
@@ -39,13 +53,14 @@ beamfeat 0.671, bf+ridge 0.671.
 The estimator and the transformer agree to three decimals on six of the nine
 datasets and to within 0.004 on the other three, as they should.
 
-beamfeat beats both tree ensembles on five of nine datasets and wins outright
-on tecator, where the signal is a ratio between absorbance channels that
-threshold splits cannot construct. It trails ridge on ct_slices and
-ujiindoorloc, where signal is spread across hundreds of individually weak
-columns: ridge shrinks all of them, while a sparsity-oriented guarantee must
-discard whatever fails a significance threshold. That is a property of
-FDR-controlled selection, not a search failure.
+beamfeat beats both tree ensembles on five of nine datasets (four under 0.5.0,
+see above) and wins outright on tecator, where the signal is a ratio between
+absorbance channels that threshold splits cannot construct. It trails ridge on
+ct_slices and ujiindoorloc, where signal is spread across hundreds of
+individually weak columns: ridge shrinks all of them, while a
+sparsity-oriented guarantee must discard whatever fails a significance
+threshold. That is a property of FDR-controlled selection, not a search
+failure.
 
 `fdr_controlled_` was true on all 90 beamfeat fits. None of the 1,448 certified
 formulas is deeper than three, and 1,434 of them (99%) are of depth two.
@@ -216,10 +231,10 @@ independence, and users needing conditional statements should prefer
 knockoffs.
 
 **The beam regime matches the pipeline** and there BH and BY reach power 1.00
-with zero false discoveries, while knockoffs manage 0.00, 0.03 and 0.15,
-because beam-generated candidates are heavily collinear by construction. They
-cost about twice the p-value route here, and some forty times Benjamini–Hochberg's
-cost in the two dependent regimes above.
+with zero false discoveries, while knockoffs manage 0.00, 0.03 and 0.15 (less
+under 0.5.0, see above), because beam-generated candidates are heavily
+collinear by construction. They cost about twice the p-value route here, and
+some forty times Benjamini–Hochberg's cost in the two dependent regimes above.
 
 A second run with a smaller candidate pool shows the detection threshold
 directly: knockoff power at q = 0.10 under independence is 0.03 there against
