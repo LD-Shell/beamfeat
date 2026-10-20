@@ -246,6 +246,9 @@ depend on which rows happened to be sampled. It covers domain errors only
 (a logarithm of a non-positive value, a square root of a negative one,
 division by zero, `exp` beyond 50) and overflow from finite bounds; outside
 the box nothing is promised. The box is recorded on `input_bounds_`.
+Defined is not the same as accurate: a corner of the box that no training
+row came near is still extrapolation, and a defined feature can take values
+there far outside anything seen in training.
 
 The estimators compute the box from the full training `X`, selection rows
 included. That does not touch the FDR guarantee. The box depends on `X`
