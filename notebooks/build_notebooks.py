@@ -24,12 +24,14 @@ def code(text: str) -> nbf.NotebookNode:
     return nbf.v4.new_code_cell(text.strip())
 
 
-def build(path: pathlib.Path, cells: list[nbf.NotebookNode], title: str) -> None:
+def build(
+    path: pathlib.Path, cells: list[nbf.NotebookNode], title: str, requirement: str = "beamfeat"
+) -> None:
     notebook = nbf.v4.new_notebook()
     url = f"https://colab.research.google.com/github/LD-Shell/beamfeat/blob/main/notebooks/{path.name}"
     badge = markdown(
         f"[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)]({url})\n\n"
-        "Running in Colab? Install first: `%pip install beamfeat`."
+        f"Running in Colab? Install first: `%pip install {requirement}`."
     )
     notebook.cells = [badge] + cells
     notebook.metadata = {
@@ -1251,5 +1253,8 @@ if __name__ == "__main__":
     else:
         build(HERE / "01_getting_started.ipynb", getting_started, "Getting started with beamfeat")
         build(HERE / "02_search_and_scoring.ipynb", search_and_scoring, "Search and scoring")
-        build(HERE / "03_selection_and_units.ipynb", selection_and_units, "Selection and units")
-        build(HERE / "04_reading_a_fit.ipynb", reading_a_fit, "Reading a fit")
+        # 03 and 04 need pint for their units sections
+        build(HERE / "03_selection_and_units.ipynb", selection_and_units, "Selection and units",
+              requirement='"beamfeat[units]"')
+        build(HERE / "04_reading_a_fit.ipynb", reading_a_fit, "Reading a fit",
+              requirement='"beamfeat[units]"')
