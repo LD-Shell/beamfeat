@@ -394,6 +394,58 @@ for depth in (0, 1, 2, 3):
     ),
     markdown(
         """
+## Workers and memory
+
+At the defaults a depth may propose up to 200,000 candidates
+(`max_candidates_per_depth`), so the search evaluates and scores a depth in
+chunks and keeps only the scores; the candidates the redundancy check reaches,
+usually a small share of the round, are evaluated again. Memory stays bounded
+however many candidates a depth proposes. `chunk_size` sets how many candidates
+make a chunk, by default as many as fit in 8 MiB. Mutual information is the
+exception: it draws its noise for the whole batch, so it still scores a depth
+at once.
+
+`n_jobs` spreads the chunks over joblib workers: threads, since numpy releases
+the GIL, or processes for gradient boosting, whose model fits hold it. `-1`
+uses every core. A depth of fewer than 4096 candidates stays in the calling
+thread unless the scorer fits models, since starting workers would cost more
+than it saves, so on the four-column problem above `n_jobs` changes nothing.
+The estimators take the same argument.
+
+Neither setting changes the result, because no seed depends on a worker or a
+chunk. On forty columns, where both depths are large enough for workers:
+        """
+    ),
+    code(
+        """
+# A generator of its own, so that this cell leaves the draws of the cells
+# below unchanged.
+wide_rng = np.random.default_rng(1)
+wide = {f"x{index}": wide_rng.uniform(1.0, 6.0, n) for index in range(40)}
+wide_target = wide["x3"] * wide["x17"] / wide["x31"] + wide_rng.normal(0, 0.05, n)
+
+serial = BeamSearch(max_depth=2, beam_width=30, random_state=0).run(wide, wide_target)
+print(f"candidates at depth 1: {serial.trace[1].n_proposed}, at depth 2: {serial.trace[2].n_proposed}")
+print(f"top feature: {serial.names[0]}")
+print()
+
+for name, value in (("n_jobs", 2), ("n_jobs", -1), ("chunk_size", 100)):
+    outcome = BeamSearch(max_depth=2, beam_width=30, random_state=0, **{name: value}).run(
+        wide, wide_target
+    )
+    same = outcome.names == serial.names and np.array_equal(outcome.scores, serial.scores)
+    label = f"{name}={value}"
+    print(f"{label:>14}: same features and scores as n_jobs=1: {same}")
+        """
+    ),
+    markdown(
+        """
+Whether workers save time depends on the machine and on the size of the round,
+so they are not timed here. The 0.5.0 changelog measures the faster search as a
+whole: a default fit on 1000 columns and 600 rows takes 7 s rather than 29 s
+and peaks at 0.35 GB of memory rather than 2.6 GB, with the same features,
+p-values and predictions.
+
 ## Choosing a scorer
 
 Four scoring strategies are available, and they differ in what they can detect
