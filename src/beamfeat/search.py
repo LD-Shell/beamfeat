@@ -318,8 +318,10 @@ class BeamSearch:
             correlation with the target, alone and, while the depth limit
             leaves room for a product, as a factor of an expression in the
             beam, and is snapped to a simple value such as 1/2 when the data
-            cannot tell the two apart; see :mod:`beamfeat.parametric`. The
-            fit sees only the rows the search is given.
+            cannot tell the two apart; see :mod:`beamfeat.parametric`. A
+            fitted pole keeps a margin from the data (see
+            :func:`~beamfeat.expression.pole_margins`). The fit sees only the
+            rows the search is given.
 
     Attributes:
         result_: :class:`SearchResult` from the most recent :meth:`run`.

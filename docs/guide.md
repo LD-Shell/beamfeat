@@ -293,6 +293,16 @@ How the constants are chosen:
   that does not clearly beat the operand on its own (each operator becomes
   linear in `x` at one end of its range), is discarded. Correlation is used
   whatever the `scorer`; the scorer then ranks the result.
+- **Poles.** `inv_shift` and `log_shift` keep their pole away from the
+  data they were fitted on: at least twice the spread of the operand's ten
+  most extreme values at that end, and at least 1% of its range. A pole
+  just past the edge of the data is shaped by the few rows next to it, and
+  the first new row a little further out lands on it and evaluates to NaN.
+  A fit that wants its pole closer runs into the bound and is discarded,
+  and snapping never moves a constant past it. The margin widens where the
+  data thin out towards the edge and narrows where they are dense. On 18
+  real datasets, poles inside it were crossed by a row the fit had not
+  seen in 14% of fits, and poles outside it in 0.3%.
 - **In context.** `1/(x0·x1 + a)` on its own correlates best with the target
   as `a` runs to the pole; only as the denominator of `(x0 + x1)` is `a = 1`
   identifiable. While the depth limit leaves room, each constant is also
@@ -407,6 +417,14 @@ the most frequent training class, while `predict_proba` and
 regressor's `score` raises rather than scoring the remaining rows. To rule
 such rows out within the training ranges, fit with `safe_domain=True` (next
 section).
+
+Fitted constants do not change this. `(x12)^(-0.127)`, fitted where `x12`
+is at least 0.02, is infinite at `x12 = 0`, as `1/(x12)` would be, and
+`(x0)^1.5` is NaN for a negative `x0`, as `sqrt(x0)` is. A fitted
+[shift](#constants-inside-expressions) keeps its pole a margin away from the
+training rows, but a row far enough outside them can still reach it.
+`safe_domain` with the columns' physical bounds declared, such as
+`{"x12": (0, 1)}`, rules all of these out.
 
 ## Search constraints
 
