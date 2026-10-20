@@ -90,7 +90,11 @@ The order matters; each step feeds the next.
    publishing (the `pypi` environment). Do not upload with `twine` by hand.
 5. Create the GitHub release from the tag, with the changelog section as
    its notes. Zenodo archives each GitHub release automatically under the
-   concept DOI already in `CITATION.cff` and the README badge.
+   concept DOI already in `CITATION.cff` and the README badge. Zenodo takes
+   the record's metadata from `.zenodo.json`, not from `CITATION.cff`: keep
+   the title, author, licence and keywords of the two files the same.
+   `.zenodo.json` also links the TMLR paper, which Zenodo would not take
+   from `CITATION.cff`'s `preferred-citation`.
 6. conda-forge: update `recipe/recipe.yaml` (`version`, the sdist `sha256`
    from PyPI, and the `run` requirements when `pyproject.toml`'s dependencies
    changed) for the pending `staged-recipes` submission; once the feedstock

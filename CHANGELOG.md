@@ -36,6 +36,10 @@ the features, p-values and predictions of 0.5.0, to the last bit.
   input columns one feature may use, checked before evaluation.
 - `SearchTrace.n_rejected_constraints`, the candidates `max_inputs` rejected
   at each depth (0 when it is off).
+- `.zenodo.json`, so that the Zenodo record of each release links the TMLR
+  paper as the work the software supplements. Zenodo read the title, author
+  and keywords from `CITATION.cff` but not its `preferred-citation`, so the
+  records up to 0.5.0 do not mention the paper.
 
 ## [0.5.0] - 2026-10-20
 

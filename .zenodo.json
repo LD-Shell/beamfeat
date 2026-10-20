@@ -1,0 +1,24 @@
+{
+  "upload_type": "software",
+  "title": "beamfeat: beam-search feature construction with FDR-controlled selection",
+  "creators": [
+    {
+      "name": "Daramola, Olanrewaju M.",
+      "orcid": "0009-0006-3327-2047",
+      "affiliation": "Universiti Teknologi PETRONAS, Malaysia"
+    }
+  ],
+  "license": "MIT",
+  "keywords": ["feature engineering", "feature selection", "false discovery rate", "knockoffs"],
+  "related_identifiers": [
+    {
+      "identifier": "https://openreview.net/forum?id=UibXoy4h3u",
+      "relation": "isSupplementTo",
+      "resource_type": "publication-article",
+      "scheme": "url"
+    }
+  ],
+  "references": [
+    "Daramola, O. M. (2026). Symbolic feature construction with false discovery rate control. Transactions on Machine Learning Research. https://openreview.net/forum?id=UibXoy4h3u"
+  ]
+}
