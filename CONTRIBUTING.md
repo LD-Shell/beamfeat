@@ -44,6 +44,27 @@ error-control properties are in scope. Heuristic selectors without a stated
 guarantee are accepted only when clearly labelled as such in their docstring
 and excluded from the default configuration.
 
+## Keeping up with dependencies
+
+Three checks are meant to catch a dependency release that breaks beamfeat
+before a user meets it:
+
+- `ci.yml` also runs every Monday, so the newest releases are tested even
+  when nothing here has changed.
+- `upcoming.yml` runs the suite every Monday against the pre-releases and
+  nightly builds of numpy, SciPy, scikit-learn and pandas. Its failures block
+  no pull request and no release; they are notice of a change on its way.
+- The suite fails on any `FutureWarning`, scikit-learn's channel for
+  announcing a removal, and on a `DeprecationWarning` raised from beamfeat or
+  its tests (`filterwarnings` in `pyproject.toml`), so a deprecated call is
+  replaced while the old behaviour still works. A warning that a dependency
+  raises about its own internals gets a narrow `ignore` entry naming its
+  message, not a wider filter.
+
+GitHub notifies the account that last changed a workflow's schedule when a
+scheduled run fails. It also disables scheduled workflows after 60 days
+without activity in the repository; they are re-enabled from the Actions tab.
+
 ## Releasing
 
 The order matters; each step feeds the next.

@@ -13,7 +13,10 @@ pip install "beamfeat[all]"     # + sympy display and test dependencies
 Python 3.10 or newer. There are no upper version pins. The test suite is run
 against the oldest supported stack (numpy 1.26, scikit-learn 1.6) and against
 current releases on Python 3.10 to 3.15: 671 tests pass from scikit-learn 1.6.1
-with numpy 1.26 through scikit-learn 1.9.1 with numpy 2.5.
+with numpy 1.26 through scikit-learn 1.9.1 with numpy 2.5. CI repeats this
+every week, and runs the suite against the upcoming releases of numpy, SciPy,
+scikit-learn and pandas too, so that a breaking change upstream is seen before
+it ships.
 
 Nothing below is needed to use `beamfeat`.
 

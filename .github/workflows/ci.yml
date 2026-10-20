@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_call:
+  workflow_dispatch:
+  # Weekly, so that a new release of a dependency is tested even when nothing
+  # here has changed. GitHub notifies whoever last changed the schedule when a
+  # scheduled run fails.
+  schedule:
+    - cron: "0 6 * * 1"
 
 jobs:
   tests:

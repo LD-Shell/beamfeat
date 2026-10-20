@@ -89,6 +89,20 @@ testpaths = ["tests"]
 markers = [
   "slow: long-running checks (sklearn check_estimator); run with `-m slow`",
 ]
+# Deprecations fail the suite while the old behaviour still works.
+# scikit-learn announces a removal with FutureWarning, wherever it is raised;
+# numpy and the standard library use DeprecationWarning, which counts when it
+# points at beamfeat or its tests, since a dependency's own internal use is
+# not something this package can fix (scikit-learn 1.6 still passes a
+# deprecated option to scipy, for one). Silence third-party noise with a
+# narrow "ignore" entry naming its message, never by widening these.
+filterwarnings = [
+  "error::FutureWarning",
+  "error::DeprecationWarning:beamfeat",
+  "error::PendingDeprecationWarning:beamfeat",
+  "error::DeprecationWarning:tests",
+  "error::PendingDeprecationWarning:tests",
+]
 
 [tool.ruff]
 line-length = 110
