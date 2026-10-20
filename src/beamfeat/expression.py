@@ -49,6 +49,7 @@ __all__ = [
     "combine",
     "leaf",
     "parametric_operators",
+    "pole_margins",
     "transform",
 ]
 
@@ -1037,12 +1038,46 @@ register_operator(
 #   |a| a step; a fit that runs to either end has found neither shape.
 # - x^a: a from -4 to 4 in steps of 0.1, on positive operands.
 # - 1/(x + a) and log(x + a): the shift places the pole a distance d below
-#   the smallest operand (or, for 1/(x + a), above the largest), with d from
-#   1e-2 to 1e2 times the operand's range. Close to the pole, the function
-#   is dominated by the few rows next to it; far from it, it is linear in x.
+#   the smallest operand (or, for 1/(x + a), above the largest), log-spaced
+#   at ten points a decade from a margin (below) up to 100 times the
+#   operand's range. Far from the pole, the function is linear in x.
+#
+# The margin keeps a fitted pole away from the data. Close to the pole the
+# function is dominated by the few rows next to it, and new rows reach past
+# the training extremes: a pole fitted just below the smallest value is
+# crossed by the first new row a little further out, which then evaluates to
+# NaN or an infinity. The margin is the larger of POLE_MARGIN_SPREADS times
+# the spread of the POLE_MARGIN_ROWS most extreme operand values at that end
+# and POLE_MARGIN_FLOOR times the range, so it widens where the data thin
+# out towards the edge (a long tail, or few rows) and narrows where they are
+# dense. It was chosen on the solo fits to every column of 18 real datasets,
+# on five train/test splits each with half the training rows searched. Of
+# the 1,556 fits whose pole was at least 0.01 ranges out, the 343 inside
+# this margin were crossed by a row the fit had not seen in 14% of cases,
+# and lost their gain over the bare column on those rows in 42%; the 1,213
+# outside it in 0.3% and 3%. A margin of a fixed fraction of the range does
+# worse: 0.1 left 1.3% crossed and 9% losing, and 0.2 left 0.3% crossed and
+# 6% losing while keeping 1,086 fits instead of 1,213.
+# A fit that wants its pole inside the margin runs into the grid's bound and
+# is discarded.
 
-_SHIFT_DISTANCES = np.logspace(-2.0, 2.0, 41)
 _SCALE_MAGNITUDES = np.logspace(-3.0, 1.0, 41)
+
+#: Fitted poles stay at least this many times the spread of the
+#: :data:`POLE_MARGIN_ROWS` most extreme operand values away from the data.
+POLE_MARGIN_SPREADS = 2.0
+
+#: Number of the most extreme operand values at each end whose spread sets
+#: the pole margin.
+POLE_MARGIN_ROWS = 10
+
+#: Fitted poles stay at least this fraction of the operand's range away from
+#: the data, however dense the data are at the edge.
+POLE_MARGIN_FLOOR = 1e-2
+
+# Upper end of the shift grids, in operand ranges, and their density.
+_SHIFT_REACH = 100.0
+_SHIFT_POINTS_PER_DECADE = 10
 
 
 def _span(x: np.ndarray) -> float:
@@ -1064,13 +1099,45 @@ def _power_grid(x: np.ndarray) -> list[np.ndarray]:
     return [np.round(np.arange(-40, 41) * 0.1, 10)]
 
 
+def pole_margins(x: np.ndarray) -> tuple[float, float]:
+    """Smallest distances a fitted pole keeps below and above the values ``x``.
+
+    Each is the larger of :data:`POLE_MARGIN_SPREADS` times the spread of the
+    :data:`POLE_MARGIN_ROWS` most extreme values at that end (all of them,
+    for fewer rows) and :data:`POLE_MARGIN_FLOOR` times the range of ``x``.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    span = _span(x)
+    floor = POLE_MARGIN_FLOOR * span
+    rows = min(POLE_MARGIN_ROWS, len(x))
+    if rows < 2:
+        return floor, floor
+    lowest = np.partition(x, rows - 1)[:rows]
+    highest = np.partition(x, len(x) - rows)[len(x) - rows :]
+    below = POLE_MARGIN_SPREADS * float(np.max(lowest) - np.min(lowest))
+    above = POLE_MARGIN_SPREADS * float(np.max(highest) - np.min(highest))
+    return max(floor, below), max(floor, above)
+
+
+def _shift_distances(margin: float, span: float) -> np.ndarray:
+    """Pole distances from ``margin`` to the grid's reach, log-spaced."""
+    reach = _SHIFT_REACH * span
+    count = max(3, int(math.ceil(_SHIFT_POINTS_PER_DECADE * math.log10(reach / margin))) + 1)
+    return np.geomspace(margin, reach, count)
+
+
 def _pole_grid(x: np.ndarray) -> list[np.ndarray]:
-    distances = _SHIFT_DISTANCES * _span(x)
-    return [-float(np.max(x)) - distances[::-1], distances - float(np.min(x))]
+    span = _span(x)
+    below, above = pole_margins(x)
+    return [
+        -float(np.max(x)) - _shift_distances(above, span)[::-1],
+        _shift_distances(below, span) - float(np.min(x)),
+    ]
 
 
 def _log_shift_grid(x: np.ndarray) -> list[np.ndarray]:
-    return [_SHIFT_DISTANCES * _span(x) - float(np.min(x))]
+    below, _ = pole_margins(x)
+    return [_shift_distances(below, _span(x)) - float(np.min(x))]
 
 
 def _scaled_formula(x: str, a: float) -> str:
