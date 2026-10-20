@@ -271,7 +271,8 @@ for formula in classifier.formulas():
 - **03: Selection and units** — how false discovery rate control works, why the
   default is not knockoffs, and how dimensional analysis constrains the search.
 - **04: Reading a fit** — what to do when the equation contains columns you did
-  not expect, and how to tell a search failure from a selection failure.
+  not expect, how to tell a search failure from a selection failure, and how to
+  list, typeset and export the equation.
         """
     ),
 ]
@@ -1264,6 +1265,39 @@ when you need the guarantee; use the equation when you need something to read.
     ),
     markdown(
         """
+## The equation at every size
+
+The forward step adds terms one at a time and stops when the next would add
+less than `parsimony_tol` to R^2. `equations()` continues it through the whole
+screened set, one equation per number of terms, so you can see what the
+stopping point traded away. On the default fit from the start:
+        """
+    ),
+    code(
+        """
+print(model.equations(max_n_terms=4))
+        """
+    ),
+    markdown(
+        """
+Line 1, marked, is the fitted model. Lines 2 to 4 each add a term that pairs
+part of the core with a noise column and gains less than 1e-4 of R^2 — the
+noisy members of the fifty certified formulas, met one at a time, and the
+reason the forward step stopped after line 1. Complexity counts the nodes of
+each term's expression tree, plus one per term for its coefficient. The R^2 is
+in-sample, on the rows screening used, and the lines carry no coefficients
+because only the marked one has been fitted.
+
+The last line of the output is the one to keep in mind. Every line is a subset
+of the screened set chosen on the rows screening used, so picking line 3
+because it reads well is the same kind of choice the forward step makes, and
+the guarantee covers it no more than it covers line 1. It covers line 50, the
+screened set itself, which is the equation `parsimony=None` fits. The records
+behind the text are in `equations_`.
+        """
+    ),
+    markdown(
+        """
 ## When nothing is selected
 
 Two very different situations produce an empty selection, and they have
@@ -1301,6 +1335,75 @@ the test could not fire, not that the data are silent.
     ),
     markdown(
         """
+## Writing it down
+
+`latex()` typesets `equation()`, with the same terms, coefficients and note. It
+returns a string without math delimiters, which a notebook renders with
+`IPython.display.Math`:
+        """
+    ),
+    code(
+        """
+from IPython.display import Math
+
+Math(model.latex())
+        """
+    ),
+    code(
+        """
+print(model.latex(note=False))
+print(model.latex_formulas())
+        """
+    ),
+    markdown(
+        """
+`latex(note=False)` leaves the note off, for pasting into a document. The
+guarantee still covers the fifty screened terms, so say so wherever the
+equation appears. `latex_formulas()` gives the features alone, and the
+transformer has it too. Both need sympy (`pip install "beamfeat[display]"`), as
+`to_sympy()` does.
+
+## Running it elsewhere
+
+`to_sympy()` returns each feature as a sympy expression in real symbols named
+after the columns, so `sympy.lambdify` turns the features into a function of
+plain arrays. Fold the model's standardisation into its coefficients and that
+reproduces `predict`:
+        """
+    ),
+    code(
+        """
+import sympy
+
+symbols = sympy.symbols(list(X.columns), real=True)  # one per column, in order
+features = sympy.lambdify(symbols, model.to_sympy(), modules="numpy")
+
+raw = model.coef_ / model.scaler_.scale_
+offset = model.intercept_ - raw @ model.scaler_.mean_
+exported = np.column_stack(features(*X.to_numpy().T)) @ raw + offset
+
+print(model.to_sympy())
+print(f"agrees with predict(): {np.allclose(exported, model.predict(X))}")
+        """
+    ),
+    markdown(
+        """
+`modules="jax"` or `modules="torch"` gives the same function on JAX or PyTorch
+arrays, with `jnp.stack(..., axis=1)` or `torch.stack(..., dim=1)` in place of
+`np.column_stack`; the coefficients and offset are plain arrays to convert
+once. Neither library is needed for this notebook, so only NumPy runs here. The
+column names are valid identifiers, so the symbols carry them unchanged; other
+names are sanitised, and the expressions' `free_symbols` show what they became.
+
+Two differences from `predict` remain. sympy may rewrite an expression into an
+equivalent form — `(H / eta) * (Q * rho)` came back as `H*Q*rho/eta` — so a
+value can overflow in one and not the other. And a row outside a formula's
+domain gives whatever the array library gives there, where `predict` gives NaN
+and a warning.
+        """
+    ),
+    markdown(
+        """
 ## A checklist
 
 - Start at the defaults. Raise `beam_width` when an expected target is missed;
@@ -1314,6 +1417,8 @@ the test could not fire, not that the data are silent.
 - A missing constant is usually in the coefficient.
 - Quote `selection_report_` when you need the guarantee; quote `equation()`
   when you need a sentence.
+- An equation picked from `equations()` carries no more of the guarantee than
+  `equation()` does, and `latex(note=False)` drops the note, not the caveat.
 - Read the warnings. They distinguish states that look identical from outside.
         """
     ),
@@ -1340,8 +1445,9 @@ if __name__ == "__main__":
     else:
         build(HERE / "01_getting_started.ipynb", getting_started, "Getting started with beamfeat")
         build(HERE / "02_search_and_scoring.ipynb", search_and_scoring, "Search and scoring")
-        # 03 and 04 need pint for their units sections
+        # 03 and 04 need pint for their units sections, and 04 sympy for its
+        # LaTeX and export
         build(HERE / "03_selection_and_units.ipynb", selection_and_units, "Selection and units",
               requirement='"beamfeat[units]"')
         build(HERE / "04_reading_a_fit.ipynb", reading_a_fit, "Reading a fit",
-              requirement='"beamfeat[units]"')
+              requirement='"beamfeat[units,display]"')
