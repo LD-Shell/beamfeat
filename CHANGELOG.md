@@ -91,10 +91,13 @@ dataset, and the speed-up changes no feature, p-value or prediction.
   installed scikit-learn expects: `alpha = 1/C` from 1.10 rather than the
   deprecated `C`, `l1_ratios` rather than `penalty` from 1.8, accuracy as the
   cross-validation score explicitly (1.11 changes the default), and
-  `newton-cd` rather than the deprecated `liblinear` from 1.10. Fits on
-  scikit-learn 1.6 to 1.9 are unchanged. Their warnings are silenced by
-  category, user and runtime warnings only, so a deprecation of an argument
-  beamfeat passes is no longer hidden with the convergence notices.
+  `newton-cd` rather than the deprecated `liblinear` from 1.10. From 1.8,
+  where `liblinear` fits two classes only, each class of a multiclass target
+  is fitted on its own; the warning 1.7 gives ahead of that change is
+  silenced. Fits on scikit-learn 1.6 to 1.9 are unchanged. Their other
+  warnings are silenced by category, user and runtime warnings only, so a
+  deprecation of an argument beamfeat passes is no longer hidden with the
+  convergence notices.
 - CI also runs weekly, a weekly workflow tests the pre-releases and nightly
   builds of numpy, SciPy, scikit-learn and pandas, and the test suite fails on
   any `FutureWarning` and on a `DeprecationWarning` raised from beamfeat or its

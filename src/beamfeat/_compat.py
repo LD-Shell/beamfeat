@@ -1,13 +1,16 @@
 """Compatibility with the dependency versions beamfeat supports.
 
 scikit-learn is supported from 1.6 on, and its logistic regression has
-changed across that range: 1.8 deprecates ``penalty`` in favour of
-``l1_ratio`` and ``l1_ratios``, and from then on the ``liblinear`` solver
-fits two classes only; 1.10 deprecates ``C`` in favour of ``alpha = 1/C``,
-and ``liblinear`` itself. The helpers here build the models beamfeat fits
-internally with the arguments the installed version expects, so that none
-of those deprecations is triggered, and a fit on a version older than the
-change is the one it always was.
+changed across that range: 1.7 deprecates fitting more than two classes
+with the ``liblinear`` solver, which fits two classes only from 1.8; 1.8
+deprecates ``penalty`` in favour of ``l1_ratio`` and ``l1_ratios``; 1.10
+deprecates ``C`` in favour of ``alpha = 1/C``, and ``liblinear`` itself.
+The helpers here build the models beamfeat fits internally with the
+arguments the installed version expects, so that none of those
+deprecations is triggered, and a fit on a version older than a change is
+the one it always was. The exception is 1.7's warning about ``liblinear``
+with more than two classes, which is silenced: on 1.7 the fit is the one
+beamfeat has always made, and from 1.8 on each class is fitted on its own.
 """
 
 from __future__ import annotations
@@ -81,7 +84,13 @@ def l1_logistic_coefficients(
         model = LogisticRegressionCV(
             cv=cv, penalty="l1", solver="liblinear", max_iter=2000, random_state=random_state
         )
-        return model.fit(design, target).coef_
+        with warnings.catch_warnings():
+            # 1.7 warns that liblinear will fit two classes only from 1.8,
+            # where the branch below fits each class on its own.
+            warnings.filterwarnings(
+                "ignore", message="Using the 'liblinear' solver for multiclass", category=FutureWarning
+            )
+            return model.fit(design, target).coef_
 
     options: dict[str, Any] = {
         "cv": cv,
