@@ -4,7 +4,15 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.0] - 2026-10-20
+
+0.4.5 was prepared but not released; its fixes are part of this release and
+listed under "Fixed". The default path (correlation scoring, permutation
+screening with Benjamini-Yekutieli) gives the same results as 0.4.4 except
+where a fix applies; "Changed" lists the cases that differ. The new options
+leave a default fit unchanged, and the search is faster and needs far less
+memory on wide data: the high-dimensional study runs 4 to 28 times faster per
+dataset, and the speed-up changes no feature, p-value or prediction.
 
 ### Added
 
@@ -36,6 +44,9 @@ Notable changes to `beamfeat`. Format follows
   scorers, so that a round can be scored in pieces; `scoring.ColumnStats` and
   `column_stats`; `Evaluator.plan_batch`, `EvaluationBatch.run` and
   `Evaluator.commit_batch`.
+- `UnitRegistryError`, `ExclusionReason.UNDERFLOW`, an optional
+  `OperatorSpec.redundant` predicate, a `symbols` argument to
+  `Node.to_sympy`, and `SearchResult.n_rejected_redundant_final`.
 
 ### Changed
 
@@ -52,12 +63,24 @@ Notable changes to `beamfeat`. Format follows
   rebuilt. The same fit takes 7 s rather than 29 s, and one on 300 columns
   3.3 s rather than 19 s. Features, p-values and predictions are unchanged,
   as are search scores and the evaluation log, to the last bit.
-
-## [0.4.5] - 2026-10-19
-
-Bug fixes. The default path (correlation scoring, permutation screening with
-Benjamini-Yekutieli) gives the same results as 0.4.4 except where a fix below
-applies; "Changed" lists the cases that differ.
+- Results that differ from 0.4.4: knockoff selections on candidate pools
+  with dependent columns, which are common among constructed features;
+  searches whose first round reaches `max_candidates_per_depth` (about 258
+  inputs or more at the defaults); `SpearmanScorer` scores with ties;
+  predictions for batches containing out-of-domain rows; the constant printed
+  by `equation(max_terms=...)`; fits with a single candidate, which may now
+  return nothing.
+- `SearchResult.n_evaluated_total` no longer counts the input columns,
+  matching `n_proposed_total`.
+- The release workflow runs the full CI suite and publishes only after it
+  passes; a tag push previously published before the tests finished.
+  `CONTRIBUTING.md` describes the release flow.
+- Docstrings describe what the code does: ranking on the larger of the
+  absolute and marginal scores, redundancy pruning within a depth with
+  cross-depth duplicates removed in the final ranking, and correlation scoring
+  as one dot product per candidate. `SpearmanScorer`, `is_constant` and the
+  estimator warnings are listed in their modules' `__all__`.
+- 215 tests added (671 in all).
 
 ### Fixed
 
@@ -87,7 +110,7 @@ applies; "Changed" lists the cases that differ.
   study reach the ceiling: mean R² moves from 0.523 to 0.340 on riboflavin,
   from 0.687 to 0.664 on ct_slices and from 0.812 to 0.816 on ujiindoorloc.
   With the ceiling raised so that every input of ct_slices and ujiindoorloc
-  is proposed, the search returns the 0.4.5 result exactly; the 0.4.4 figures
+  is proposed, the search returns the result above exactly; the 0.4.4 figures
   depended on which columns came first in the file.
 - `SpearmanScorer` gives tied values their average rank. Ordinal ranks broke
   ties by row order, so a score depended on how the rows were arranged and a
@@ -151,33 +174,6 @@ applies; "Changed" lists the cases that differ.
 - The guide's "honest failure" example used a seed on which pure noise
   certifies 12 formulas, which happens on about 1 fit in 100; it now uses one
   where nothing passes and says that some pure-noise fits certify features.
-
-### Added
-
-- `UnitRegistryError`, `ExclusionReason.UNDERFLOW`, an optional
-  `OperatorSpec.redundant` predicate, a `symbols` argument to
-  `Node.to_sympy`, and `SearchResult.n_rejected_redundant_final`.
-
-### Changed
-
-- Results that differ from 0.4.4: knockoff selections on candidate pools
-  with dependent columns, which are common among constructed features;
-  searches whose first round reaches `max_candidates_per_depth` (about 258
-  inputs or more at the defaults); `SpearmanScorer` scores with ties;
-  predictions for batches containing out-of-domain rows; the constant printed
-  by `equation(max_terms=...)`; fits with a single candidate, which may now
-  return nothing.
-- `SearchResult.n_evaluated_total` no longer counts the input columns,
-  matching `n_proposed_total`.
-- The release workflow runs the full CI suite and publishes only after it
-  passes; a tag push previously published before the tests finished.
-  `CONTRIBUTING.md` describes the release flow.
-- Docstrings describe what the code does: ranking on the larger of the
-  absolute and marginal scores, redundancy pruning within a depth with
-  cross-depth duplicates removed in the final ranking, and correlation scoring
-  as one dot product per candidate. `SpearmanScorer`, `is_constant` and the
-  estimator warnings are listed in their modules' `__all__`.
-- 131 tests added (587 in all).
 
 ### Benchmarks
 
