@@ -8,7 +8,6 @@ import numpy as np
 import pytest
 
 from beamfeat.expression import (
-    OPERATORS,
     EvaluationLog,
     Evaluator,
     ExclusionReason,
@@ -18,7 +17,6 @@ from beamfeat.expression import (
     UnitError,
     UnitRegistryError,
     combine,
-    interval_of,
     leaf,
     transform,
 )
@@ -1045,138 +1043,3 @@ class TestStringUnits:
         values = {"a": rng.uniform(1, 5, 50)}
         with pytest.raises(ValueError, match=r"beamfeat\[units\]"):
             Evaluator(values, units={"a": "kg"})
-
-
-# --------------------------------------------------------------------------- #
-# Interval bounds
-# --------------------------------------------------------------------------- #
-
-INF = float("inf")
-
-
-def _bound(op, *operands):
-    return OPERATORS[op].interval(*operands)
-
-
-def _contains(interval, values):
-    values = np.asarray(values, dtype=np.float64)
-    return bool(np.all((values >= interval[0]) & (values <= interval[1])))
-
-
-class TestIntervals:
-    @pytest.mark.parametrize(
-        ("op", "operand", "expected"),
-        [
-            ("reciprocal", (2.0, 4.0), (0.25, 0.5)),
-            ("reciprocal", (-4.0, -2.0), (-0.5, -0.25)),
-            ("reciprocal", (2.0, INF), (0.0, 0.5)),
-            ("reciprocal", (-1.0, 1.0), (-INF, INF)),
-            ("reciprocal", (0.0, 1.0), (-INF, INF)),
-            ("sqrt", (0.0, 4.0), (0.0, 2.0)),
-            ("sqrt", (4.0, INF), (2.0, INF)),
-            ("sqrt", (-1.0, 4.0), (-INF, INF)),
-            ("log", (0.0, 1.0), (-INF, INF)),
-            ("abs", (-3.0, 2.0), (0.0, 3.0)),
-            ("abs", (-3.0, -2.0), (2.0, 3.0)),
-            ("abs", (-INF, 1.0), (0.0, INF)),
-            ("square", (-3.0, 2.0), (0.0, 9.0)),
-            ("square", (-3.0, -2.0), (4.0, 9.0)),
-            ("square", (2.0, INF), (4.0, INF)),
-            ("square", (-INF, -2.0), (4.0, INF)),
-        ],
-    )
-    def test_exact_bounds(self, op, operand, expected):
-        assert _bound(op, operand) == expected
-
-    @pytest.mark.parametrize(
-        ("op", "a", "b", "expected"),
-        [
-            ("add", (1.0, 2.0), (-5.0, 3.0), (-4.0, 5.0)),
-            ("add", (-INF, 2.0), (1.0, INF), (-INF, INF)),
-            ("add", (1.0, INF), (1.0, INF), (2.0, INF)),
-            ("sub", (1.0, 2.0), (0.0, 3.0), (-2.0, 2.0)),
-            ("sub", (1.0, INF), (1.0, INF), (-INF, INF)),
-            ("mul", (-1.0, 2.0), (-3.0, 4.0), (-6.0, 8.0)),
-            ("mul", (0.0, 1.0), (1.0, INF), (0.0, INF)),
-            ("mul", (-1.0, 0.0), (1.0, INF), (-INF, 0.0)),
-            ("mul", (0.0, 0.0), (-INF, INF), (0.0, 0.0)),
-            ("div", (1.0, 2.0), (4.0, 8.0), (0.125, 0.5)),
-            ("div", (-1.0, 2.0), (-4.0, -2.0), (-1.0, 0.5)),
-            ("div", (1.0, 2.0), (-1.0, 1.0), (-INF, INF)),
-            ("div", (1.0, INF), (1.0, INF), (0.0, INF)),
-            ("div", (1.0, INF), (-INF, -1.0), (-INF, 0.0)),
-            ("div", (1.0, 2.0), (2.0, INF), (0.0, 1.0)),
-        ],
-    )
-    def test_binary_bounds(self, op, a, b, expected):
-        assert _bound(op, a, b) == expected
-
-    def test_widened_bounds_contain_the_computed_values(self, rng):
-        for op, operand in [("log", (0.5, 7.0)), ("exp", (-3.0, 4.0)), ("cube", (-2.5, 1.5))]:
-            lo, hi = _bound(op, operand)
-            assert lo < hi
-            values = np.concatenate([np.array(operand), rng.uniform(*operand, 10_000)])
-            assert _contains((lo, hi), OPERATORS[op].fn(values)), op
-
-    def test_widening_keeps_the_sign(self):
-        assert _bound("cube", (0.0, 2.0))[0] == 0.0
-        assert _bound("cube", (-2.0, 0.0))[1] == 0.0
-        assert _bound("exp", (-INF, 0.0))[0] == 0.0
-        assert _bound("exp", (0.0, INF))[1] == INF
-        assert _bound("log", (1.0, INF))[1] == INF
-
-    @pytest.mark.parametrize(
-        ("op", "operands", "defined"),
-        [
-            ("log", [(1e-9, 1.0)], True),
-            ("log", [(0.0, 1.0)], False),
-            ("sqrt", [(0.0, 1.0)], True),
-            ("sqrt", [(-1e-300, 1.0)], False),
-            ("reciprocal", [(-2.0, -1.0)], True),
-            ("reciprocal", [(-1.0, 0.0)], False),
-            ("exp", [(-INF, 49.9)], True),
-            ("exp", [(0.0, 50.0)], False),
-            ("div", [(-INF, INF), (1.0, 2.0)], True),
-            ("div", [(1.0, 2.0), (-1.0, 2.0)], False),
-            ("mul", [(-INF, INF), (-INF, INF)], True),
-            ("sub", [(0.0, 1.0), (0.0, 1.0)], True),
-        ],
-    )
-    def test_interval_of_checks_the_domain(self, op, operands, defined):
-        children = tuple(leaf(name) for name in "ab"[: len(operands)])
-        node = transform(op, *children) if len(children) == 1 else combine(op, *children)
-        assert (interval_of(node, operands) is not None) == defined
-
-    def test_every_registered_operator_has_bounds(self):
-        for name, spec in OPERATORS.items():
-            assert spec.interval is not None, name
-            if spec.domain is not None:
-                assert spec.interval_domain is not None, name
-
-    def test_bounds_contain_sampled_values(self, rng):
-        """Every operator, on random intervals, bounds the values it computes."""
-        for _ in range(200):
-            a = tuple(sorted(rng.uniform(-5, 5, 2)))
-            b = tuple(sorted(rng.uniform(-5, 5, 2)))
-            for name, spec in OPERATORS.items():
-                operands = [a] if spec.arity == 1 else [a, b]
-                children = (leaf("a"),) if spec.arity == 1 else (leaf("a"), leaf("b"))
-                for const in (-1.5, -0.5, 0.5, 1.3, 2.0) if spec.parametric else (None,):
-                    node = Node(op=name, children=children, _key=f"{name}(test)", const=const)
-                    bound = interval_of(node, operands)
-                    if bound is None:
-                        continue
-                    samples = [np.concatenate([np.array(o), rng.uniform(*o, 200)]) for o in operands]
-                    with np.errstate(all="ignore"):
-                        if spec.parametric:
-                            values = spec.fn(samples[0], const)
-                        elif spec.arity == 1:
-                            values = spec.fn(*samples)
-                        else:
-                            values = spec.fn(samples[0][:, None], samples[1])
-                    assert _contains(bound, values), (name, const, operands, bound)
-
-
-def test_evaluator_exposes_columns():
-    evaluator = Evaluator({"a": np.array([1.0, 2.0])})
-    np.testing.assert_array_equal(evaluator.column("a"), [1.0, 2.0])

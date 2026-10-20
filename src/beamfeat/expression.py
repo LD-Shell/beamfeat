@@ -193,16 +193,6 @@ class OperatorSpec:
         redundant: Optional predicate on input arrays; returning True marks the
             result as identical to its operand (``abs`` of a column that is
             never negative), so it is excluded as a duplicate.
-        interval: Optional bound on the result. Receives one ``(lo, hi)``
-            interval per operand and returns an interval containing every
-            value the operator yields, as computed in float64, for operands in
-            those intervals. Used by the ``safe_domain`` search; see
-            :func:`interval_of`.
-        interval_domain: Optional predicate on operand intervals; returning
-            True means the operator is defined on every value in them. An
-            operator with a ``domain`` needs one to be admitted under
-            ``safe_domain``. Both receive a parametric operator's constant
-            after the operand intervals, as ``fn`` does.
         constant_grid: Set for a *parametric* operator, one that carries a
             constant fitted to the data, such as the ``a`` in ``exp(a*x)``.
             ``fn``, ``formula``, ``domain`` and ``redundant`` then receive the
@@ -222,8 +212,6 @@ class OperatorSpec:
     domain: Callable[..., bool] | None = None
     commutative: bool = False
     redundant: Callable[..., bool] | None = None
-    interval: Callable[..., tuple[float, float]] | None = None
-    interval_domain: Callable[..., bool] | None = None
     constant_grid: Callable[[np.ndarray], list[np.ndarray]] | None = None
 
     def __post_init__(self) -> None:
@@ -715,145 +703,6 @@ def _unit_preserving(unit: Any) -> Any:
     return unit
 
 
-# Interval bounds -------------------------------------------------------------- #
-#
-# Each function maps operand intervals to an interval containing every value
-# the operator yields on them. Addition, subtraction, multiplication, division,
-# reciprocal, square root and squaring are correctly rounded in IEEE
-# arithmetic, and rounding is monotone, so the operator applied to the
-# endpoints bounds the computed values exactly. log, exp and cube go through
-# implementations that may be off by a few units in the last place, so their
-# bounds are widened by INTERVAL_ULPS. Outside an operator's domain the
-# functions return the unbounded interval; the domain is checked separately.
-
-Interval = tuple[float, float]
-
-INTERVAL_ULPS = 8
-
-_UNBOUNDED: Interval = (-math.inf, math.inf)
-
-
-def _widen(lo: float, hi: float) -> Interval:
-    """Widen an interval outward by :data:`INTERVAL_ULPS` units in the last place."""
-    if math.isfinite(lo):
-        lo -= INTERVAL_ULPS * math.ulp(lo)
-    if math.isfinite(hi):
-        hi += INTERVAL_ULPS * math.ulp(hi)
-    return lo, hi
-
-
-def _exp_bound(x: float) -> float:
-    return math.inf if x > 709.0 else math.exp(x)
-
-
-def _interval_reciprocal(a: Interval) -> Interval:
-    lo, hi = a
-    if lo > 0 or hi < 0:
-        return 1.0 / hi, 1.0 / lo
-    return _UNBOUNDED
-
-
-def _interval_log(a: Interval) -> Interval:
-    lo, hi = a
-    if lo <= 0:
-        return _UNBOUNDED
-    return _widen(math.log(lo), math.log(hi))
-
-
-def _interval_sqrt(a: Interval) -> Interval:
-    lo, hi = a
-    if lo < 0:
-        return _UNBOUNDED
-    return math.sqrt(lo), math.sqrt(hi)
-
-
-def _interval_abs(a: Interval) -> Interval:
-    lo, hi = a
-    if lo >= 0:
-        return lo, hi
-    if hi <= 0:
-        return -hi, -lo
-    return 0.0, max(-lo, hi)
-
-
-def _interval_square(a: Interval) -> Interval:
-    lo, hi = _interval_abs(a)
-    return lo * lo, hi * hi
-
-
-def _interval_cube(a: Interval) -> Interval:
-    # Widening must not move a bound across zero: the cube has its operand's
-    # sign exactly, and sqrt((x)^3) of a non-negative x is defined.
-    lo, hi = _widen(a[0] * a[0] * a[0], a[1] * a[1] * a[1])
-    return (max(lo, 0.0) if a[0] >= 0 else lo), (min(hi, 0.0) if a[1] <= 0 else hi)
-
-
-def _interval_exp(a: Interval) -> Interval:
-    lo, hi = _widen(_exp_bound(a[0]), _exp_bound(a[1]))
-    return max(lo, 0.0), hi
-
-
-def _interval_add(a: Interval, b: Interval) -> Interval:
-    lo, hi = a[0] + b[0], a[1] + b[1]
-    return (-math.inf if math.isnan(lo) else lo), (math.inf if math.isnan(hi) else hi)
-
-
-def _interval_sub(a: Interval, b: Interval) -> Interval:
-    lo, hi = a[0] - b[1], a[1] - b[0]
-    return (-math.inf if math.isnan(lo) else lo), (math.inf if math.isnan(hi) else hi)
-
-
-def _interval_mul(a: Interval, b: Interval) -> Interval:
-    # 0 * inf bounds a product of zero with an unbounded factor, which is 0.
-    corners = [0.0 if x == 0 or y == 0 else x * y for x in a for y in b]
-    return min(corners), max(corners)
-
-
-def _interval_div(a: Interval, b: Interval) -> Interval:
-    if not (b[0] > 0 or b[1] < 0):
-        return _UNBOUNDED
-    corners: list[float] = []
-    for x in a:
-        for y in b:
-            if math.isinf(x) and math.isinf(y):
-                # Both unbounded: the quotient ranges over (0, inf) in the
-                # sign of the corner.
-                corners.extend((0.0, math.copysign(math.inf, x) * math.copysign(1.0, y)))
-            else:
-                corners.append(x / y)
-    return min(corners), max(corners)
-
-
-def _excludes_zero(a: Interval) -> bool:
-    return a[0] > 0 or a[1] < 0
-
-
-# Parametric operators receive their constant after the operand interval.
-# ``a * x`` and ``x + a`` are rounded once each, so they are widened before
-# the outer function is bounded.
-
-
-def _scaled(a: Interval, c: float) -> Interval:
-    return _widen(*_interval_mul(a, (c, c)))
-
-
-def _shifted(a: Interval, c: float) -> Interval:
-    return _widen(*_interval_add(a, (c, c)))
-
-
-def _power_bound(x: float, c: float) -> float:
-    try:
-        return math.pow(x, c)
-    except OverflowError:
-        return math.inf
-
-
-def _interval_pow(a: Interval, c: float) -> Interval:
-    ends = sorted((_power_bound(a[0], c), _power_bound(a[1], c)))
-    lo, hi = _widen(ends[0], ends[1])
-    return max(lo, 0.0), hi
-
-
 OPERATORS: dict[str, OperatorSpec] = {}
 
 
@@ -948,8 +797,6 @@ register_operator(
         formula=lambda x: f"1/({x})",
         unit_fn=_reciprocal_unit,
         domain=lambda x: bool(np.all(x != 0)),
-        interval=_interval_reciprocal,
-        interval_domain=_excludes_zero,
     )
 )
 
@@ -961,8 +808,6 @@ register_operator(
         formula=lambda x: f"log({x})",
         unit_fn=_log_unit,
         domain=lambda x: bool(np.all(x > 0)),
-        interval=_interval_log,
-        interval_domain=lambda a: a[0] > 0,
     )
 )
 
@@ -974,8 +819,6 @@ register_operator(
         formula=lambda x: f"sqrt({x})",
         unit_fn=_sqrt_unit,
         domain=lambda x: bool(np.all(x >= 0)),
-        interval=_interval_sqrt,
-        interval_domain=lambda a: a[0] >= 0,
     )
 )
 
@@ -987,7 +830,6 @@ register_operator(
         formula=lambda x: f"abs({x})",
         unit_fn=_unit_preserving,
         redundant=lambda x: bool(np.all(x >= 0)),
-        interval=_interval_abs,
     )
 )
 
@@ -998,7 +840,6 @@ register_operator(
         fn=lambda x: np.square(x),
         formula=lambda x: f"({x})^2",
         unit_fn=_square_unit,
-        interval=_interval_square,
     )
 )
 
@@ -1009,7 +850,6 @@ register_operator(
         fn=lambda x: x**3,
         formula=lambda x: f"({x})^3",
         unit_fn=_cube_unit,
-        interval=_interval_cube,
     )
 )
 
@@ -1021,8 +861,6 @@ register_operator(
         formula=lambda x: f"exp({x})",
         unit_fn=_exp_unit,
         domain=lambda x: bool(np.all(x < 50.0)),
-        interval=_interval_exp,
-        interval_domain=lambda a: a[1] < 50.0,
     )
 )
 
@@ -1179,8 +1017,6 @@ register_operator(
         unit_fn=_dimensionless_unit("exp_scaled"),
         domain=lambda x, a: bool(np.all(a * x < 50.0)),
         constant_grid=_scale_grid,
-        interval=lambda a, c: _interval_exp(_scaled(a, c)),
-        interval_domain=lambda a, c: _scaled(a, c)[1] < 50.0,
     )
 )
 
@@ -1193,8 +1029,6 @@ register_operator(
         unit_fn=_dimensionless_unit("pow"),
         domain=lambda x, a: bool(np.all(x > 0)),
         constant_grid=_power_grid,
-        interval=_interval_pow,
-        interval_domain=lambda a, c: a[0] > 0,
     )
 )
 
@@ -1207,8 +1041,6 @@ register_operator(
         unit_fn=_reciprocal_unit,
         domain=lambda x, a: bool(np.all(x + a != 0)),
         constant_grid=_pole_grid,
-        interval=lambda a, c: _interval_reciprocal(_shifted(a, c)),
-        interval_domain=lambda a, c: _excludes_zero(_shifted(a, c)),
     )
 )
 
@@ -1221,8 +1053,6 @@ register_operator(
         unit_fn=_dimensionless_unit("log_shift"),
         domain=lambda x, a: bool(np.all(x + a > 0)),
         constant_grid=_log_shift_grid,
-        interval=lambda a, c: _interval_log(_shifted(a, c)),
-        interval_domain=lambda a, c: _shifted(a, c)[0] > 0,
     )
 )
 
@@ -1236,7 +1066,6 @@ register_operator(
         formula=lambda x, y: f"({x} + {y})",
         unit_fn=_add_unit,
         commutative=True,
-        interval=_interval_add,
     )
 )
 
@@ -1248,7 +1077,6 @@ register_operator(
         formula=lambda x, y: f"({x} - {y})",
         unit_fn=_sub_unit,
         commutative=False,
-        interval=_interval_sub,
     )
 )
 
@@ -1260,7 +1088,6 @@ register_operator(
         formula=lambda x, y: f"({x} * {y})",
         unit_fn=_mul_unit,
         commutative=True,
-        interval=_interval_mul,
     )
 )
 
@@ -1272,8 +1099,6 @@ register_operator(
         formula=lambda x, y: f"({x} / {y})",
         unit_fn=_div_unit,
         commutative=False,
-        interval=_interval_div,
-        interval_domain=lambda a, b: _excludes_zero(b),
     )
 )
 
@@ -1535,39 +1360,6 @@ def combine(op: str, left: Node, right: Node) -> Node:
     )
 
 
-def interval_of(node: Node, operands: Sequence[Interval]) -> Interval | None:
-    """Bound the values ``node`` takes when each operand lies in its interval.
-
-    Args:
-        node: A non-leaf node.
-        operands: One ``(lo, hi)`` interval per child of ``node``.
-
-    Returns:
-        An interval containing every value ``node`` can take on such
-        operands, or ``None`` when no such bound is available: the operator
-        may be undefined somewhere in the operand intervals, it has no
-        :attr:`~OperatorSpec.interval`, or it has a ``domain`` but no
-        :attr:`~OperatorSpec.interval_domain`. ``None`` is the conservative
-        answer, so an operator registered without interval functions is never
-        admitted under ``safe_domain``.
-    """
-    # Operand intervals are passed positionally, and a fitted constant after
-    # them, as the array functions receive it.
-    spec = OPERATORS.get(node.op)
-    if spec is None or spec.interval is None:
-        return None
-    arguments = (*operands, node.const) if spec.parametric else tuple(operands)
-    if spec.interval_domain is not None:
-        if not spec.interval_domain(*arguments):
-            return None
-    elif spec.domain is not None:
-        return None
-    lo, hi = spec.interval(*arguments)
-    if math.isnan(lo) or math.isnan(hi):
-        return None
-    return float(lo), float(hi)
-
-
 # --------------------------------------------------------------------------- #
 # Evaluation
 # --------------------------------------------------------------------------- #
@@ -1700,10 +1492,6 @@ class Evaluator:
     def dtype(self) -> np.dtype:
         """Working dtype for evaluation."""
         return self._dtype
-
-    def column(self, name: str) -> np.ndarray:
-        """Values of an input column, read-only, in the working dtype."""
-        return self._leaves[name]
 
     def leaf_nodes(self) -> list[Node]:
         """Return leaf nodes for every input column, with units attached."""
