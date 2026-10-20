@@ -291,12 +291,19 @@ its most frequent training class there, as its `predict` does. A regressor or
 transformer has no score on such a test part, so that split goes unscored,
 and the summary counts it.
 
-The stability study of the paper (Appendix E) held one test part fixed and
-varied only the estimator's seed, which isolates the split inside the fit.
-On diabetes it found 79 distinct features, the commonest in 22 of 30 splits,
-and a standard deviation of R² of 0.015. Here each split also draws its own
-training and test rows, so the counts and the spread include the variation
-between samples as well.
+`resample` chooses what varies. The default, `"splits"`, draws new training
+and test rows as well as a new seed for every split. It measures
+split-to-split variability: how far the equation and its score move with
+another sample of the data. `resample="seeds"` keeps the first split's rows
+and varies only the seed, and with it the search/selection split inside each
+fit. That design, the one in the paper's stability study (Appendix E),
+measures seed-to-seed variability on fixed data: how much the printed
+equation owes to one random draw, the draw the FDR guarantee is conditional
+on. Run on diabetes as above with `resample="seeds"`, it still prints 30
+distinct equations in 30 fits, with 84 distinct features and the commonest
+in 10. The standard deviation of R² falls from 0.050 to 0.008, though, so
+most of the default's spread comes from the test parts, while the turnover of
+equations persists with the rows held fixed.
 
 ## LaTeX
 
