@@ -24,9 +24,12 @@ constant, and the product with its partner, as candidates to be scored like
 any other.
 
 **Rejection.** A fit whose best grid point is the end of a grid segment ran
-into a bound -- the pole of a shift, the linear limit of a small scale, or
-the step limit of a large one -- and is discarded. So is one whose values are
-not finite, constant, or outside the operator's domain. And since each
+into a bound -- the margin a shift keeps between its pole and the data (see
+:func:`~beamfeat.expression.pole_margins`), the linear limit of a small
+scale, or the step limit of a large one -- and is discarded, as is one whose
+values are not finite, constant, or outside the operator's domain. Snapping
+and rounding stay within the same bounds, so a simple constant never moves
+a pole closer to the data than the margin. And since each
 operator tends to an affine function of its operand at one end of its range
 (a small scale, a distant shift, a power of 1), a fit must also improve
 clearly on the operand itself, or for a product on the partner alone, by
@@ -152,10 +155,17 @@ def fit_constants(
     # Each grid point's position in its segment, to recognise a segment's ends.
     ends = np.concatenate([np.r_[True, np.zeros(len(s) - 2, dtype=bool), True] for s in segments])
     columns = _grid_columns(spec, operand[sample], grid)
+    # The segments' ends bound the constant, snapped or rounded too.
+    bounds = [(float(np.min(s)), float(np.max(s))) for s in segments]
+
+    def admissible(constant: float) -> bool:
+        return any(low <= constant <= high for low, high in bounds)
 
     found: list[FittedConstant] = []
     solo = _correlations(columns, target[sample], None)
-    constant = _fit_one(spec, operand, target, None, grid, ends, solo[0], _correlation(operand, target))
+    constant = _fit_one(
+        spec, operand, target, None, grid, ends, solo[0], _correlation(operand, target), admissible
+    )
     if constant is not None:
         found.append(FittedConstant(constant, None))
 
@@ -166,7 +176,7 @@ def fit_constants(
             best = int(np.argmax(np.where(np.isfinite(scores), scores, -1.0).max(axis=1)))
             partner = partners[:, best]
             alone = _correlation(partner, target)
-            constant = _fit_one(spec, operand, target, partner, grid, ends, scores[best], alone)
+            constant = _fit_one(spec, operand, target, partner, grid, ends, scores[best], alone, admissible)
             if constant is not None:
                 found.append(FittedConstant(constant, best))
     return found
@@ -247,8 +257,12 @@ def _fit_one(
     ends: np.ndarray,
     grid_scores: np.ndarray,
     baseline: float,
+    admissible: Callable[[float], bool],
 ) -> float | None:
     """Refine, then snap or round, the best grid constant for one objective.
+
+    ``admissible`` says whether a constant lies within the grid's bounds;
+    snapping and rounding never leave them.
 
     ``baseline`` is the correlation the fit has to beat: the operand's own,
     or the partner's for a product. Every operator here tends to an affine
@@ -278,7 +292,7 @@ def _fit_one(
         optimum, score = float(grid[best]), best_grid_score
     if not math.isfinite(score):
         return None
-    constant = _simplify(objective, optimum, score, len(operand))
+    constant = _simplify(objective, optimum, score, len(operand), admissible)
     if _statistic(baseline, objective(constant), len(operand)) <= SNAP_LR:
         return None
     return constant
@@ -326,11 +340,19 @@ def _statistic(simple: float, better: float, n_rows: int) -> float:
     return n_rows * math.log(loss / best)
 
 
-def _simplify(objective: Callable[[float], float], optimum: float, score: float, n_rows: int) -> float:
+def _simplify(
+    objective: Callable[[float], float],
+    optimum: float,
+    score: float,
+    n_rows: int,
+    admissible: Callable[[float], bool] = lambda constant: True,
+) -> float:
     """The simplest constant the data cannot tell apart from ``optimum``.
 
     Tries :data:`SNAP_VALUES` against :data:`SNAP_LR`, then rounding to one to
     six significant digits against :data:`ROUND_LR`; see the module notes.
+    Only constants ``admissible`` accepts are tried: a snap must not carry a
+    pole past its margin into the data, or a scale past the grid's bound.
     """
 
     def statistic(constant: float) -> float:
@@ -341,6 +363,8 @@ def _simplify(objective: Callable[[float], float], optimum: float, score: float,
         if accepted and fraction.denominator > accepted[0][0]:
             break
         constant = float(fraction)
+        if not admissible(constant):
+            continue
         lr = statistic(constant)
         if lr <= SNAP_LR:
             accepted.append((fraction.denominator, lr, constant))
@@ -349,6 +373,6 @@ def _simplify(objective: Callable[[float], float], optimum: float, score: float,
 
     for digits in range(1, 7):
         constant = float(f"{optimum:.{digits}g}")
-        if statistic(constant) <= ROUND_LR:
+        if admissible(constant) and statistic(constant) <= ROUND_LR:
             return constant
     return optimum
