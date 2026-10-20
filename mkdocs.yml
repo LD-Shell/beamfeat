@@ -22,6 +22,8 @@ theme:
       toggle: {icon: material/brightness-7, name: dark mode}
     - scheme: slate
       toggle: {icon: material/brightness-4, name: light mode}
+exclude_docs: |
+  sphinx_roles.py
 nav:
   - Home: index.md
   - Installation: installation.md
@@ -44,6 +46,9 @@ plugins:
           options:
             docstring_style: google
             show_source: false
+            show_root_heading: true
+            extensions:
+              - docs/sphinx_roles.py:SphinxRoles
 markdown_extensions:
   - admonition
   - pymdownx.highlight

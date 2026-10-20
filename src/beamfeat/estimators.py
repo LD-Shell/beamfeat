@@ -1628,7 +1628,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             threads, or processes for ``"gradient_boosting"`` (see
             :class:`~beamfeat.search.BeamSearch`). ``1`` (default) uses the
             calling thread only, ``-1`` every core, and ``None`` follows an
-            enclosing ``joblib.parallel_config``. Small searches run in the
+            enclosing joblib configuration (``joblib.parallel_config``, or
+            ``parallel_backend`` before joblib 1.3). Small searches run in the
             calling thread regardless. The fitted result is the same for
             every value.
 
@@ -1721,12 +1722,13 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         )
         self.problem_type = problem_type
 
-    def fit(self, X, y=None):
+    def fit(self, X, y=None) -> BeamFeatTransformer:
         """Construct and select features from the training data.
 
         Args:
-            X: ``(n_samples, n_features)`` training data.
-            y: Target. Required, since both search and selection are supervised.
+            X (array-like): ``(n_samples, n_features)`` training data.
+            y (array-like): Target. Required, since both search and selection
+                are supervised.
 
         Returns:
             ``self``.
