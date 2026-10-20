@@ -34,6 +34,13 @@ feature referenced all of the generating columns. It is column recovery, not
 symbolic recovery, and is blank for methods that return no inspectable
 formulas. `beamfeat`'s `fdr_controlled_` flag was true on 45 of 45 fits.
 
+The `featuretools` row, and its rank and paired test below, include test cells
+the harness filled with 0 rather than the training median. Read with the
+median fill, `featuretools` has a mean R² of about 0.461 rather than −2.478, a
+worst fit of −12.882 rather than −57.320, and one fit below zero rather than
+six; `PROVENANCE.md`, under "Non-finite test cells", gives the per-fit figures
+and the paired test.
+
 ## Statistical comparison
 
 Ranks and the omnibus test use one `beamfeat` entry; two would split the rank

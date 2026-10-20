@@ -20,6 +20,12 @@ Numerical failures during evaluation are never silent. Nodes that overflow,
 produce non-finite values, or degenerate to near-zero variance are recorded in
 an :class:`EvaluationLog` with a reason, and excluded from results. The log is
 part of the public API so users can audit what was rejected.
+
+Many nodes can also be evaluated away from the evaluator, in another thread or
+process: :meth:`Evaluator.plan_batch` gathers what they need into an
+:class:`EvaluationBatch`, :meth:`EvaluationBatch.run` computes them with the
+same checks as :meth:`Evaluator.evaluate`, and :meth:`Evaluator.commit_batch`
+records its rejections in the log.
 """
 
 from __future__ import annotations
@@ -37,6 +43,8 @@ import numpy as np
 from beamfeat.scoring import ColumnStats, column_stats
 
 __all__ = [
+    "BatchOutcome",
+    "EvaluationBatch",
     "EvaluationLog",
     "Evaluator",
     "ExclusionReason",

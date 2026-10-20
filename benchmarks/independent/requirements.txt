@@ -29,8 +29,8 @@ knockpy
 
 # The subject of the study. Installed from the repository tree rather than
 # PyPI so the study measures the working copy, and with the [all] extra so the
-# test suite runs here too: without it pytest is absent, and without pint 26
-# unit tests skip and coverage reads about 93% instead of 95%.
+# test suite runs here too: without it pytest is absent, and without pint 33
+# unit tests skip and coverage reads about 94% instead of 97%.
 # The path is relative to the working directory pip is invoked from, so run
 # `pip install -r requirements.txt` from inside benchmarks/independent/, or
 # use setup_env.sh, which handles this regardless of where it is called from.

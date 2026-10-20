@@ -24,12 +24,14 @@ def code(text: str) -> nbf.NotebookNode:
     return nbf.v4.new_code_cell(text.strip())
 
 
-def build(path: pathlib.Path, cells: list[nbf.NotebookNode], title: str) -> None:
+def build(
+    path: pathlib.Path, cells: list[nbf.NotebookNode], title: str, requirement: str = "beamfeat"
+) -> None:
     notebook = nbf.v4.new_notebook()
     url = f"https://colab.research.google.com/github/LD-Shell/beamfeat/blob/main/notebooks/{path.name}"
     badge = markdown(
         f"[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)]({url})\n\n"
-        "Running in Colab? Install first: `%pip install beamfeat`."
+        f"Running in Colab? Install first: `%pip install {requirement}`."
     )
     notebook.cells = [badge] + cells
     notebook.metadata = {
@@ -264,12 +266,13 @@ for formula in classifier.formulas():
         """
 ## What to read next
 
-- **02: Search and scoring** — how the beam search works, and how the three
-  scoring strategies differ in what they detect and what they cost.
+- **02: Search and scoring** — how the beam search works, and how the scoring
+  strategies differ in what they detect and what they cost.
 - **03: Selection and units** — how false discovery rate control works, why the
   default is not knockoffs, and how dimensional analysis constrains the search.
 - **04: Reading a fit** — what to do when the equation contains columns you did
-  not expect, and how to tell a search failure from a selection failure.
+  not expect, how to tell a search failure from a selection failure, and how to
+  list, typeset and export the equation.
         """
     ),
 ]
@@ -350,8 +353,9 @@ for record in result.trace:
 ## How beam width controls cost
 
 Beam width is the parameter that bounds work. Widening it explores more of the
-space at proportionally greater cost; narrowing it risks pruning a parent whose
-children would have been valuable.
+space at a cost that grows faster than the width, since each expression in the
+beam is combined with every expression kept so far; narrowing it risks pruning
+a parent whose children would have been valuable.
         """
     ),
     code(
@@ -369,8 +373,13 @@ for width in (5, 10, 25, 50, 100):
     markdown(
         """
 Note that cost grows with beam width but the *quality* of the top feature
-plateaus quickly. In practice a moderate beam is usually enough, and the
-remaining budget is better spent on depth.
+plateaus quickly. The proposals stop growing at 50 only because this problem
+runs out of parents: four columns yield 52 evaluated depth-1 candidates (the
+trace above), fewer than 50 of them survive the redundancy check described
+below, and a wider beam has nothing more to extend. Timings this short are
+noisy, so the proposed column is the steadier measure of cost. In practice a
+moderate beam is usually enough, and the remaining budget is better spent on
+depth.
 
 ## How depth controls expressiveness
 
@@ -389,13 +398,69 @@ for depth in (0, 1, 2, 3):
     ),
     markdown(
         """
+## Workers and memory
+
+At the defaults a depth may propose up to 200,000 candidates
+(`max_candidates_per_depth`), so the search evaluates and scores a depth in
+chunks and keeps only the scores; the candidates the redundancy check reaches,
+usually a small share of the round, are evaluated again. Memory stays bounded
+however many candidates a depth proposes. `chunk_size` sets how many candidates
+make a chunk, by default as many as fit in 8 MiB. Mutual information is the
+exception: it draws its noise for the whole batch, so it still scores a depth
+at once.
+
+`n_jobs` spreads the chunks over joblib workers: threads, since numpy releases
+the GIL, or processes for gradient boosting, whose model fits hold it. `-1`
+uses every core. A depth of fewer than 4096 candidates stays in the calling
+thread unless the scorer fits models, since starting workers would cost more
+than it saves, so on the four-column problem above `n_jobs` changes nothing.
+The estimators take the same argument.
+
+Neither setting changes the result, for the scorers that draw random numbers
+too: no seed depends on a worker or a chunk. On forty columns, where both
+depths are large enough for workers:
+        """
+    ),
+    code(
+        """
+# A generator of its own, so that this cell leaves the draws of the cells
+# below unchanged.
+wide_rng = np.random.default_rng(1)
+wide = {f"x{index}": wide_rng.uniform(1.0, 6.0, n) for index in range(40)}
+wide_target = wide["x3"] * wide["x17"] / wide["x31"] + wide_rng.normal(0, 0.05, n)
+
+serial = BeamSearch(max_depth=2, beam_width=30, random_state=0).run(wide, wide_target)
+print(f"candidates at depth 1: {serial.trace[1].n_proposed}, at depth 2: {serial.trace[2].n_proposed}")
+print(f"top feature: {serial.names[0]}")
+print()
+
+for name, value in (("n_jobs", 2), ("n_jobs", -1), ("chunk_size", 100)):
+    outcome = BeamSearch(max_depth=2, beam_width=30, random_state=0, **{name: value}).run(
+        wide, wide_target
+    )
+    same = outcome.names == serial.names and np.array_equal(outcome.scores, serial.scores)
+    label = f"{name}={value}"
+    print(f"{label:>14}: same features and scores as n_jobs=1: {same}")
+        """
+    ),
+    markdown(
+        """
+Whether workers save time depends on the machine and on the size of the round,
+so they are not timed here. The 0.5.0 changelog measures the faster search as a
+whole: a default fit on 1000 columns and 600 rows takes 7 s rather than 29 s
+and peaks at 0.35 GB of memory rather than 2.6 GB, with the same features,
+p-values and predictions.
+
 ## Choosing a scorer
 
-Three scoring strategies are available, and they differ in what they can detect
+Four scoring strategies are available, and they differ in what they can detect
 and what they cost.
 
 - `"correlation"` — absolute Pearson correlation against the residual. One
-  matrix product per batch. The default.
+  dot product per candidate. The default.
+- `"spearman"` — absolute rank correlation against the same residual, for a
+  sort per column more. Sees any monotone relationship and is insensitive to
+  outlying values.
 - `"mutual_information"` — nearest-neighbour mutual information. Detects
   dependence that correlation misses.
 - `"gradient_boosting"` — measured out-of-fold predictive improvement. Scores
@@ -403,15 +468,17 @@ and what they cost.
 
 ### Where they agree
 
-On a relationship whose nonlinearity is captured by the expression itself, all
-three find the same thing, and correlation is much cheaper.
+On a relationship whose nonlinearity is captured by the expression itself, the
+first three find the same thing, and correlation is much the cheapest. Gradient
+boosting is left out: it fits models for every candidate, which on a round of
+this size takes far longer still.
         """
     ),
     code(
         """
 import time
 
-for name in ("correlation", "mutual_information"):
+for name in ("correlation", "spearman", "mutual_information"):
     started = time.perf_counter()
     outcome = BeamSearch(scorer=name, max_depth=2, beam_width=20, random_state=0).run(data, target)
     elapsed = time.perf_counter() - started
@@ -468,9 +535,11 @@ print(f"correlation on the squared column:   {CorrelationScorer().score(squared,
 ## Redundancy control
 
 A beam scored purely on individual merit fills with variants of the same
-signal. beamfeat scores candidates against the residual left by what is already
-selected, and additionally drops candidates too correlated with the current
-beam.
+signal. beamfeat scores each candidate against the residual left by what is
+already selected as well as against the target, and ranks it on the larger of
+the two, so a refinement of a selected feature survives while novelty is still
+rewarded. It also drops a candidate too correlated with one already admitted at
+the same depth; the final ranking applies the same check across depths.
         """
     ),
     code(
@@ -499,8 +568,9 @@ for threshold in (0.5, 0.9, 0.999):
 
 Candidates excluded during evaluation are recorded rather than silently
 dropped. This matters when a search returns less than expected: the log tells
-you whether candidates were numerically invalid, degenerate, or simply never
-proposed.
+you whether candidates were numerically invalid, degenerate, copies of a column
+already there — `abs` of a column that is never negative is the column itself —
+or simply never proposed.
         """
     ),
     code(
@@ -544,12 +614,16 @@ selected features that are spurious.
     ),
     code(
         """
+import logging
 import warnings
 
 import numpy as np
 import pandas as pd
 
 warnings.filterwarnings("ignore")
+# The selectors also log each diagnostic they record. The cells below print
+# them from warnings_raised where they matter, so the logged copies are muted.
+logging.getLogger("beamfeat").setLevel(logging.ERROR)
 
 from beamfeat.selection import KnockoffSelector, PermutationSelector
 
@@ -633,9 +707,9 @@ Realised FDR tracks the nominal level, and power is full. Two reading notes,
 both scientifically important. First, FDR is an **expectation**: individual
 trials may exceed the level, and a mean over 15 trials carries visible Monte
 Carlo noise, so values a little above nominal are consistent with control.
-Second, an exact test *spends* its error budget — realised FDR near nominal
-is the signature of a calibrated procedure, where a realised FDR pinned at
-zero would signal wasted power.
+Second, a well-calibrated test *spends* its error budget — realised FDR near
+nominal is the signature of a calibrated procedure, where a realised FDR
+pinned at zero would signal wasted power.
 
 ## Knockoffs: two constructions, two sets of assumptions
 
@@ -643,16 +717,23 @@ The knockoff filter comes in two forms, and it matters which one you mean.
 
 **Fixed-X knockoffs** (Barber & Candès, 2015) treat the design as fixed and
 make *no assumption about the distribution of the features* — deterministic
-engineered columns are admissible. The guarantee needs `n >= 2p` and Gaussian
-noise in `y = Xβ + ε`. Its weakness on engineered designs is **power,
-not validity**: near-duplicate columns drive the construction's `s` toward
-zero, the knockoffs become nearly identical to the originals, and the filter
-loses the ability to tell them apart.
+engineered columns are admissible. The guarantee needs `n > 2p` and Gaussian
+noise in `y = Xβ + ε`. Engineered designs strain it in two ways. Near-duplicate
+columns drive the construction's `s` toward zero, the knockoffs become nearly
+identical to the originals, and the filter loses the ability to tell them
+apart: a cost in **power, not validity**. Exact dependence is worse. When the
+design covariance has an eigenvalue below 1e-6 — a constant column, or one that
+is a linear combination of others, as `a + b` is of `a` and `b` — the knockoffs
+of the columns involved can only equal the originals, the lasso's tie-breaking
+then favours the originals, and that costs validity. beamfeat leaves such
+columns out of the construction, so they cannot be selected, and names them in
+its warning.
 
 **Model-X knockoffs** (Candès et al., 2018) instead assume the features are
 jointly Gaussian — which engineered features are not: `log(a)` and `a * b`
 are deterministic functions of shared parents. beamfeat only uses this
-construction when `n < 2p`, where fixed-X does not exist, and warns.
+construction when `n <= 2p`, where the fixed-X construction does not exist,
+and warns.
 
 beamfeat routes between the two automatically and reports which assumptions
 are under strain, rather than pretending otherwise.
@@ -693,9 +774,10 @@ print(f"\\npermutation selector warnings: {permutation_result.warnings_raised or
     markdown(
         """
 So the practical division of labour: the permutation selector is the default
-because its exactness does not depend on the design at all; fixed-X knockoffs
-are a strong choice for wide-enough problems with roughly Gaussian *noise*
-(the features can be anything); model-X is a last resort for `n < 2p`.
+because its validity does not depend on the design at all; fixed-X knockoffs
+are a strong choice when there are more than twice as many rows as candidates
+and the *noise* is roughly Gaussian (the features can be anything); model-X is
+a last resort for `n <= 2p`.
 
 One further caveat, measured rather than assumed: the `offset` parameter
 dominates knockoff power on narrow designs. `offset=1` (knockoff+) requires
@@ -875,14 +957,22 @@ one of them has a fix.
     code(
         """
 import re
+import sys
 import warnings
 
 import numpy as np
 import pandas as pd
 
-# beamfeat's warnings, formatted without this machine's file paths
+
+# beamfeat's warnings, in order with the printed output and without this
+# machine's file paths
+def show_warning(message, category, *_):
+    sys.stdout.flush()
+    print(f"{category.__name__}: {message}", file=sys.stderr, flush=True)
+
+
 warnings.filterwarnings("default")
-warnings.formatwarning = lambda message, category, *_: f"{category.__name__}: {message}\\n"
+warnings.showwarning = show_warning
 
 from beamfeat import BeamFeatRegressor
 
@@ -982,14 +1072,18 @@ print()
 print(deep.equation())
 print(f"R^2: {deep.score(X, y):.4f}")
 print(f"fdr_controlled_: {deep.fdr_controlled_}")
+print(
+    f"candidates proposed: {deep.search_result_.n_proposed_total}, "
+    f"against {model.search_result_.n_proposed_total} at the defaults"
+)
         """
     ),
     markdown(
         """
 The physics is still in there — `(H / eta) * (Q * rho)` — but a junk term
 containing `noise_0` has been bolted onto it, and `fdr_controlled_` is still
-`True`. The R^2 is unchanged to four decimals. We paid three times the runtime
-for an equation nobody can read.
+`True`. The R^2 is unchanged to four decimals. We searched four times as many
+candidates for an equation nobody can read.
 
 ### Why the flag is still True
 
@@ -1061,7 +1155,7 @@ ADDED_NOISE = re.compile(r"(noise_\d+ [+-]|[+-] noise_\d+)")
 
 
 def added_noise(model):
-    full = BeamFeatRegressor(**{**model.get_params(), "parsimony": None}).fit(X, y)
+    full = BeamFeatRegressor(**{**model.get_params(), "parsimony": None, "verbose": 0}).fit(X, y)
     return [f for f in full.formulas() if ADDED_NOISE.search(f)], full.n_features_out_
 
 
@@ -1088,7 +1182,7 @@ tell you a factor is missing.
 
 And a *dimensionless* column is legal almost everywhere. `Q / noise_7` is still
 m³/s, so noise can ride in multiplicatively even under a full labelling, and
-some of the certified set still mentions one. What units removed is the whole
+most of the certified set still mentions one. What units removed is the whole
 class of violations — adding a bare number to a physical quantity — not every
 appearance of an irrelevant column.
         """
@@ -1138,7 +1232,7 @@ nothing; give the genuinely unitless columns `"dimensionless"`.
 
 `equation()` prints the parsimony subset, and its suffix says so. The guarantee
 covers the larger screened set, which `selection_report_` holds in full, with
-an exact p- and q-value per candidate.
+a permutation p-value and its q-value per candidate.
         """
     ),
     code(
@@ -1168,9 +1262,43 @@ the false discovery *proportion*, because the denominator shrinks faster than
 the numerator, and `fdp_inflation_` reports by how much. This is why
 `fdr_controlled_` and `fdr_scope_` are two attributes rather than one: the
 flag is `True` and the scope is the screened set, not the printed equation. What that costs in
-fit is small and has been measured — about a thousandth of held-out R^2 across
-308 paired fits, in `benchmarks/PARSIMONY_COST.md`. Report the screened set
+fit is small and has been measured — about a thousandth of R^2 across 308
+paired fits, held out in every study but one scored in-sample, in
+`benchmarks/PARSIMONY_COST.md`. Report the screened set
 when you need the guarantee; use the equation when you need something to read.
+        """
+    ),
+    markdown(
+        """
+## The equation at every size
+
+The forward step adds terms one at a time and stops when the next would add
+less than `parsimony_tol` to R^2. `equations()` continues it through the whole
+screened set, one equation per number of terms, so you can see what the
+stopping point traded away. On the default fit from the start:
+        """
+    ),
+    code(
+        """
+print(model.equations(max_n_terms=4))
+        """
+    ),
+    markdown(
+        """
+Line 1, marked, is the fitted model. Lines 2 to 4 each add a term that pairs
+part of the core with a noise column and gains less than 1e-4 of R^2 — the
+noisy members of the fifty certified formulas, met one at a time, and the
+reason the forward step stopped after line 1. Complexity counts the nodes of
+each term's expression tree, plus one per term for its coefficient. The R^2 is
+in-sample, on the rows screening used, and the lines carry no coefficients
+because only the marked one has been fitted.
+
+The last line of the output is the one to keep in mind. Every line is a subset
+of the screened set chosen on the rows screening used, so picking line 3
+because it reads well is the same kind of choice the forward step makes, and
+the guarantee covers it no more than it covers line 1. It covers line 50, the
+screened set itself, which is the equation `parsimony=None` fits. The records
+behind the text are in `equations_`.
         """
     ),
     markdown(
@@ -1212,6 +1340,75 @@ the test could not fire, not that the data are silent.
     ),
     markdown(
         """
+## Writing it down
+
+`latex()` typesets `equation()`, with the same terms, coefficients and note. It
+returns a string without math delimiters, which a notebook renders with
+`IPython.display.Math`:
+        """
+    ),
+    code(
+        """
+from IPython.display import Math
+
+Math(model.latex())
+        """
+    ),
+    code(
+        """
+print(model.latex(note=False))
+print(model.latex_formulas())
+        """
+    ),
+    markdown(
+        """
+`latex(note=False)` leaves the note off, for pasting into a document. The
+guarantee still covers the fifty screened terms, so say so wherever the
+equation appears. `latex_formulas()` gives the features alone, and the
+transformer has it too. Both need sympy (`pip install "beamfeat[display]"`), as
+`to_sympy()` does.
+
+## Running it elsewhere
+
+`to_sympy()` returns each feature as a sympy expression in real symbols named
+after the columns, so `sympy.lambdify` turns the features into a function of
+plain arrays. Fold the model's standardisation into its coefficients and that
+reproduces `predict`:
+        """
+    ),
+    code(
+        """
+import sympy
+
+symbols = sympy.symbols(list(X.columns), real=True)  # one per column, in order
+features = sympy.lambdify(symbols, model.to_sympy(), modules="numpy")
+
+raw = model.coef_ / model.scaler_.scale_
+offset = model.intercept_ - raw @ model.scaler_.mean_
+exported = np.column_stack(features(*X.to_numpy().T)) @ raw + offset
+
+print(model.to_sympy())
+print(f"agrees with predict(): {np.allclose(exported, model.predict(X))}")
+        """
+    ),
+    markdown(
+        """
+`modules="jax"` or `modules="torch"` (sympy 1.14 or newer) gives the same
+function on JAX or PyTorch arrays, with `jnp.stack(..., axis=1)` or `torch.stack(..., dim=1)` in place of
+`np.column_stack`; the coefficients and offset are plain arrays to convert
+once. Neither library is needed for this notebook, so only NumPy runs here. The
+column names are valid identifiers, so the symbols carry them unchanged; other
+names are sanitised, and the expressions' `free_symbols` show what they became.
+
+Two differences from `predict` remain. sympy may rewrite an expression into an
+equivalent form — `(H / eta) * (Q * rho)` came back as `H*Q*rho/eta` — so a
+value can overflow in one and not the other. And a row outside a formula's
+domain gives whatever the array library gives there, where `predict` gives NaN
+and a warning.
+        """
+    ),
+    markdown(
+        """
 ## A checklist
 
 - Start at the defaults. Raise `beam_width` when an expected target is missed;
@@ -1225,6 +1422,8 @@ the test could not fire, not that the data are silent.
 - A missing constant is usually in the coefficient.
 - Quote `selection_report_` when you need the guarantee; quote `equation()`
   when you need a sentence.
+- An equation picked from `equations()` carries no more of the guarantee than
+  `equation()` does, and `latex(note=False)` drops the note, not the caveat.
 - Read the warnings. They distinguish states that look identical from outside.
         """
     ),
@@ -1251,5 +1450,9 @@ if __name__ == "__main__":
     else:
         build(HERE / "01_getting_started.ipynb", getting_started, "Getting started with beamfeat")
         build(HERE / "02_search_and_scoring.ipynb", search_and_scoring, "Search and scoring")
-        build(HERE / "03_selection_and_units.ipynb", selection_and_units, "Selection and units")
-        build(HERE / "04_reading_a_fit.ipynb", reading_a_fit, "Reading a fit")
+        # 03 and 04 need pint for their units sections, and 04 sympy for its
+        # LaTeX and export
+        build(HERE / "03_selection_and_units.ipynb", selection_and_units, "Selection and units",
+              requirement='"beamfeat[units]"')
+        build(HERE / "04_reading_a_fit.ipynb", reading_a_fit, "Reading a fit",
+              requirement='"beamfeat[units,display]"')

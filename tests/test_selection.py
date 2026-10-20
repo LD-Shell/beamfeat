@@ -480,6 +480,28 @@ class TestFixedXKnockoffs:
         result = KnockoffSelector(problem_type="classification").select(features, labels)
         assert any("heuristic" in message for message in result.warnings_raised)
 
+    def test_classification_with_three_classes(self):
+        # From scikit-learn 1.8 the liblinear solver fits two classes only, so
+        # the statistic is computed one class against the rest; it raised
+        # before. The classification path is heuristic, so only power is
+        # checked here.
+        rng = np.random.default_rng(14)
+        features, target, signal = _gaussian_design(rng, effect=4.0)
+        labels = np.digitize(target, np.quantile(target, [1 / 3, 2 / 3]))
+        result = KnockoffSelector(problem_type="classification", offset=0, target_fdr=0.2).select(
+            features, labels
+        )
+        assert set(np.flatnonzero(signal)) <= set(result.selected.tolist())
+
+    def test_model_x_warning_names_its_reason(self):
+        rng = np.random.default_rng(15)
+        features, target, _ = _gaussian_design(rng, n=400, n_signal=3, n_noise=7)
+        requested = KnockoffSelector(construction="gaussian").select(features, target)
+        assert any("construction='gaussian'" in message for message in requested.warnings_raised)
+        assert not any("falling back" in message for message in requested.warnings_raised)
+        narrow = KnockoffSelector().select(features[:15], target[:15])
+        assert any("n <= 2p: falling back" in message for message in narrow.warnings_raised)
+
 
 # --------------------------------------------------------------------------- #
 # Factory and validation

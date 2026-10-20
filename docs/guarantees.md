@@ -214,8 +214,10 @@ across four studies:
 | Feynman physics panel | 24 | −0.0009 | −0.0111 | 30.6× | 0 |
 | Friedman #1 decomposition | 6 | −0.0095 | −0.0192 | 3.6× | 0 |
 
-Compactness costs about a thousandth of held-out R² on average and at most
-0.019 on a single fit, and buys an equation roughly twenty-five times shorter.
+Compactness costs about a thousandth of R² on average and at most 0.019 on a
+single fit, and buys an equation roughly twenty-five times shorter. R² is held
+out in every study but the end-to-end calibration, which fits and scores on
+the same rows.
 `fdr_controlled_` never disagreed between the two settings on any of the 308
 fits, and the end-to-end calibration figures above — empirical FDR, its upper
 bound, power, fallbacks, null selections — are identical at both settings to

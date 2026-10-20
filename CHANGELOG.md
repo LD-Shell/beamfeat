@@ -33,7 +33,15 @@ Notable changes to `beamfeat`. Format follows
 - `SearchTrace.n_rejected_constraints`, the candidates `max_inputs` rejected
   at each depth (0 when it is off).
 
-## [0.5.0] - Unreleased
+## [0.5.0] - 2026-10-20
+
+0.4.5 was prepared but not released; its fixes are part of this release and
+listed under "Fixed". The default path (correlation scoring, permutation
+screening with Benjamini-Yekutieli) gives the same results as 0.4.4 except
+where a fix applies; "Changed" lists the cases that differ. The new options
+leave a default fit unchanged, and the search is faster and needs far less
+memory on wide data: the high-dimensional study runs 2 to 28 times faster per
+dataset, and the speed-up changes no feature, p-value or prediction.
 
 ### Added
 
@@ -49,7 +57,7 @@ Notable changes to `beamfeat`. Format follows
   (`note=False` drops it), and `latex_formulas()` for the features on all
   three estimators.
 - The guide shows how to export the features to NumPy, JAX or PyTorch with
-  `sympy.lambdify` on `to_sympy()`.
+  `sympy.lambdify` on `to_sympy()` (PyTorch needs sympy 1.14 or newer).
 - `n_jobs` on `BeamSearch`, `BeamFeatTransformer`, `BeamFeatRegressor` and
   `BeamFeatClassifier` (default 1). A depth's candidates are evaluated and
   scored in chunks on joblib threads; `GradientBoostingScorer`, whose fits
@@ -65,6 +73,9 @@ Notable changes to `beamfeat`. Format follows
   scorers, so that a round can be scored in pieces; `scoring.ColumnStats` and
   `column_stats`; `Evaluator.plan_batch`, `EvaluationBatch.run` and
   `Evaluator.commit_batch`.
+- `UnitRegistryError`, `ExclusionReason.UNDERFLOW`, an optional
+  `OperatorSpec.redundant` predicate, a `symbols` argument to
+  `Node.to_sympy`, and `SearchResult.n_rejected_redundant_final`.
 
 ### Changed
 
@@ -76,20 +87,73 @@ Notable changes to `beamfeat`. Format follows
   custom scorers that do not declare `separable` still receive a whole depth.
 - A candidate's mean, variance and magnitude are computed once, for the
   constancy filter and the scorer, and columns are standardised in blocks
-  rather than one at a time. When the depth-1 ceiling can bind, the round is
-  proposed in score order first rather than proposed in column order and
-  rebuilt. The same fit takes 7 s rather than 29 s, and one on 300 columns
-  3.3 s rather than 19 s. Features, p-values and predictions are unchanged,
-  as are search scores and the evaluation log, to the last bit.
-
-## [0.4.5] - 2026-10-19
-
-Bug fixes. The default path (correlation scoring, permutation screening with
-Benjamini-Yekutieli) gives the same results as 0.4.4 except where a fix below
-applies; "Changed" lists the cases that differ.
+  rather than one at a time. The same fit takes 7 s rather than 29 s, and one
+  on 300 columns 3.3 s rather than 19 s. Features, p-values and predictions
+  are unchanged, as are search scores and the evaluation log, to the last
+  bit.
+- Results that differ from 0.4.4: knockoff selections on candidate pools
+  with dependent columns, which are common among constructed features;
+  searches whose first round reaches `max_candidates_per_depth` (about 258
+  inputs or more at the defaults); `SpearmanScorer` scores with ties;
+  predictions for batches containing out-of-domain rows; the constant printed
+  by `equation(max_terms=...)`; fits with a single candidate, which may now
+  return nothing; fits on columns whose spread is between 1e-12 and 1e-5 of
+  their magnitude, which the constancy cut no longer drops; and the spelling,
+  not the value, of some formulas, since `(1/a)/b` is folded into `1/(a*b)`
+  only when that keeps the depth (`1/((x1 * (x0 * x2)))` now reads
+  `(1/(x1) / (x0 * x2))`, with the same p-values and predictions).
+- `SearchResult.n_evaluated_total` no longer counts the input columns,
+  matching `n_proposed_total`.
+- `joblib` is a declared dependency (`>=1.2`, scikit-learn 1.6's own
+  minimum), since the search imports it directly; scikit-learn already
+  installs it, and the oldest-stack CI job tests 1.2.0.
+- The API reference documents every public module and the methods the three
+  estimators share. `ColumnStats`, `column_stats`, `EvaluationBatch` and
+  `BatchOutcome` are listed in their modules' `__all__`.
+- The tutorials cover the equation list, LaTeX, export, `n_jobs` and the
+  chunked search, describe knockoff routing and the scorers as they now are,
+  and are executed on 0.5.0. The guide has a section on speed and memory.
+- The release workflow runs the full CI suite and publishes only after it
+  passes; a tag push previously published before the tests finished.
+  `CONTRIBUTING.md` describes the release flow.
+- The logistic models fitted internally are built with the arguments the
+  installed scikit-learn expects: `alpha = 1/C` from 1.10 rather than the
+  deprecated `C`, `l1_ratios` rather than `penalty` from 1.8, accuracy as the
+  cross-validation score explicitly (1.11 changes the default), and
+  `newton-cd` rather than the deprecated `liblinear` from 1.10. From 1.8,
+  where `liblinear` fits two classes only, each class of a multiclass target
+  is fitted on its own; the warning 1.7 gives ahead of that change is
+  silenced. Fits on scikit-learn 1.6 to 1.9 are unchanged. Their other
+  warnings are silenced by category, user and runtime warnings only, so a
+  deprecation of an argument beamfeat passes is no longer hidden with the
+  convergence notices.
+- CI also runs weekly, a weekly workflow tests the pre-releases and nightly
+  builds of numpy, SciPy, scikit-learn and pandas, and the test suite fails on
+  any `FutureWarning` and on a `DeprecationWarning` raised from beamfeat or its
+  tests, so that an upstream deprecation is dealt with before the removal.
+- Docstrings describe what the code does: ranking on the larger of the
+  absolute and marginal scores, redundancy pruning within a depth with
+  cross-depth duplicates removed in the final ranking, and correlation scoring
+  as one dot product per candidate. `SpearmanScorer`, `is_constant` and the
+  estimator warnings are listed in their modules' `__all__`, and
+  `SpearmanScorer` is exported from the package, as the other scorers are.
+  The estimators document all their fitted attributes.
+- 230 tests added (686 in all).
 
 ### Fixed
 
+- `KnockoffSelector` on a classification target with three or more classes,
+  and `BeamFeatClassifier(selector="knockoff")` on one, raised on
+  scikit-learn 1.8 and later, where the `liblinear` solver fits two classes
+  only. The statistic is computed one class against the rest, as it was.
+- A refit no longer keeps fitted attributes of an earlier fit: the
+  classifier's `class_prior_` after a fit that kept no feature, the
+  regressor's `alpha_` when the new fit keeps none (it is now `None`), and
+  the classifier's coefficients when the new training set has one class.
+  Predictions were not affected.
+- The model-X warning of `KnockoffSelector` no longer reports a fallback from
+  fixed-X when model-X was requested with `construction="gaussian"`. It is
+  recorded whenever model-X runs, as the docstrings now say.
 - A row on which a fitted formula is undefined, such as the logarithm of a
   negative value, no longer changes the predictions for the other rows of the
   batch. The formula's whole column was replaced with zeros for every row
@@ -110,13 +174,15 @@ applies; "Changed" lists the cases that differ.
 - `BeamSearch` reaches late input columns when `max_candidates_per_depth`
   binds at depth 1. The first round proposed parents in column order, so from
   about 258 inputs (default ceiling) pairs among the last columns were never
-  proposed. A truncated first round is now rebuilt with the inputs ranked by
-  score, as documented; rounds the ceiling does not reach are proposed as
-  before and give identical results. Three datasets of the high-dimensional
-  study reach the ceiling: mean R² moves from 0.523 to 0.340 on riboflavin,
-  from 0.687 to 0.664 on ct_slices and from 0.812 to 0.816 on ujiindoorloc.
+  proposed. When the ceiling can bind, the first round now proposes the
+  inputs in order of their score, as documented; rounds the ceiling cannot
+  reach are proposed as before and give identical results. Three datasets of
+  the high-dimensional study reach the ceiling. Rerunning 0.4.4 and 0.5.0 on
+  one machine, mean R² moves from 0.523 to 0.340 on riboflavin (the archived
+  study, made with an earlier version, reads 0.544), from 0.687 to 0.664 on
+  ct_slices and from 0.812 to 0.816 on ujiindoorloc.
   With the ceiling raised so that every input of ct_slices and ujiindoorloc
-  is proposed, the search returns the 0.4.5 result exactly; the 0.4.4 figures
+  is proposed, the search returns the result above exactly; the 0.4.4 figures
   depended on which columns came first in the file.
 - `SpearmanScorer` gives tied values their average rank. Ordinal ranks broke
   ties by row order, so a score depended on how the rows were arranged and a
@@ -180,33 +246,6 @@ applies; "Changed" lists the cases that differ.
 - The guide's "honest failure" example used a seed on which pure noise
   certifies 12 formulas, which happens on about 1 fit in 100; it now uses one
   where nothing passes and says that some pure-noise fits certify features.
-
-### Added
-
-- `UnitRegistryError`, `ExclusionReason.UNDERFLOW`, an optional
-  `OperatorSpec.redundant` predicate, a `symbols` argument to
-  `Node.to_sympy`, and `SearchResult.n_rejected_redundant_final`.
-
-### Changed
-
-- Results that differ from 0.4.4: knockoff selections on candidate pools
-  with dependent columns, which are common among constructed features;
-  searches whose first round reaches `max_candidates_per_depth` (about 258
-  inputs or more at the defaults); `SpearmanScorer` scores with ties;
-  predictions for batches containing out-of-domain rows; the constant printed
-  by `equation(max_terms=...)`; fits with a single candidate, which may now
-  return nothing.
-- `SearchResult.n_evaluated_total` no longer counts the input columns,
-  matching `n_proposed_total`.
-- The release workflow runs the full CI suite and publishes only after it
-  passes; a tag push previously published before the tests finished.
-  `CONTRIBUTING.md` describes the release flow.
-- Docstrings describe what the code does: ranking on the larger of the
-  absolute and marginal scores, redundancy pruning within a depth with
-  cross-depth duplicates removed in the final ranking, and correlation scoring
-  as one dot product per candidate. `SpearmanScorer`, `is_constant` and the
-  estimator warnings are listed in their modules' `__all__`.
-- 131 tests added (587 in all).
 
 ### Benchmarks
 

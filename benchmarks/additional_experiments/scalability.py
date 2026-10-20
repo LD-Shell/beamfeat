@@ -2,8 +2,10 @@
 
 Sweeps p over a grid under independent and equicorrelated distractors. Each
 cell runs in a spawned subprocess so that wall time and peak RSS are measured
-per fit in isolation; peak memory matters because the search evaluates each
-depth's proposals en bloc, so it scales as O(beam x pool x n_search).
+per fit in isolation. Peak memory mattered when the archived results were
+recorded: the search evaluated each depth's proposals en bloc, so it scaled
+as O(beam x pool x n_search). From 0.5.0 it evaluates them in bounded chunks,
+and memory no longer grows with the number of proposals.
 Reported per cell: fit seconds, peak RSS (MB), recovery of the planted
 formula up to value-equivalence, selections, false features (selected
 formulas touching only distractor columns), and the fitted FDR flag.

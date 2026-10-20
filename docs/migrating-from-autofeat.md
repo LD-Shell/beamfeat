@@ -50,7 +50,7 @@ unpatched from scikit-learn 1.6 through 1.9.
 | `units={...}`, `apply_pi_theorem=True` | `units={...}` | accepts pint quantities or strings (`"kg"`, `"m / s**2"`); enforced at expression construction rather than as a separate theorem pass |
 | `categorical_cols=[...]` | *(not supported)* | compose explicitly: `make_pipeline(ColumnTransformer(...), BeamFeatRegressor(...))` |
 | `feateng_cols=[...]` | *(not supported)* | subset `X` before fitting |
-| `n_jobs=1` | *(not supported)* | search is typically sub-second; permutation tests are vectorised |
+| `n_jobs=1` | `n_jobs=1` | parallelises the search over cores; the fitted result is the same for every value |
 | `verbose=0` | `verbose=0` | same |
 
 ## Fitted attributes
@@ -63,6 +63,8 @@ unpatched from scikit-learn 1.6 through 1.9.
 | *(no equivalent)* | `fdr_controlled_` — whether the returned features carry the FDR guarantee |
 | *(no equivalent)* | `selection_report_` — per-candidate p-values, q-values, and screening decisions |
 | *(no equivalent)* | `equation()` — the fitted model as a readable equation |
+| *(no equivalent)* | `equations()` — the equation at every size along the forward path |
+| *(no equivalent)* | `latex()` — the fitted equation typeset for a document |
 
 ## Worked example
 
@@ -107,8 +109,8 @@ a lower ceiling as the price of a guarantee and a floor. Quantified in
   `beamfeat` returns *no* constructed features, warns, and sets
   `fdr_controlled_ = False` rather than returning unvetted candidates. Check
   that flag.
-- **Determinism.** `random_state` makes the whole pipeline reproducible.
-  autofeat exposes none, and cannot be made reproducible from outside: its
+- **Determinism.** `random_state` makes the whole pipeline reproducible,
+  whatever `n_jobs` is set to. autofeat exposes none, and cannot be made reproducible from outside: its
   noise-injection screen draws decoy features from the global NumPy generator
   before its own internal seeding applies, so each process starts from
   different entropy. Six runs of one identical split returned R² from +0.952

@@ -27,8 +27,9 @@ note it in the revision.
 
 ## Row caps
 
-A candidate matrix holds one column of `n` rows per proposal, so memory
-rather than time is what binds on the wide sets. The four largest are
+When the study was run, a candidate matrix held one column of `n` rows per
+proposal, so memory rather than time bound on the wide sets (from 0.5.0 the
+search evaluates candidates in bounded chunks). The four largest are
 therefore subsampled to a fixed row count with a fixed seed
 (`df.sample(cap, random_state=0)`), following the diamonds-cap precedent in
 `benchmarks/run_benchmarks.py`:

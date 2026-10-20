@@ -27,11 +27,11 @@ datasets.
     make_figures.py          regenerates every figure from results/, in the paper's style
     run_all.ipynb            driver notebook: dataset characterisation, the run
                              order below as cells, and the analysis
+    run_all_clean.ipynb      the same cells as run_all.ipynb, outputs cleared
     data/                    core five datasets + CHECKSUMS.md5 (fetch_data.py adds the rest)
     results_dev/             records from development runs on a constrained machine;
                              regenerate locally before citing any number
-    REPORT.md                write-up of the five studies; bracketed slots are filled
-                             from results/ once the full runs land
+    REPORT.md                write-up of the five studies; every table comes from results/
     PROVENANCE.md            sources, citations, preprocessing
 
 ## Run order
@@ -74,8 +74,9 @@ comparison and the operator-set variants of the depth ladder.
     python depth_ladder.py --seeds 10 --unary square,abs --out results/depth_ladder_ops_nosqrt.json
 
 Each stage tees its full log to `results/<stem>.log` beside the records it
-narrates; keep logs untracked (`results/*.log` in the repository ignore
-list), since the constructor stages emit tens of megabytes of library noise.
+narrates, and the logs of the archived stages are tracked with their records.
+No ignore rule covers `results/*.log`; the constructor stages emit tens of
+megabytes of library noise, so keep their logs out of commits.
 Every script checkpoints as it goes (per dataset, per problem, or per
 regime-level), so an interrupted run resumes by rerunning the remaining
 subsets, e.g. `DATASETS=riboflavin_p4088 python bench.py ...` or
@@ -83,21 +84,25 @@ subsets, e.g. `DATASETS=riboflavin_p4088 python bench.py ...` or
 
 ## Knobs
 
-    FIT_BUDGET_S   per-fit wall-clock budget in seconds (default 900; 0 disables)
-    N_JOBS         library parallelism for autofeat and OpenFE (default -1, all cores)
-    FT_N_JOBS      the same for featuretools (default 1: parallel DFS holds a copy
-                   of the frame per worker and its wide outputs already exhaust
-                   memory on one)
-    FULL_N=1       lift the row caps (superconductivity 5,000; ct/blog/uji 10,000)
-    DATASETS=a,b   restrict bench.py to named datasets
+    FIT_BUDGET_S      per-fit wall-clock budget in seconds (default 900; 0 disables)
+    BENCH_N_JOBS      workers for autofeat and OpenFE (default 1)
+    BENCH_FT_N_JOBS   the same for featuretools (default 1: parallel DFS holds a
+                      copy of the frame per worker and its wide outputs already
+                      exhaust memory on one)
+    FULL_N=1          lift the row caps (superconductivity 5,000; ct/blog/uji 10,000)
+    DATASETS=a,b      restrict bench.py to named datasets
 
-The tree baselines use every core at the library defaults, so the
-constructors are given the same by default and the setting is recorded per
-row; beamfeat has no parallelism setting and runs single-threaded apart from
-BLAS, which its recorded times should be read against.
+The tree baselines use every core at the library defaults. The constructors
+get one worker unless the two variables above say otherwise, and the setting
+is recorded per row as `n_jobs`, which is null on every archived row: none of
+them is a constructor's. beamfeat runs at its default `n_jobs=1`,
+single-threaded apart from BLAS, which its recorded times should be read
+against; the archived run predates its `n_jobs` setting altogether.
 
 Row caps are seeded subsamples, following the diamonds cap of the main paper;
-run the scalable methods once more with `FULL_N=1` for the full-n rows. At
-full superconductivity n the search's per-depth proposal matrix is ~1.7 GB
-(evaluated en bloc), which is the measured motivation for a chunked
-evaluation in `beamfeat.search`.
+run the scalable methods once more with `FULL_N=1` for the full-n rows. When
+the archived run was made, the search evaluated each depth's proposals en
+bloc, about 1.7 GB at full superconductivity n; that measurement motivated the
+chunked evaluation `beamfeat.search` has used since 0.5.0, under which memory
+no longer grows with the number of proposals. The caps stay, so that a rerun
+is comparable with the archived results.

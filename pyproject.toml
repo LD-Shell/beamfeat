@@ -34,7 +34,10 @@ classifiers = [
 # (see the `floor-versions` CI job). No upper pins: pinning `<2.0` style
 # ceilings strands users when the ecosystem moves, which is one of the
 # problems this library exists to avoid.
+# joblib is imported directly by the search; scikit-learn already requires it,
+# so it adds nothing to an install, and 1.2 is scikit-learn 1.6's own floor.
 dependencies = [
+  "joblib>=1.2",
   "numpy>=1.26",
   "scikit-learn>=1.6",
 ]
@@ -72,19 +75,35 @@ include = [
   "CITATION.cff",
   "CHANGELOG.md",
   "pyproject.toml",
-  # benchmarks/README.md documents these scripts and result files
+  # the benchmark scripts and the archived results the README's figures
+  # come from
   "benchmarks/*.py",
   "benchmarks/*.ipynb",
   "benchmarks/*.json",
   "benchmarks/*.csv",
 ]
-# The vendored external comparison study is ~540 KB of raw data and notebooks;
+# The vendored external comparison study is ~540 KB of raw data and notebooks,
+# so it stays in the repository and out of the sdist.
 exclude = ["benchmarks/independent"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
   "slow: long-running checks (sklearn check_estimator); run with `-m slow`",
+]
+# Deprecations fail the suite while the old behaviour still works.
+# scikit-learn announces a removal with FutureWarning, wherever it is raised;
+# numpy and the standard library use DeprecationWarning, which counts when it
+# points at beamfeat or its tests, since a dependency's own internal use is
+# not something this package can fix (scikit-learn 1.6 still passes a
+# deprecated option to scipy, for one). Silence third-party noise with a
+# narrow "ignore" entry naming its message, never by widening these.
+filterwarnings = [
+  "error::FutureWarning",
+  "error::DeprecationWarning:beamfeat",
+  "error::PendingDeprecationWarning:beamfeat",
+  "error::DeprecationWarning:tests",
+  "error::PendingDeprecationWarning:tests",
 ]
 
 [tool.ruff]

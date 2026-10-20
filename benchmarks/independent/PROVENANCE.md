@@ -26,6 +26,19 @@ to four decimals. `beamfeat` is deterministic given a seed and reproduced
 digit-for-digit across two machines running different Python, numpy and
 scikit-learn versions.
 
+Across releases the figures move slightly. The archived run predates 0.3.0:
+it was made on 28 July 2026, between the 0.1.0 and 0.1.1 releases, when the
+estimator's internal ridge penalty was fixed at `alpha=1`; from 0.3.0 it is
+chosen by cross-validation. Rerun with 0.4.2, the release the paper
+describes, reading the wine file as the archived run did (1,598 rows; see
+*Protocol limits*), `beamfeat_ridge` matches 37 of the 45 archived fits to
+four decimals, with the same worst fit, 0.3546, and a mean of 0.8034 against
+0.8033. `beamfeat`, whose penalty changed, matches 21: mean 0.8034 against
+0.8026, worst fit 0.3544 against 0.3553. No fit moves by more than 0.016, and
+the differences come from that change and from fixes between the two
+releases. Read with all 1,599 wine rows, the wine fits move with their splits
+and the worst fit becomes 0.315.
+
 ## What does not
 
 `autofeat`. It exposes no `random_state`, and its noise-injection screen draws
@@ -116,8 +129,11 @@ repository's own real-data panel contains no contested dataset.
 - Default or paper-recommended settings only, with no hyperparameter search.
 - `OpenFE` is run into a linear model rather than the gradient-boosted setting
   it is designed for, which understates it.
-- The wine dataset here is the red-only variant (1,598 rows as archived: the file ships headerless and the loader formerly consumed UCI's first observation as a header; it now reads all 1,599, so fresh runs will differ by one row from every archived result; 11 columns; autofeat's
-  published table used red and white combined (6497 x 12).
+- The wine dataset here is the red-only variant (1,598 rows as archived, 11
+  columns); autofeat's published table used red and white combined
+  (6497 x 12). The file ships headerless and the loader formerly consumed
+  UCI's first observation as a header; it now reads all 1,599 rows, so fresh
+  runs will differ by one row from every archived result.
 - `recovered` measures column membership, not symbolic form: it asks whether
   some returned feature references all of the generating columns, not whether
   the operators combining them are right. See the docstring in `bench.py`.

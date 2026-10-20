@@ -50,8 +50,9 @@ sys.path.insert(0, str(HERE))
 OUT_ROOT = HERE / "parsimony_cost"
 SETTINGS = (("parsimony_none", None), ("parsimony_forward", "forward"))
 
-# Minutes per setting, measured on one core. Printed before anything runs so a
-# caller can choose rather than discover the cost halfway through.
+# Minutes per setting, measured on one core before 0.5.0's faster search.
+# Printed before anything runs so a caller can choose rather than discover the
+# cost halfway through.
 ESTIMATES = {
     "feynman": 0.5,
     "friedman": 0.2,

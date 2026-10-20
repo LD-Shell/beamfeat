@@ -36,10 +36,10 @@ holds.
       homoskedastic noise, and a design of full column rank. Columns that
       are constant or linearly dependent on earlier ones are left out of the
       construction and cannot be selected (see :class:`KnockoffSelector`).
-    - **Model-X Gaussian** (Candès et al., 2018), used when ``n <= 2p``.
-      Requires the features to be jointly Gaussian, which engineered
-      features are not; a warning is recorded when the design is visibly
-      degenerate.
+    - **Model-X Gaussian** (Candès et al., 2018), used when ``n <= 2p``, or
+      on request. Requires the features to be jointly Gaussian, which
+      engineered features are not, so a warning is recorded whenever it
+      runs.
 
 **Selective inference caveat.** Every guarantee above is for testing a
 candidate set that is *fixed before seeing the data used for testing*. If
@@ -70,12 +70,13 @@ References:
 from __future__ import annotations
 
 import logging
-import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Literal
 
 import numpy as np
+
+from beamfeat._compat import l1_logistic_coefficients, quiet
 
 __all__ = [
     "KnockoffSelector",
@@ -108,7 +109,12 @@ class SelectionResult:
         statistics: Importance statistic per feature. For the permutation
             selector this is ``1 - p_value`` so that larger is better; for
             knockoffs it is the antisymmetric statistic W.
-        p_values: Permutation p-values, valid in finite samples, where the method produces them.
+        p_values: Permutation p-values, valid in finite samples, where the
+            method produces them.
+        q_values: The p-values adjusted by the selector's step-up correction
+            (Benjamini-Hochberg or Benjamini-Yekutieli); a feature is selected
+            when its q-value is at most :attr:`target_fdr`. ``None`` where the
+            method computes no p-values.
         threshold: The data-dependent cut applied to :attr:`statistics`.
             ``inf`` means nothing met the criterion.
         target_fdr: The nominal FDR level requested.
@@ -210,12 +216,11 @@ class Selector(ABC):
 
     def _lasso_importance(self, design: np.ndarray, target: np.ndarray) -> np.ndarray:
         """Cross-validated lasso coefficient magnitudes (knockoff statistic)."""
-        from sklearn.linear_model import LassoCV, LogisticRegressionCV
+        from sklearn.linear_model import LassoCV
 
         n_samples = design.shape[0]
         n_folds = int(min(5, max(2, n_samples // 10)))
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        with quiet():
             if self.problem_type == "classification":
                 if len(np.unique(target)) < 2:  # pragma: no cover - defensive
                     return np.zeros(design.shape[1])
@@ -223,12 +228,8 @@ class Selector(ABC):
                 n_folds = int(min(n_folds, counts.min()))
                 if n_folds < 2:  # pragma: no cover - defensive
                     return np.zeros(design.shape[1])
-                model = LogisticRegressionCV(
-                    cv=n_folds, penalty="l1", solver="liblinear", max_iter=2000,
-                    random_state=self.random_state,
-                )
-                model.fit(design, target)
-                coefficients = np.max(np.abs(model.coef_), axis=0)
+                rows = l1_logistic_coefficients(design, target, n_folds, self.random_state)
+                coefficients = np.max(np.abs(rows), axis=0)
             else:
                 model = LassoCV(cv=n_folds, max_iter=5000, random_state=self.random_state)
                 model.fit(design, target)
@@ -589,10 +590,10 @@ class KnockoffSelector(Selector):
     columns, and the fixed-X / model-X routing uses their count.
 
     **Model-X Gaussian** (Candès et al., 2018) is used when ``n <= 2p``, where
-    the fixed-X construction does not exist. It requires the features to be
-    jointly Gaussian, an assumption engineered features violate; a warning is
-    recorded when the design is visibly degenerate. Prefer
-    :class:`PermutationSelector` in that regime.
+    the fixed-X construction does not exist, or when ``construction`` is
+    ``"gaussian"``. It requires the features to be jointly Gaussian, an
+    assumption engineered features violate, and a warning is recorded
+    whenever it runs. Prefer :class:`PermutationSelector` in that regime.
 
     **Power and the offset.** ``offset=1`` requires
     ``(1 + #negatives)/#positives <= target_fdr``, unsatisfiable with fewer
@@ -824,10 +825,14 @@ class KnockoffSelector(Selector):
                 f"and cannot be selected (columns {listed})"
             )
         if not use_fixed and self.warn_on_violation:
+            reason = (
+                "n <= 2p: falling back to model-X Gaussian knockoffs"
+                if self.construction == "auto"
+                else "model-X Gaussian knockoffs (construction='gaussian')"
+            )
             messages.append(
-                "n <= 2p: falling back to model-X Gaussian knockoffs, which assume "
-                "jointly Gaussian features — an assumption engineered features "
-                "violate; prefer the permutation selector in this regime"
+                f"{reason}, which assume jointly Gaussian features — an assumption "
+                "engineered features violate; prefer the permutation selector"
             )
         for message in messages:
             logger.warning("[beamfeat.selection] %s", message)

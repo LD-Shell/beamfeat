@@ -32,6 +32,14 @@ Four strategies are provided, trading signal quality against cost:
 All scorers are deterministic given a ``random_state``, and all handle the
 empty-incumbent case (the first beam round, where there is no residual yet) by
 scoring against the raw target.
+
+A scorer whose score for a candidate depends on that candidate's column alone
+declares itself :attr:`~Scorer.separable`. A round can then be scored in
+pieces: :meth:`~Scorer.prepare` handles the target and the incumbents once,
+and :meth:`~Scorer.score_prepared` scores any chunk of candidates against the
+result, reusing the :class:`ColumnStats` computed when the chunk was
+evaluated. The scores equal those of :meth:`~Scorer.score_batch` on the whole
+round, which is how the search keeps its memory bounded.
 """
 
 from __future__ import annotations
@@ -42,12 +50,16 @@ from typing import Any, Literal, NamedTuple
 
 import numpy as np
 
+from beamfeat._compat import quiet
+
 __all__ = [
+    "ColumnStats",
     "CorrelationScorer",
     "GradientBoostingScorer",
     "MutualInformationScorer",
     "Scorer",
     "SpearmanScorer",
+    "column_stats",
     "is_constant",
     "make_scorer",
 ]
@@ -161,14 +173,14 @@ class Scorer(ABC):
     be non-negative and finite.
     """
 
-    #: Human-readable identifier, used in logs and reports.
     name: str = "scorer"
+    """Human-readable identifier, used in logs and reports."""
 
-    #: Whether each candidate's score depends on its own column alone, so that
-    #: a batch scored in pieces receives the scores it would receive whole.
-    #: Declared by the class that defines :meth:`score_batch`; a subclass that
-    #: overrides :meth:`score_batch` without declaring it is scored whole.
     separable: bool = False
+    """Whether each candidate's score depends on its own column alone, so that
+    a batch scored in pieces receives the scores it would receive whole.
+    Declared by the class that defines :meth:`score_batch`; a subclass that
+    overrides :meth:`score_batch` without declaring it is scored whole."""
 
     # Whether scoring a candidate costs far more than evaluating it, in work
     # that holds the GIL. The search then scores a few candidates per chunk,
@@ -312,8 +324,7 @@ class Scorer(ABC):
                     return binary - binary.mean()
                 from sklearn.linear_model import LogisticRegression
 
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
+                with quiet():
                     model = LogisticRegression(max_iter=500)
                     model.fit(incumbent, binary)
                     probabilities = model.predict_proba(incumbent)[:, 1]
@@ -326,8 +337,7 @@ class Scorer(ABC):
             return numeric_target
 
         design = np.column_stack([np.ones(len(numeric_target)), incumbent])
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        with quiet():
             coefficients, *_ = np.linalg.lstsq(design, numeric_target, rcond=None)
         residual = numeric_target - design @ coefficients
         if not np.all(np.isfinite(residual)):  # pragma: no cover - defensive
@@ -527,8 +537,7 @@ class MutualInformationScorer(Scorer):
             if not np.any(_standardise(reference)):
                 return np.zeros(candidates.shape[1])
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        with quiet():
             scores = estimator(
                 candidates,
                 reference,
@@ -624,8 +633,7 @@ class GradientBoostingScorer(Scorer):
             if self.problem_type == "classification" and len(np.unique(target[train_index])) < 2:
                 continue
             estimator = self._make_estimator()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
+            with quiet():
                 try:
                     estimator.fit(features[train_index], target[train_index])
                     predictions = estimator.predict(features[test_index])
@@ -852,7 +860,7 @@ def make_scorer(
             own problem type; a warning is issued when it differs from this
             one.
         random_state: Passed to the constructed scorer.
-        **kwargs: Additional scorer-specific arguments.
+        **kwargs (Any): Additional scorer-specific arguments.
 
     Returns:
         A :class:`Scorer` instance.

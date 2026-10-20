@@ -1,6 +1,7 @@
 # beamfeat
 
 [![CI](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml/badge.svg)](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-686%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
 [![PyPI](https://img.shields.io/pypi/v/beamfeat)](https://pypi.org/project/beamfeat/)
 [![Python](https://img.shields.io/badge/python-3.10%E2%80%933.15-blue)](https://github.com/LD-Shell/beamfeat)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE)
@@ -32,16 +33,19 @@ model.predict(X_new)
 ## Install
 
 ```bash
-pip install beamfeat            # core: numpy + scikit-learn only
-pip install "beamfeat[units]"   # + pint, for unit-aware search (units as
-                                #   strings like "kg" or as pint quantities)
-pip install "beamfeat[all]"     # + sympy display support and test deps
+pip install beamfeat              # core: numpy, scikit-learn, joblib
+pip install "beamfeat[units]"     # + pint, for unit-aware search (units as
+                                  #   strings like "kg" or as pint quantities)
+pip install "beamfeat[display]"   # + sympy, for to_sympy() and latex()
+pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
-Python ≥ 3.10. There are **no upper version pins**: the 587 tests pass on
-Python 3.10 to 3.15, from scikit-learn 1.6.1 with numpy 1.26 through
-scikit-learn 1.9.1 with numpy 2.5. Running the test suite or reproducing
-the benchmarks needs a little more setup, described in
+Python ≥ 3.10. There are **no upper version pins**: the 686 tests pass on
+Python 3.10 to 3.15 with the newest releases each supports (scikit-learn
+1.9.1 from Python 3.11 and 1.7.2 on 3.10, numpy 2.2 to 2.5), and on the
+oldest supported stack, scikit-learn 1.6.1 with numpy 1.26, where the tests
+that need pint or pandas skip because that run leaves both out. Running the
+test suite or reproducing the benchmarks needs a little more setup, described in
 [`docs/installation.md`](https://github.com/LD-Shell/beamfeat/blob/main/docs/installation.md).
 
 ## What it does
@@ -49,8 +53,12 @@ the benchmarks needs a little more setup, described in
 1. **Search.** A beam search over an expression DAG proposes and scores
    compositions of unary (`log`, `sqrt`, `reciprocal`, `square`, `abs`) and
    binary (`*`, `/`, `+`, `-`) operators, with structural deduplication,
-   redundancy pruning, and cost O(depth × beam²) rather than the exhaustive
-   O(operators^depth).
+   redundancy pruning, and a cost that grows polynomially in depth and beam
+   width (each depth pairs the beam with every expression kept so far) rather
+   than the exhaustive O(operators^depth). Candidates are evaluated and
+   scored in fixed-size chunks, so with the default scorer memory does not
+   grow with their number, and `n_jobs` spreads the work over cores without
+   changing the result.
 2. **Selection.** Candidates are tested for association with the target under
    procedures that control the false discovery rate (details below), on a
    held-out split of the training rows that the search never saw.
@@ -59,7 +67,9 @@ the benchmarks needs a little more setup, described in
    `.equation()` marks how many of the certified terms it printed — the full
    screened set with per-candidate p- and q-values stays auditable in
    `selection_report_`. `parsimony=None` fits that whole set instead, so the
-   printed equation is itself the certified object.
+   printed equation is itself the certified object. `equations()` lists the
+   equation at every size along the forward path, and `latex()` typesets the
+   fitted one.
 
 Numerical failures (overflow, domain errors) are recorded and excluded, never
 silently masked. Optional unit propagation — units given as pint quantities,
@@ -141,8 +151,10 @@ benchmark scripts, not asserted:
   rate, power 1.000, zero fallbacks; zero selections over 60 global-null
   replicates.
 - Feynman-equation panel (12 physics laws, 0.1% noise): 10/12 solved at the
-  SRBench criterion and exact symbolic form on 8 of the 9 laws that have one, ~0.9 s per equation; the misses are named boundaries (a depth-3 rational, a literal
-  constant, depth-4 nesting, the Gaussian's exponential).
+  SRBench criterion and exact symbolic form on 8 of the 9 laws that have one,
+  about 0.2 s per equation (0.9 s in the archived run, made before the 0.5.0
+  search speed-up); the misses are named boundaries (a depth-3 rational, a
+  literal constant, depth-4 nesting, the Gaussian's exponential).
 - Pure-noise stress ([`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py)): over 100
   global-null pipelines, where every selection is false by construction, BH
   returned features in 6 trials and BY in 1 — false discovery proportions of
@@ -184,7 +196,7 @@ benchmark scripts, not asserted:
   marginally-quiet quadratic is priced by the guarantee itself) and an
   achieved 0.780 ± 0.013: about 0.086 lost to what marginal screening cannot
   see, 0.094 to the search — stated rather than hidden.
-- Test suite: 587 tests at 96% statement coverage (a 90% floor is enforced
+- Test suite: 686 tests at 97% statement coverage (a 90% floor is enforced
   in CI), including scikit-learn's full estimator-conformance checks.
 - Selection-only baseline (knockpy on raw columns, modified-FDR offset —
   the only satisfiable configuration at these dimensionalities): 0/15
@@ -196,7 +208,10 @@ benchmark scripts, not asserted:
   LightGBM 0.798, OpenFE 0.736, ridge 0.704, autofeat −1.561 and
   featuretools −2.478 — and a worst single fit of 0.355, none below zero,
   where autofeat reached −103.2 and featuretools −57.3, at ~60× autofeat's
-  speed, with the FDR flag delivered on 45/45 fits.
+  speed, with the FDR flag delivered on 45/45 fits. The archived featuretools
+  figures come from a harness that filled its non-finite test cells with 0;
+  filled with the training medians, as the harness now does, they read 0.461
+  and −12.882 ([`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md#non-finite-test-cells)).
 - Benchmarks (70/30 splits): mean R² over the ten core-suite problems, and
   recovery of the generating columns over the ten synthetic problems that
   declare them — the two sets differ by one dataset each.
@@ -225,16 +240,18 @@ pinned environment, data, and a notebook that reproduces the analysis. Mean
 held-out R²: beamfeat 0.803, random forest 0.810, LightGBM 0.798, OpenFE
 0.736, ridge 0.704, autofeat −1.561, featuretools −2.478 — and worst single
 fit of 45: beamfeat 0.355, autofeat −103.2, featuretools −57.3, with the FDR
-guarantee delivered on 45/45. Read [`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md) first: it records what is
+guarantee delivered on 45/45 (for featuretools, see the zero-fill note
+above). Read [`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md) first: it records what is
 reproducible (beamfeat: selections bit-identically; the fitted model's
-cross-validated penalty can flip on marginal problems) and what is not (autofeat seeds
-no `random_state` and drawing its decoy features from the global NumPy
-generator, swung from +0.952 to −109.8 across six runs on one identical split).
+cross-validated penalty can flip on marginal problems) and what is not
+(autofeat, which sets no `random_state` and draws its decoy features from the
+global NumPy generator, swung from +0.952 to −109.8 across six runs on one
+identical split).
 
 ## Documentation
 
 Tutorial notebooks live in [`notebooks/`](https://github.com/LD-Shell/beamfeat/tree/main/notebooks) (getting started; search and scoring;
-selection and units). The statistical guarantees are documented in detail in
+selection and units; reading a fit). The statistical guarantees are documented in detail in
 [`docs/guarantees.md`](https://github.com/LD-Shell/beamfeat/blob/main/docs/guarantees.md) and in the module docstrings of [`beamfeat.selection`](https://github.com/LD-Shell/beamfeat/blob/main/src/beamfeat/selection.py). Users coming
 from autofeat will find a full API mapping and version-compatibility notes
 in [`docs/migrating-from-autofeat.md`](https://github.com/LD-Shell/beamfeat/blob/main/docs/migrating-from-autofeat.md).
@@ -257,8 +274,18 @@ note={}
 ```
 
 The paper describes 0.4.2, archived at
-[10.5281/zenodo.23417132](https://doi.org/10.5281/zenodo.23417132); every release is
-archived under [10.5281/zenodo.21619567](https://doi.org/10.5281/zenodo.21619567). See also
+[10.5281/zenodo.23417132](https://doi.org/10.5281/zenodo.23417132). That archive holds the
+code, the benchmark harnesses and the run records behind the paper's tables and figures,
+with notebooks that rerun the benchmarks and compare the results against those records.
+Later releases fix two bugs that move some of the paper's figures: a harness bug that
+understated featuretools in the comparison study, and a search bug behind three of the
+higher-dimensional results (riboflavin, ct_slices and ujiindoorloc), which takes the
+datasets where beamfeat leads both tree ensembles from five to four. They are also faster,
+so the paper's timings and memory figures describe 0.4.2. The
+[changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md) and
+[`benchmarks/independent/PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md)
+give the corrected values. Every release is archived under
+[10.5281/zenodo.21619567](https://doi.org/10.5281/zenodo.21619567). See also
 [`CITATION.cff`](https://github.com/LD-Shell/beamfeat/blob/main/CITATION.cff). If you use the selection procedures, please also cite the
 underlying statistics: [Benjamini & Hochberg (1995)](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x),
 [Benjamini & Yekutieli (2001)](https://doi.org/10.1214/aos/1013699998), [Barber & Candès (2015)](https://doi.org/10.1214/15-AOS1337),
