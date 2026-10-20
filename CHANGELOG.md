@@ -84,6 +84,10 @@ dataset, and the speed-up changes no feature, p-value or prediction.
 - The release workflow runs the full CI suite and publishes only after it
   passes; a tag push previously published before the tests finished.
   `CONTRIBUTING.md` describes the release flow.
+- CI also runs weekly, a weekly workflow tests the pre-releases and nightly
+  builds of numpy, SciPy, scikit-learn and pandas, and the test suite fails on
+  any `FutureWarning` and on a `DeprecationWarning` raised from beamfeat or its
+  tests, so that an upstream deprecation is dealt with before the removal.
 - Docstrings describe what the code does: ranking on the larger of the
   absolute and marginal scores, redundancy pruning within a depth with
   cross-depth duplicates removed in the final ranking, and correlation scoring
