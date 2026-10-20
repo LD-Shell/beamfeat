@@ -17,12 +17,16 @@ Notable changes to `beamfeat`. Format follows
   the redundancy check kept out of the beam (a linear near-duplicate need not
   stay one under `1/(x + a)` or `exp(a*x)`), and as a factor of a beam member
   where the depth limit allows, by maximising |corr| with the target on the
-  search rows. The constant snaps to a simple value (0, ±1, ±2, ±3, ±1/2, ±3/2,
-  ±1/3, ±1/4) when a likelihood-ratio test cannot tell it from the optimum,
-  and is exact in `to_sympy()` and `latex()`. The screen sees fixed
-  expressions, so its guarantee is unchanged. `Node.const`,
+  search rows. A fitted pole keeps a margin from the data, twice the spread
+  of the operand's ten most extreme values and at least 1% of its range:
+  the shifts' grids start at it, and `pow` fits a negative power, whose pole
+  is at 0, only where the operand stays more than the margin above 0. The
+  constant snaps to a simple value (0, ±1, ±2, ±3, ±1/2, ±3/2, ±1/3, ±1/4)
+  when a likelihood-ratio test cannot tell it from the optimum, never past
+  the margin, and is exact in `to_sympy()` and `latex()`. The screen sees
+  fixed expressions, so its guarantee is unchanged. `Node.const`,
   `Node.n_constants`, `transform(..., const=...)`,
-  `OperatorSpec.constant_grid`, `SearchTrace.n_fitted` and
+  `OperatorSpec.constant_grid`, `pole_margins`, `SearchTrace.n_fitted` and
   `beamfeat.parametric` support it.
 - `safe_domain` on the same four classes (default `False`). Every admitted
   feature is then defined everywhere in a box of input values, not only on
