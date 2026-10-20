@@ -19,6 +19,7 @@ from beamfeat import (
     DegenerateFitWarning,
     NoDiscoveriesError,
     NoDiscoveriesWarning,
+    PermutationSelector,
 )
 
 ESTIMATORS = [BeamFeatTransformer, BeamFeatRegressor, BeamFeatClassifier]
@@ -236,6 +237,19 @@ class TestClassifier:
         X, y = classification_data
         model = _fast(BeamFeatClassifier).fit(X, y)
         assert model.score(X, y) > 0.85
+
+    def test_refit_does_not_keep_the_prior_of_an_empty_fit(self, classification_data):
+        X, y = classification_data
+        # Twenty permutations cannot reach the p-values this level needs, so
+        # the first fit keeps nothing.
+        unreachable = PermutationSelector(target_fdr=1e-6, n_permutations=20, max_permutations=20)
+        model = _fast(BeamFeatClassifier, selector=unreachable)
+        with pytest.warns(NoDiscoveriesWarning):
+            model.fit(X, y)
+        assert hasattr(model, "class_prior_")
+        model.set_params(selector="permutation").fit(X, y)
+        assert model.model_ is not None
+        assert not hasattr(model, "class_prior_")
 
     def test_predict_proba_is_valid(self, classification_data):
         X, y = classification_data
@@ -999,6 +1013,16 @@ class TestAlphaAuto:
         with pytest.raises(ValueError, match="auto"):
             _fast(BeamFeatRegressor, alpha="invalid").fit(X, y)
 
+    def test_empty_refit_does_not_keep_the_previous_alpha(self, regression_data):
+        X, y = regression_data
+        model = _fast(BeamFeatRegressor, selector="permutation").fit(X, y)
+        assert model.alpha_ > 0
+        # Twenty permutations cannot reach the p-values this level needs.
+        unreachable = PermutationSelector(target_fdr=1e-6, n_permutations=20, max_permutations=20)
+        with pytest.warns(NoDiscoveriesWarning):
+            model.set_params(selector=unreachable).fit(X, y)
+        assert model.alpha_ is None
+
     def test_wide_selection_small_n_stays_bounded(self):
         # Regression case: many correlated screened features on few rows,
         # where a fixed penalty is effectively no penalty. Predictions from
@@ -1466,6 +1490,16 @@ def test_estimator_exports_are_in_the_module_all():
         if getattr(getattr(beamfeat, name), "__module__", None) == estimators.__name__
     }
     assert exported <= set(estimators.__all__)
+
+
+def test_every_package_export_is_in_its_module_all():
+    import importlib
+
+    import beamfeat
+
+    for name in beamfeat.__all__:
+        module = importlib.import_module(getattr(beamfeat, name).__module__)
+        assert name in module.__all__, name
 
 
 def _reference_forward_path(matrix, target):

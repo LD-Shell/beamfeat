@@ -538,8 +538,8 @@ class _BeamFeatBase(BaseEstimator):
         near-duplicate terms defeats the interpretability the library exists
         for. What compactness costs is measured rather than assumed — see
         ``benchmarks/PARSIMONY_COST.md``, which puts it at roughly a
-        thousandth of held-out R^2 for an equation some twenty-five times
-        shorter, with no observed inflation of the realised false discovery
+        thousandth of R^2, held out in every study but one scored in-sample,
+        for an equation some twenty-five times shorter, with no observed inflation of the realised false discovery
         proportion.
 
         ``parsimony=None`` keeps the entire screened set, so the printed
@@ -1428,21 +1428,22 @@ class _BeamFeatBase(BaseEstimator):
         ``parsimony="forward"`` would fit if it stopped there, with its
         complexity, the in-sample R^2 of a least-squares fit of those terms
         on the rows screening used, and the R^2 its last term added. The
-        line the model was fitted on is marked ``*``; at the default
+        line holding the returned features is marked ``*``; at the default
         settings it is the first line whose successor adds less than
         ``parsimony_tol``. The records behind the text are
         :attr:`equations_`.
 
         Each line is written ``y ~ a + b``: a linear model in those terms,
-        without coefficients, since only the marked line has fitted ones and
-        :meth:`equation` prints them. For classification the R^2 is that of
+        without coefficients, since only the marked line has fitted ones,
+        which the regressor's and classifier's ``equation()`` prints. For classification the R^2 is that of
         the integer-coded labels, the ranking heuristic the forward step
         uses, and not a classification metric.
 
         The FDR guarantee covers the screened set, the last line, and not an
         equation chosen from this list: every line is a subset of the
-        screened set chosen on the rows screening used, as the default
-        fitted model is. The output says so in its last line.
+        screened set chosen on the rows screening used, as the features
+        returned at the default settings are. The output says so in its last
+        line.
 
         Args:
             precision: Decimal places for R^2, and significant figures for
@@ -1584,13 +1585,16 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         target_fdr: Nominal false discovery rate for the selector.
         unary_ops: Unary operators to apply.
         binary_ops: Binary operators to apply.
-        redundancy_threshold: Absolute correlation above which a candidate is
-            treated as a duplicate.
+        redundancy_threshold: Absolute correlation at or above which a
+            candidate is treated as a duplicate.
         include_originals: Whether input columns compete alongside constructed
             expressions.
-        units: Optional mapping of input column name to pint quantity.
-            Supplying units restricts the search to dimensionally valid
-            expressions.
+        units: Optional units of the input columns: a mapping of column name
+            to unit, or a sequence with one unit per column. A unit is a pint
+            quantity or unit, or a string pint parses, such as ``"kg"`` or
+            ``"m / s**2"``. Supplying units restricts the search to
+            dimensionally valid expressions; cover every column, since one
+            without a unit combines freely with the rest.
         selection_holdout: Fraction of the training rows held out of the
             search for selection, strictly between 0 and 1, or ``None`` to
             select on the search rows (which forfeits the guarantee, so
@@ -1612,7 +1616,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             screened set, chosen by greedy forward selection on the selection
             rows. That subset is not re-certified, so the FDR guarantee covers
             the set it was drawn from and not the terms returned, and
-            :meth:`equation` marks this whenever terms were dropped. ``None``
+            :attr:`fdr_scope_` (and the regressor's and classifier's
+            ``equation()``) marks this whenever terms were dropped. ``None``
             returns the screened set entire, so the returned features are
             exactly the set the guarantee covers; ``parsimony_holdout`` buys
             both, for rows. Either way :attr:`equations_` records the forward
@@ -1666,7 +1671,24 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             when nothing passed screening. The FDR guarantee covers the
             screened set, the last record, and not a record chosen from the
             list; :meth:`equations` renders it and says so.
+        selection_report_: One dict per candidate screened, in the search's
+            order: ``"formula"``; ``"p_value"`` and ``"q_value"``, ``None``
+            for a knockoff selector, which computes neither; ``"statistic"``;
+            ``"screened"``, whether it passed FDR screening, which marks the
+            set the guarantee covers; and ``"kept"``, whether it is among the
+            returned features. ``None`` without a selector.
+        fdp_inflation_: The size of the certified set divided by the number
+            of returned features, |S|/|S'|: the factor by which returning a
+            subset can raise the realised false discovery proportion. ``1.0``
+            when the returned features are the certified set, ``None`` when
+            nothing was certified.
+        certification_result_: The :class:`~beamfeat.selection.SelectionResult`
+            of the ``parsimony_holdout`` re-test, or ``None`` when it did not
+            run.
         n_features_out_: Number of features produced.
+        n_features_in_: Number of input columns seen during fit.
+        feature_names_in_: Names of the input columns, when ``X`` had string
+            column names.
 
     A row on which a fitted expression cannot be evaluated at transform time
     (outside its domain, such as the logarithm of a negative value) is NaN in
@@ -1767,15 +1789,26 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
     Attributes:
         features_: Selected expressions.
         feature_formulas_: Their formula strings.
-        model_: The fitted downstream linear model.
-        coef_: Coefficients of the downstream model.
-        intercept_: Intercept of the downstream model.
+        model_: The fitted downstream linear model, ``None`` when no feature
+            was kept.
+        scaler_: The ``StandardScaler`` applied to the features before the
+            linear model, ``None`` when no feature was kept. ``coef_`` divided
+            by its ``scale_`` gives the coefficients on the raw features.
+        coef_: Coefficients of the downstream model, on the standardised
+            features.
+        intercept_: Intercept of the downstream model; the training mean of
+            the target when no feature was kept.
+        alpha_: The ridge penalty used, chosen by cross-validation when
+            ``alpha="auto"``; ``None`` when no feature was kept.
         fdr_scope_: Which set :attr:`fdr_controlled_` is a statement about;
             see :class:`BeamFeatTransformer`. ``"screened set"`` is what
             :meth:`equation` marks in its output.
         equations_: The forward path through the screened set, one record
             per number of terms, with the record of the fitted model marked;
             see :class:`BeamFeatTransformer` and :meth:`equations`.
+
+    The other fitted attributes, such as :attr:`selection_report_`, are those
+    of :class:`BeamFeatTransformer`.
     """
 
     _problem_type = "regression"
@@ -1840,6 +1873,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             # the intercept — predict the training mean, claim nothing more.
             self.scaler_ = None
             self.model_ = None
+            self.alpha_ = None
             self.coef_ = np.empty(0)
             self.intercept_ = float(np.mean(y))
             return self
@@ -1998,7 +2032,16 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
     Attributes:
         features_: Selected expressions.
         classes_: Class labels seen during fit.
-        model_: The fitted downstream logistic model.
+        model_: The fitted downstream logistic model, ``None`` when no
+            feature was kept or the training data had a single class.
+        scaler_: The ``StandardScaler`` applied to the features before the
+            logistic model, ``None`` when no feature was kept.
+        coef_: Coefficients of the logistic model, on the standardised
+            features; empty when no feature was kept.
+        intercept_: Intercepts of the logistic model; empty when no feature
+            was kept.
+        class_prior_: Class frequencies of the training labels, set only when
+            no feature was kept, in which case the model predicts them.
         fdr_scope_: Which set :attr:`fdr_controlled_` is a statement about;
             see :class:`BeamFeatTransformer`. ``"screened set"`` is what
             :meth:`equation` marks in its output.
@@ -2007,6 +2050,9 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             see :class:`BeamFeatTransformer` and :meth:`equations`. Its R^2
             is of the integer-coded labels, the forward step's ranking
             heuristic.
+
+    The other fitted attributes, such as :attr:`selection_report_`, are those
+    of :class:`BeamFeatTransformer`.
     """
 
     _problem_type = "classification"
@@ -2065,6 +2111,10 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         X, y = _validate_input(self, X, y, dtype=np.float64, y_numeric=False)
         check_classification_targets(y)
         self.classes_ = np.unique(y)
+        # Set only by a fit that keeps no feature, and read by predict when
+        # there is no model, so a refit must not inherit it.
+        if hasattr(self, "class_prior_"):
+            del self.class_prior_
 
         # Scorers and selectors operate numerically, so labels are encoded to
         # integer codes here. Encoding at the boundary keeps the rest of the
@@ -2096,6 +2146,8 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             # A single-class training set has nothing to discriminate; store
             # the constant so predict still returns something coherent.
             self.model_ = None
+            self.coef_ = np.empty((0, 0))
+            self.intercept_ = np.empty(0)
             return self
 
         self.model_ = logistic_regression(C=self.C, max_iter=2000, random_state=self.random_state).fit(
