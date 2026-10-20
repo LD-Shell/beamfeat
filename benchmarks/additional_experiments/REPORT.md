@@ -7,9 +7,12 @@ subsamples, documented in `PROVENANCE.md` and overridable with `FULL_N=1`.
 
 Parallelism: the tree baselines use library defaults (all cores); the
 constructors are given the same through `N_JOBS`, except featuretools, whose
-parallel mode holds a copy of the frame per worker. beamfeat has no
-parallelism setting and runs single-threaded apart from BLAS, which its
-recorded times should be read against.
+parallel mode holds a copy of the frame per worker. beamfeat ran
+single-threaded apart from BLAS, which its recorded times should be read
+against. The study predates 0.5.0, which added `n_jobs` and evaluates
+candidates in bounded chunks: beamfeat's times and peak memory below are
+those of the earlier search, and the 0.5.0 entry of the changelog measures
+the change on fits from this study.
 
 ## 1. Comparison on high-dimensional data
 
@@ -160,9 +163,9 @@ equicorrelated.
 Recovery is perfect and false features are zero at every width in both
 regimes, and the FDR flag held in all 100 cells. Time grows sublinearly —
 roughly 42-fold for a hundredfold increase in p — because the beam caps
-per-level work once the candidate pool exceeds it. Peak memory is the binding
-constraint at 2.6 GB for p = 1,000 at n = 600, which is why the largest real
-datasets are capped by rows.
+per-level work once the candidate pool exceeds it. Peak memory was the
+binding constraint, at 2.6 GB for p = 1,000 at n = 600 (0.35 GB from 0.5.0),
+and is why the largest real datasets are capped by rows.
 
 ## 5. Selection procedures
 

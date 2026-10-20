@@ -93,11 +93,14 @@ subsets, e.g. `DATASETS=riboflavin_p4088 python bench.py ...` or
 
 The tree baselines use every core at the library defaults, so the
 constructors are given the same by default and the setting is recorded per
-row; beamfeat has no parallelism setting and runs single-threaded apart from
-BLAS, which its recorded times should be read against.
+row. beamfeat runs at its default `n_jobs=1`, single-threaded apart from BLAS,
+which its recorded times should be read against; the archived run predates
+its `n_jobs` setting altogether.
 
 Row caps are seeded subsamples, following the diamonds cap of the main paper;
-run the scalable methods once more with `FULL_N=1` for the full-n rows. At
-full superconductivity n the search's per-depth proposal matrix is ~1.7 GB
-(evaluated en bloc), which is the measured motivation for a chunked
-evaluation in `beamfeat.search`.
+run the scalable methods once more with `FULL_N=1` for the full-n rows. When
+the archived run was made, the search evaluated each depth's proposals en
+bloc, about 1.7 GB at full superconductivity n; that measurement motivated the
+chunked evaluation `beamfeat.search` has used since 0.5.0, under which memory
+no longer grows with the number of proposals. The caps stay, so that a rerun
+is comparable with the archived results.
