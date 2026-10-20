@@ -27,6 +27,7 @@ from beamfeat.scoring import (
     GradientBoostingScorer,
     MutualInformationScorer,
     Scorer,
+    SpearmanScorer,
     is_constant,
     make_scorer,
 )
@@ -51,7 +52,7 @@ __all__ = [
     "ExclusionReason", "GradientBoostingScorer", "KnockoffSelector",
     "MutualInformationScorer", "Node", "NodeError", "OperatorSpec",
     "PermutationSelector", "RejectedNode", "Scorer", "SearchResult",
-    "SearchTrace", "SelectionResult", "Selector", "UnitError",
+    "SearchTrace", "SelectionResult", "Selector", "SpearmanScorer", "UnitError",
     "UnitRegistryError", "combine",
     "is_constant", "knockoff_threshold", "leaf", "make_scorer", "make_selector",
     "transform",

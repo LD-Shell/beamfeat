@@ -173,14 +173,14 @@ class Scorer(ABC):
     be non-negative and finite.
     """
 
-    #: Human-readable identifier, used in logs and reports.
     name: str = "scorer"
+    """Human-readable identifier, used in logs and reports."""
 
-    #: Whether each candidate's score depends on its own column alone, so that
-    #: a batch scored in pieces receives the scores it would receive whole.
-    #: Declared by the class that defines :meth:`score_batch`; a subclass that
-    #: overrides :meth:`score_batch` without declaring it is scored whole.
     separable: bool = False
+    """Whether each candidate's score depends on its own column alone, so that
+    a batch scored in pieces receives the scores it would receive whole.
+    Declared by the class that defines :meth:`score_batch`; a subclass that
+    overrides :meth:`score_batch` without declaring it is scored whole."""
 
     # Whether scoring a candidate costs far more than evaluating it, in work
     # that holds the GIL. The search then scores a few candidates per chunk,

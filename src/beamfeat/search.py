@@ -24,8 +24,8 @@ The check is within a depth: a candidate that restates a feature from an
 earlier depth can occupy a beam slot. Such restatements are removed in the
 final ranking, which applies the same check across all depths.
 
-**Bounded memory.** On a wide table one depth can propose hundreds of
-thousands of candidates. They are evaluated and scored a chunk at a time
+Memory stays bounded as well. On a wide table one depth can propose
+hundreds of thousands of candidates. They are evaluated and scored a chunk at a time
 (``chunk_size``, by default as many columns as fit in :data:`CHUNK_BYTES`) and
 only their scores are kept; the candidates the redundancy pass reaches are
 evaluated again. Peak memory then depends on the chunk and the beam rather
