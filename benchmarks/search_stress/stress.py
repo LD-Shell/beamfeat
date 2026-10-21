@@ -71,6 +71,8 @@ Run from the repository root, with this checkout's ``src`` importable:
     python benchmarks/search_stress/stress.py --setting magnitude_slots=10 \
         --kwargs '{"magnitude_slots": 10}' --beams 50 --out <dir>   # an option on the grid
     python benchmarks/search_stress/stress.py --out <dir> --compare <default dir>
+    python benchmarks/search_stress/stress.py --timing --seeds 10 --kwargs '{...}' \
+        --laws triple --dists unif --sizes 500 --noises 0.1 --beams 50 --out <dir>
 """
 
 from __future__ import annotations
@@ -805,6 +807,60 @@ def compare(out: Path, baseline: Path) -> str:
     return text
 
 
+def timing_task(task: tuple) -> list[dict]:
+    """Fit one cell's replicates at the default and with ``kwargs``, alternately.
+
+    Records taken at different times on a shared machine are not comparable,
+    so the two settings are timed side by side, in one process, replicate
+    by replicate.
+    """
+    cell, seeds, kwargs = task
+    warnings.filterwarnings("ignore")
+    logging.getLogger("beamfeat").setLevel(logging.ERROR)
+    law, dist, p, n, noise, beam = cell
+    rows = []
+    for seed in range(seeds):
+        X, y, _, _ = make_data(law, dist, p, n, noise, seed)
+        times = {}
+        for label, options in (("default", {}), ("option", kwargs)):
+            clock = time.perf_counter()
+            fit(X, y, beam, options)
+            times[label] = time.perf_counter() - clock
+        rows.append({"cell": cell_name(*cell), "seed": seed, **times})
+    return rows
+
+
+def paired_timing(cells: list[tuple], seeds: int, kwargs: dict, workers: int, out: Path) -> str:
+    """Median fit times of the default and of ``kwargs``, timed side by side."""
+    tasks = [(cell, seeds, kwargs) for cell in cells]
+    if workers == 1:
+        results = list(map(timing_task, tasks))
+    else:
+        import multiprocessing
+
+        with multiprocessing.get_context("fork").Pool(workers, maxtasksperchild=1) as pool_:
+            results = pool_.map(timing_task, tasks)
+    rows = [row for result in results for row in result]
+    with (out / "timing.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["cell", "seed", "default", "option"], lineterminator="\n")
+        writer.writeheader()
+        writer.writerows({**r, "default": f"{r['default']:.3f}", "option": f"{r['option']:.3f}"} for r in rows)
+    lines = [
+        f"Fit time of `{json.dumps(kwargs)}` against the default, side by side, {seeds} replicates per cell.",
+        "",
+        "| cell | default, s (median) | option, s (median) | ratio of medians |",
+        "| :-- | --: | --: | --: |",
+    ]
+    for cell in cells:
+        name = cell_name(*cell)
+        a = np.array([r["default"] for r in rows if r["cell"] == name])
+        b = np.array([r["option"] for r in rows if r["cell"] == name])
+        lines.append(f"| {name} | {np.median(a):.2f} | {np.median(b):.2f} | {np.median(b) / np.median(a):.2f} |")
+    text = "\n".join(lines)
+    (out / "timing.md").write_text(text + "\n")
+    return text
+
+
 # --------------------------------------------------------------------------- #
 # Command line
 # --------------------------------------------------------------------------- #
@@ -815,6 +871,19 @@ def _cost(cell: tuple) -> float:
     _, _, p, n, _, beam = cell
     candidates = min(5 * p + 3 * p * (p - 1), CEILING) + min(beam * (p + beam) * 4, CEILING)
     return candidates * n
+
+
+def cells_selected(args) -> list[tuple]:
+    """The cells of the grid that the command line's filters keep."""
+    wanted = {
+        "law": set(args.laws.split(",")), "dist": set(args.dists.split(",")),
+        "p": {int(v) for v in args.widths.split(",")}, "n": {int(v) for v in args.sizes.split(",")},
+        "noise": {float(v) for v in args.noises.split(",")}, "beam": {int(v) for v in args.beams.split(",")},
+    }
+    return [
+        cell for cell in grid_cells()
+        if all(value in wanted[key] for key, value in zip(("law", "dist", "p", "n", "noise", "beam"), cell))
+    ]
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -837,6 +906,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--tabulate", action="store_true", help="only rebuild the tables from the records")
     parser.add_argument("--compare", type=Path, default=None,
                         help="compare the records in --out with those in this directory, cell by cell")
+    parser.add_argument("--timing", action="store_true",
+                        help="time the default and --kwargs side by side on the selected cells, --seeds each")
     parser.add_argument("--allow-dirty", action="store_true",
                         help="run although tracked files differ from the commit")
     args = parser.parse_args(argv)
@@ -848,18 +919,15 @@ def main(argv: list[str] | None = None) -> None:
         tabulate(args.out)
         return
 
+    if args.timing:
+        args.out.mkdir(parents=True, exist_ok=True)
+        print(paired_timing(cells_selected(args), args.seeds, json.loads(args.kwargs), args.workers, args.out))
+        return
+
     info = provenance()
     if info["tracked_changes"] and not args.allow_dirty:
         sys.exit("tracked files differ from the commit; commit first, or pass --allow-dirty")
-    wanted = {
-        "law": set(args.laws.split(",")), "dist": set(args.dists.split(",")),
-        "p": {int(v) for v in args.widths.split(",")}, "n": {int(v) for v in args.sizes.split(",")},
-        "noise": {float(v) for v in args.noises.split(",")}, "beam": {int(v) for v in args.beams.split(",")},
-    }
-    cells = [
-        cell for cell in grid_cells()
-        if all(value in wanted[key] for key, value in zip(("law", "dist", "p", "n", "noise", "beam"), cell))
-    ]
+    cells = cells_selected(args)
     kwargs = json.loads(args.kwargs)
     cells.sort(key=_cost, reverse=True)
     parts = args.out / "parts"
