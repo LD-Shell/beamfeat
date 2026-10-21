@@ -160,6 +160,19 @@ beamfeat adds none.
   the signal is likely piecewise rather than algebraic. OpenFE also records
   0.998 there, but bit-identically to raw LightGBM and from a feature touching
   only an irrelevant column, so the result belongs to its tree model.
+- **Laws whose parts do not correlate with the target**
+  ([`benchmarks/search_stress/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/search_stress)).
+  With centred inputs, the parts of `x0*x1*x2`, and of `x0*x1` among
+  hundreds of columns, do not correlate with the target, so the default
+  search can drop them before it combines them. Over 50 fits per cell, on
+  inputs uniform on (-1, 1), `x0*x1*x2` is recovered exactly in every fit
+  with 5 columns but in 0.54, 0.18 and 0.10 of them with 20, 100 and 300,
+  and `x0*x1` in 0.32 with 1,000 columns; on shifted inputs the same laws are recovered in every fit.
+  A wider beam does not close the gap. The opt-in `magnitude_slots=10`
+  recovered every lost cell but one crowded sum law (0.88), at 1.2 to 1.7
+  times the fit time, and left the real-data suites and the false-discovery
+  rates essentially unchanged; the
+  [guide](guide.md#laws-whose-parts-the-score-cannot-see) shows how to use it.
 - **Friedman #1**
   ([`benchmarks/friedman_decomposition.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/friedman_decomposition.py)).
   Over six draws, a representation oracle reaches 0.960 ± 0.003, a

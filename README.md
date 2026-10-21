@@ -85,6 +85,10 @@ model.predict(X_new)
   printed equation or the larger certified set the equation was drawn from.
 - **Fitted constants, opt in.** `fitted_ops` adds operators with one constant
   fitted inside the expression, such as `exp(a*x)` and `1/(x + a)`.
+- **Hidden building blocks, opt in.** `magnitude_slots` keeps a few beam
+  places for parts whose size tracks the target's even when they do not
+  correlate with it, such as `x0` and `x1` in `y = x0*x1` with centred
+  inputs.
 - **Stability.** `stability_report` refits on many splits and shows whether
   the equation is the only good one or one of many.
 
