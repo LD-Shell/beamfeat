@@ -136,6 +136,13 @@ as a rider such as `(a*b/c) * x7` does.
   and at 3, 0.42 to 0.44 at the defaults and 0.53 to 0.62 with the marginal
   re-test. Power and held-out R² hardly move (R² within 0.0033 of the
   default, paired).
+- The front page, which is also the README and the PyPI description, is
+  shorter and leads with one result, tecator, in a figure that
+  `benchmarks/figures/tecator.py` draws from the archived run. The measured
+  results, the comparison with autofeat and the corrections to the paper's
+  results move to a new Benchmarks page in the documentation, where the
+  autofeat core-suite mean reads 0.9970, as in the paper, rather than 0.9968
+  from a superseded run.
 
 ## [0.5.0] - 2026-10-20
 
