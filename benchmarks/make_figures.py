@@ -187,8 +187,8 @@ def fig_false_features(bench: pathlib.Path, out: pathlib.Path) -> None:
     """Stress datasets returning false features, as counts.
 
     Counts rather than a mean: with five scoreable datasets a mean carries a
-    standard error of order 0.1, which is the reason the README's "Measured,
-    not assumed" section reports the count. Drawn as markers rather than bars
+    standard error of order 0.1, which is the reason the Benchmarks page
+    (docs/benchmarks.md) reports the count. Drawn as markers rather than bars
     so that a result of zero is visible — a zero-height bar renders the best
     outcome as nothing.
     """

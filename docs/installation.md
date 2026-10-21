@@ -65,8 +65,13 @@ Then, in that kernel:
 
 | notebook | what it does | runtime |
 |---|---|---|
-| `benchmarks/reproduce_all.ipynb` | regenerates every figure in the paper and README, and asserts the load-bearing ones | 20-30 min |
+| `benchmarks/reproduce_all.ipynb` | regenerates every figure in the paper and on the [Benchmarks](benchmarks.md) page except those of the two studies below, and asserts the load-bearing ones | 20-30 min |
 | `benchmarks/independent/beamfeat_benchmark.ipynb` | the comparison against autofeat, OpenFE, featuretools and raw baselines | 2 min from archived results, 45-70 min with `FULL_RUN = True` |
+
+The higher-dimensional studies have their own driver,
+`benchmarks/additional_experiments/run_all.ipynb`, and
+`python benchmarks/figures/tecator.py` redraws the figure on the home page
+from their archived run in a few seconds.
 
 `reproduce_all.ipynb` also builds a throwaway virtual environment with the
 newest numpy and scikit-learn and runs the suite there, so the pinned kernel
