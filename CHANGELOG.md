@@ -142,9 +142,11 @@ as a rider such as `(a*b/c) * x7` does.
   results, the comparison with autofeat and the corrections to the paper's
   results move to a new Benchmarks page in the documentation, where the
   autofeat core-suite mean reads 0.9970, as in the paper, rather than 0.9968
-  from a superseded run. The tutorials open with an install cell, so that Run
-  all works in Colab, and the first notes which scikit-learn versions show
-  the parameters and fitted attributes in the estimator's summary box.
+  from a superseded run. The tutorials open with an install cell,
+  `%pip install -q "beamfeat[all]"`, so that Run all works in Colab with
+  units, LaTeX and export included, and the first notes which scikit-learn
+  versions show the parameters and fitted attributes in the estimator's
+  summary box.
 
 ## [0.5.0] - 2026-10-20
 
