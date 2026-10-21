@@ -495,6 +495,7 @@ class _BeamFeatBase(BaseEstimator):
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = (),
         certify_test: str = "marginal",
+        magnitude_slots: int = 0,
     ) -> None:
         self.scorer = scorer
         self.selector = selector
@@ -519,6 +520,7 @@ class _BeamFeatBase(BaseEstimator):
         self.max_inputs = max_inputs
         self.fitted_ops = fitted_ops
         self.certify_test = certify_test
+        self.magnitude_slots = magnitude_slots
 
     # -- fitting ------------------------------------------------------------ #
 
@@ -1046,6 +1048,7 @@ class _BeamFeatBase(BaseEstimator):
             n_jobs=self.n_jobs,
             max_inputs=self.max_inputs,
             fitted_ops=self.fitted_ops,
+            magnitude_slots=self.magnitude_slots,
         )
         search_result = search.run(search_data, y[search_index], units=units)
         self.search_result_ = search_result
@@ -1738,6 +1741,18 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             guarantee only. Regression only; ignored when
             ``parsimony_holdout`` is ``None``. See the guarantees page for
             its measured calibration.
+        magnitude_slots: Beam slots added at each search depth for
+            candidates ranked by how well their magnitude tracks the
+            target's, for laws whose parts do not correlate with the target,
+            such as ``x0*x1*x2`` with centred inputs, whose pairwise products
+            the default ranking leaves among noise. ``0`` (default) adds none
+            and leaves the fit unchanged. On wide tables, where the first
+            depth cannot propose every pair of inputs, the inputs are also
+            proposed in an order that interleaves the two rankings. The
+            ranking is part of the search, on the search rows only (see
+            :class:`~beamfeat.search.BeamSearch`), so the screen on the
+            selection rows sees fixed expressions and its guarantee is
+            unchanged. Regression only.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
@@ -1824,6 +1839,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = (),
         certify_test: str = "marginal",
+        magnitude_slots: int = 0,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1849,6 +1865,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             max_inputs=max_inputs,
             fitted_ops=fitted_ops,
             certify_test=certify_test,
+            magnitude_slots=magnitude_slots,
         )
         self.problem_type = problem_type
 
@@ -1946,6 +1963,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = (),
         certify_test: str = "marginal",
+        magnitude_slots: int = 0,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1971,6 +1989,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             max_inputs=max_inputs,
             fitted_ops=fitted_ops,
             certify_test=certify_test,
+            magnitude_slots=magnitude_slots,
         )
         self.alpha = alpha
 
@@ -2196,6 +2215,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = (),
         certify_test: str = "marginal",
+        magnitude_slots: int = 0,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -2221,6 +2241,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             max_inputs=max_inputs,
             fitted_ops=fitted_ops,
             certify_test=certify_test,
+            magnitude_slots=magnitude_slots,
         )
         self.C = C
 
