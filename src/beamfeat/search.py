@@ -119,6 +119,13 @@ MIN_PARALLEL_CANDIDATES = 4096
 # a round of a few hundred still divides between workers.
 EXPENSIVE_CHUNK = 8
 
+# Search rows the magnitude score of ``magnitude_slots`` is computed on, at
+# most: beyond this many, that many evenly spaced through them. It ranks a few
+# extra slots, and a correlation over 1,000 rows has a standard error near 0.03,
+# far below what a factor of the target scores (0.4 to 0.8 in
+# benchmarks/search_stress/); the cap keeps its cost from growing with the rows.
+MAGNITUDE_ROWS = 1000
+
 
 def report(verbose: int, level: int, message: str) -> None:
     """Print a progress line when ``verbose`` reaches ``level``.
@@ -356,7 +363,9 @@ class BeamSearch:
             magnitude_slots)`` and starting with the best magnitude score, so
             that a pair of inputs neither of which correlates with the target
             is still proposed. Regression only: a class label carries no
-            magnitude. The score sees only the rows the search is given.
+            magnitude. The score sees only the rows the search is given, and
+            of more than :data:`MAGNITUDE_ROWS` of them, that many evenly
+            spaced.
 
     Attributes:
         result_: :class:`SearchResult` from the most recent :meth:`run`.
@@ -818,6 +827,8 @@ class BeamSearch:
         noise; the shorter one still shows what the best columns leave
         unexplained, such as ``x0*x1`` behind ``x2`` in ``x0*x1 + x2`` on a
         table with more columns than rows. An empty residual is left out.
+        Each is fitted on every row and kept on the rows
+        :func:`_magnitude_rows` names.
         """
         scorer = CorrelationScorer(self.problem_type)
         prepared = [scorer.prepare(target)]
@@ -827,9 +838,12 @@ class BeamSearch:
             if incumbent.shape[1] > limit and len(incumbent_scores) == incumbent.shape[1]:
                 order = np.argsort(-np.asarray(incumbent_scores, dtype=np.float64), kind="stable")
                 prepared.append(scorer.prepare(target, incumbent[:, np.sort(order[:limit])]))
+        rows = _magnitude_rows(len(target))
         references = []
         for vector in prepared:
             if vector is not None:
+                if rows is not None:
+                    vector = _standardise(vector[rows])
                 # A standardised vector has a root mean square of 1.
                 reference = _standardise(np.log1p(np.abs(vector)))
                 if np.any(reference):
@@ -849,7 +863,8 @@ class BeamSearch:
         references = self._magnitude_references(target, values, scores)
         if not references:
             return ranked
-        order = _rank(leaves, magnitude_scores(values, references))
+        rows = _magnitude_rows(values.shape[0])
+        order = _rank(leaves, magnitude_scores(values if rows is None else values[rows], references))
         by_magnitude = [leaves[i] for i in order]
         share = self.magnitude_slots / (self.beam_width + self.magnitude_slots)
         woven: list[Node] = []
@@ -939,7 +954,7 @@ class BeamSearch:
         target: np.ndarray,
         absolute: Any,
         incumbent: np.ndarray | None,
-        magnitude: list[np.ndarray] | None = None,
+        magnitude: tuple[list[np.ndarray], np.ndarray | None] | None = None,
     ) -> tuple[list[Node], np.ndarray, np.ndarray | None, np.ndarray | None]:
         """Evaluate and score one depth's candidates, a chunk at a time.
 
@@ -958,8 +973,9 @@ class BeamSearch:
             target: Target vector.
             absolute: ``scorer.prepare(target)``, for a column-by-column scorer.
             incumbent: Values of the features selected so far, if any.
-            magnitude: References for :func:`magnitude_scores`, or ``None``
-                when ``magnitude_slots`` is 0.
+            magnitude: References for :func:`magnitude_scores` and the rows
+                they are on (``None`` for all), or ``None`` when no magnitude
+                score is needed.
 
         Returns:
             Tuple of (evaluated nodes, their scores, their values as a
@@ -1171,7 +1187,9 @@ class BeamSearch:
             # one of two values either side of its mean, gives them nothing.
             magnitude = None
             if self.magnitude_slots and depth < self.max_depth:
-                magnitude = self._magnitude_references(target, incumbent, selected_scores) or None
+                references = self._magnitude_references(target, incumbent, selected_scores)
+                if references:
+                    magnitude = (references, _magnitude_rows(evaluator.n_rows))
             evaluated, scores, values, magnitudes = self._score_round(
                 evaluator, candidates, scorer, target, absolute, incumbent, magnitude
             )
@@ -1332,6 +1350,17 @@ def _rank(nodes: Sequence[Node], scores: np.ndarray) -> np.ndarray:
     return np.lexsort((sizes, -quantised))
 
 
+def _magnitude_rows(n_rows: int) -> np.ndarray | None:
+    """Rows the magnitude score is computed on: ``None`` for all of them.
+
+    All of them up to :data:`MAGNITUDE_ROWS`; beyond, that many evenly
+    spaced through them, the first and the last included.
+    """
+    if n_rows <= MAGNITUDE_ROWS:
+        return None
+    return np.unique(np.round(np.linspace(0, n_rows - 1, MAGNITUDE_ROWS)).astype(np.intp))
+
+
 def _rank_head(nodes: Sequence[Node], scores: np.ndarray, size: int) -> np.ndarray:
     """The first ``size`` or more places of :func:`_rank`, and every tie at the last.
 
@@ -1429,19 +1458,25 @@ def _run_chunk(
     batch: EvaluationBatch,
     scorer: Scorer,
     references: tuple[Any, ...] | None,
-    magnitude: list[np.ndarray] | None = None,
+    magnitude: tuple[list[np.ndarray], np.ndarray | None] | None = None,
 ) -> tuple[BatchOutcome, np.ndarray | None, np.ndarray | None]:
     """Evaluate one chunk and, given prepared references, score it.
 
     With references, each candidate's score is the largest against any of
     them, and the values are dropped from the outcome to keep it small.
-    With ``magnitude``, the chunk's :func:`magnitude_scores` are computed as
-    well, before the values are dropped.
+    With ``magnitude``, references and the rows they are on, the chunk's
+    :func:`magnitude_scores` are computed on those rows as well, before the
+    values are dropped.
     """
     outcome = batch.run()
     values = outcome.values
     stats = outcome.stats if values.dtype == np.float64 else None
-    magnitudes = None if magnitude is None else magnitude_scores(values, magnitude, stats)
+    magnitudes = None
+    if magnitude is not None:
+        vectors, rows = magnitude
+        magnitudes = (
+            magnitude_scores(values, vectors, stats) if rows is None else magnitude_scores(values[rows], vectors)
+        )
     if references is None:
         return outcome, None, magnitudes
     scores = scorer.score_prepared(values, references[0], stats)
