@@ -29,6 +29,7 @@ nav:
   - Installation: installation.md
   - User guide: guide.md
   - Statistical guarantees: guarantees.md
+  - Benchmarks: benchmarks.md
   - Migrating from autofeat: migrating-from-autofeat.md
   - Tutorials:
       - Getting started: notebooks/01_getting_started.ipynb

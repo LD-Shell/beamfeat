@@ -1,0 +1,250 @@
+# Benchmarks
+
+The results on this page come from scripts in the repository and their
+archived runs, from the paper (TMLR 2026, which describes release 0.4.2), or
+from the [changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md).
+Results with a random component carry Monte Carlo error from a finite number
+of trials, so read them at the precision given. Two bugs fixed since the paper
+change some of its results; they are marked where they apply and described
+under [Corrections since the paper](#corrections-since-the-paper).
+[Installation](installation.md#reproduce-the-benchmarks) describes the
+environment the comparisons need.
+
+## High-dimensional data
+
+[`benchmarks/additional_experiments/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/additional_experiments)
+compares beamfeat with ridge, random forest and LightGBM on the raw columns of
+nine datasets with 81 to 4,088 columns, over five random 75/25 splits each
+(the paper's Table 6). Mean held-out R², the best in each row in bold:
+
+| dataset | columns | ridge | random forest | LightGBM | beamfeat | formulas |
+|---|---:|---:|---:|---:|---:|---:|
+| tecator | 100 | 0.957 | 0.717 | 0.756 | **0.991** | 3.6 |
+| geomusic | 117 | **0.805** | 0.739 | 0.739 | **0.805** | 9.6 |
+| communities | 100 | **0.650** | 0.638 | 0.632 | 0.641 | 11.6 |
+| riboflavin | 4,088 | **0.579** | 0.436 | 0.493 | 0.544 † | 17.4 |
+| eyedata | 200 | **0.479** | 0.340 | 0.031 | 0.416 | 34.0 |
+| superconduct | 81 | 0.725 | **0.884** | **0.884** | 0.731 | 16.2 |
+| blogfeedback | 280 | 0.379 | **0.548** | 0.535 | 0.415 | 18.4 |
+| ct_slices | 384 | 0.852 | **0.981** | **0.981** | 0.687 † | 14.0 |
+| ujiindoorloc | 520 | 0.949 | **0.995** | 0.993 | 0.812 † | 20.0 |
+
+"formulas" is the mean number of terms in beamfeat's fitted equation.
+
+† Corrected since the paper: rerun with 0.5.0, beamfeat's mean R² is 0.340 on
+riboflavin, 0.664 on ct_slices and 0.816 on ujiindoorloc.
+
+beamfeat leads where the target is a compact algebraic function of a few
+columns, as on tecator, where ratios of absorbance channels are features that
+threshold splits cannot build. It trails where the signal is spread thinly
+over hundreds of columns, as on ct_slices, ujiindoorloc and blogfeedback:
+ridge keeps every column and shrinks it, while a screen with an error-rate
+guarantee drops the columns that each carry a small fraction of the signal.
+With the corrections, it is ahead of both tree ensembles on four of the nine
+datasets: tecator, geomusic, communities and eyedata. `fdr_controlled_` was
+true on all 90 beamfeat fits of the archived run (the estimator and the
+transformer).
+
+On tecator, a random forest given the formulas in place of the raw channels
+goes from 0.739 to 0.992, on three of the five splits. On the small datasets,
+tree models given the formulas do worse than ridge, which is why ridge is the
+default.
+
+Tecator also shows what a single fit does not. In the paper's stability study,
+thirty fits with different seeds on one partition (the design of
+`stability_report(..., resample="seeds")`) held R² at 0.989, with a standard
+deviation of 0.004, while selecting 79 distinct features, counting
+value-equivalent ones once, none of them in more than 8 of the 30 fits.
+Adjacent channels correlate at 0.99988, so many band pairs are
+near-substitutes and each fit picks among them. The
+[user guide](guide.md#one-equation-or-one-of-many) shows how to run the same
+check on other data.
+
+## Selection calibration
+
+- **Selector level**
+  ([`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py)).
+  On Gaussian designs over 100 trials, Benjamini–Hochberg realised
+  0.046 ± 0.008, 0.084 ± 0.012 and 0.161 ± 0.016 at nominal 0.05/0.10/0.20,
+  against its ceiling of `q·m₀/m` = 0.040/0.080/0.160; Benjamini–Yekutieli,
+  stricter by a harmonic factor, realised 0.013 ± 0.005, 0.018 ± 0.005 and
+  0.046 ± 0.008. Power was 1.00 throughout. The bounds are computed from the
+  design, and the script fails if a bound falls below a realised rate's whole
+  95% interval.
+- **End to end**
+  ([`benchmarks/calibration_study.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/calibration_study.py)).
+  Search plus holdout selection at nominal FDR 0.10, on 500 rows and 6 input
+  columns of which 2 carry signal through their product, with noise at 5% of
+  the signal's standard deviation: no false discovery in 200 replicates, a 95%
+  upper bound of 0.015 on the true rate, power 1.000 and no fallbacks. Over 60
+  global-null replicates, nothing was selected.
+- **Pure noise**
+  ([`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py)).
+  Over 100 global-null pipelines, where every selection is false by
+  construction, BH returned features in 6 trials and BY in 1, false discovery
+  proportions of 0.06 and 0.01, both under the nominal 0.10. The difference is
+  not significant at this trial count: both corrections saw the same 100
+  datasets, the one trial on which BY selected is among BH's six, and the
+  exact paired test gives p = 0.06. BY is the estimator default because it is
+  valid under arbitrary dependence, and this result is consistent with that
+  choice.
+
+The [guarantees page](guarantees.md) states what each procedure guarantees and
+under which assumptions.
+
+## Formula recovery
+
+- **Known formulas**
+  ([`benchmarks/run_benchmarks.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/run_benchmarks.py),
+  70/30 splits). Mean R² over the ten core-suite problems, and recovery of
+  the generating columns over the ten synthetic problems that declare them;
+  the two sets differ by one dataset each. beamfeat: mean R² 0.9989, fits of
+  about 0.2 s, 10/10 recovered. autofeat: 0.9970, about 12 s, 8/10. LightGBM
+  0.9798, ridge 0.8442. On the purely linear problem, where feature
+  construction has nothing to add, ridge ties beamfeat.
+- **Feynman equations**
+  ([`benchmarks/feynman_panel.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/feynman_panel.py),
+  12 physics laws, 0.1% noise). 10/12 solved at the SRBench criterion, and
+  the exact symbolic form on 8 of the 9 laws that have one, at 0.9 s per
+  equation in the archived run, which predates the 0.5.0 search speed-up.
+  The misses are known limits of the search space: a depth-3 rational, a
+  literal constant, depth-4 nesting and the Gaussian's exponential.
+- **Heavy-tailed noise** (Student t(2), infinite variance). The exact formula
+  is recovered, at R² 0.956 against LightGBM's 0.866. The permutation test is
+  distribution-free, so heavy tails do not affect its validity.
+
+## Distractors and false features
+
+![False features returned on the distractor stress suite](https://raw.githubusercontent.com/LD-Shell/beamfeat/main/paper/figures/fig_false_feature_rate.png)
+
+*Signal hidden among ten distractor columns. A false feature is a returned
+formula touching only irrelevant ones; the count is over the five stress
+datasets that declare which columns their formula uses. Regenerate with
+`python`
+[`benchmarks/make_figures.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/make_figures.py),
+which writes six other figures alongside it.*
+
+- **Stress suite** (signal among ten distractor columns). beamfeat's
+  false-feature rate, the share of returned formulas that touch only
+  irrelevant columns, is 0.000 at noise levels from 5% to 50% of the signal
+  scale and at n as small as 120, with recovery and the guarantee intact
+  throughout. autofeat recovers the formula as often but returns
+  distractor-only features on 2 of the 5 scoreable datasets. The comparison is
+  a count rather than a mean, since a mean over five datasets carries a
+  standard error of about 0.15, and autofeat's output varies between
+  processes.
+- **OpenFE** on the same suite (its features feeding LightGBM, after shimming
+  a removed scikit-learn parameter): a false-feature rate of 0.000 as well,
+  but 0/5 formulas recovered and a lower R² on all five. It optimises a tree
+  model's lift rather than equations.
+- **Selection alone** (knockpy on the raw columns, with the modified-FDR
+  offset, the only satisfiable configuration at these dimensionalities): 0/15
+  formulas recovered, a core-suite R² at the ridge level (0.845), and
+  distractor-only features on 2 of the 5 scoreable stress datasets. The
+  difference from beamfeat is the construction step and the holdout.
+
+## Real datasets
+
+Seven datasets, numeric columns only. beamfeat leads on mpg (0.864 against
+LightGBM's 0.853) and on tips, where gradient boosting overfits below ridge
+while the FDR screen keeps beamfeat at the top. It ties ridge on diamonds with
+one interpretable feature. It trails LightGBM on penguins, breast cancer and
+California housing (0.700 against 0.843, where the signal is spatial), and
+ridge on diabetes (0.376), where there is no nonlinear structure to find and
+beamfeat adds none.
+
+## Known limits
+
+- **Piecewise targets** suit trees: on a threshold problem, LightGBM reaches
+  0.998 and beamfeat 0.808. When a tree model beats beamfeat by a wide margin,
+  the signal is likely piecewise rather than algebraic. OpenFE also records
+  0.998 there, but bit-identically to raw LightGBM and from a feature touching
+  only an irrelevant column, so the result belongs to its tree model.
+- **Friedman #1**
+  ([`benchmarks/friedman_decomposition.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/friedman_decomposition.py)).
+  Over six draws, a representation oracle reaches 0.960 ± 0.003, a
+  screening-admissible ceiling 0.874 ± 0.006, and the pipeline 0.780 ± 0.013.
+  About 0.086 is lost to what marginal screening cannot see: the centred
+  quadratic term is nearly uncorrelated with the target on its own, so a
+  marginal screen does not admit it. The other 0.094 is lost in the search. The
+  [guarantees page](guarantees.md#permutation-selector-default) explains the
+  marginal null.
+
+## Independent comparison
+
+[`benchmarks/independent/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/independent)
+holds a 360-fit study (nine datasets, eight methods, five splits, average ranks
+and a Friedman test) with its harness, pinned environment, data, and a
+notebook that reproduces the analysis. Mean held-out R²: random forest 0.810,
+beamfeat 0.803, LightGBM 0.798, OpenFE 0.736, ridge 0.704, autofeat −1.561
+and featuretools −2.478. The worst of each method's 45 fits: beamfeat 0.355,
+autofeat −103.2 and featuretools −57.3; no beamfeat fit fell below zero.
+beamfeat ran at about 60 times autofeat's speed, and `fdr_controlled_` was
+true on 45 of 45 fits. The featuretools figures come from a harness that
+filled its non-finite test cells with 0; with the training medians, as the
+harness now fills them, they read 0.461 and −12.882 (see
+[Corrections since the paper](#corrections-since-the-paper)).
+
+[`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md)
+records what reproduces and what does not. beamfeat's selections reproduce
+bit-identically, though the fitted model's cross-validated penalty can flip
+on marginal problems. autofeat sets no `random_state` and draws its decoy
+features from the global NumPy generator: six runs on one identical split
+ranged from +0.952 to −109.8.
+
+## Relationship to autofeat
+
+beamfeat's design began from a code review of
+[autofeat](https://github.com/cod3licious/autofeat)
+([Horn et al., 2019](https://doi.org/10.1007/978-3-030-43823-4_10)). It keeps
+autofeat's central idea, compact symbolic features feeding a linear model,
+and replaces exhaustive expansion with beam search, noise-threshold selection
+with FDR-controlled procedures, and upper-pinned dependencies with tested
+floors. The generate-then-filter design has a direct precedent in
+[tsfresh](https://github.com/blue-yonder/tsfresh)
+([Christ et al., 2018](https://doi.org/10.1016/j.neucom.2018.03.067)), which
+filters mass-generated time-series features under Benjamini–Yekutieli
+control; beamfeat applies it to symbolic expressions on tabular columns.
+[Migrating from autofeat](migrating-from-autofeat.md) maps one API onto the
+other.
+
+## Test suite
+
+686 tests at 97% statement coverage, with a 90% floor enforced in CI,
+including scikit-learn's full estimator-conformance checks.
+
+## Corrections since the paper
+
+The paper describes release 0.4.2, archived with its run records at
+[10.5281/zenodo.23417132](https://doi.org/10.5281/zenodo.23417132). Two bugs,
+fixed in 0.5.0, change results it reports. The archived records are kept as
+they were run.
+
+- **Comparison harness.** The harness filled non-finite test cells of the
+  constructed features with 0, while the training cells got the training
+  median. This understated featuretools, whose ratio features divide by
+  columns that contain zeros. With the training medians on both, featuretools
+  has a mean R² of about 0.461 rather than −2.478 in the independent
+  comparison, a worst fit of −12.882 rather than −57.320, and one fit below
+  zero rather than six. Every other method's row, and every conclusion about
+  beamfeat, is unaffected
+  ([`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md#non-finite-test-cells)).
+- **Search.** When `max_candidates_per_depth` bound at depth 1, the first
+  round proposed parents in column order, so from about 258 inputs, pairs
+  among the last columns were never proposed. The first round now proposes
+  the inputs in order of their score, as documented. Three datasets of the
+  high-dimensional study reach the ceiling. Rerun with 0.5.0, beamfeat's mean
+  R² is 0.340 on riboflavin, 0.664 on ct_slices and 0.816 on ujiindoorloc,
+  against 0.544, 0.687 and 0.812 in the paper; the archived riboflavin run
+  was made with an earlier version, and 0.4.4 gives 0.523 there. With the
+  ceiling raised so that every input is proposed, ct_slices and ujiindoorloc
+  give the new results exactly; the old ones depended on which columns came
+  first in the file. beamfeat now leads both tree ensembles on four of the
+  nine datasets rather than five.
+
+Later releases are also faster, so the paper's timings and memory figures
+describe 0.4.2. 0.5.0 runs the high-dimensional study 2 to 28 times faster per
+dataset without changing any feature, p-value or prediction, and a default
+fit on 1000 columns and 600 rows that peaked at 2.6 GB of memory now peaks at
+0.35 GB. The [changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md)
+lists every change.

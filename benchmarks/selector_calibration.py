@@ -1,9 +1,9 @@
 """Selector-level calibration: realised FDR, power, and the pure-noise stress.
 
-Measures every selector-level number quoted in README.md, docs/guarantees.md
-and the paper, so that none of them is asserted without a script that produces
-it. Three studies; the first two on Gaussian designs (n=300, 25 candidate
-features, 5 of them signal, effect 3.0, unit noise):
+Measures every selector-level number quoted in docs/benchmarks.md,
+docs/guarantees.md and the paper, so that none of them is asserted without a
+script that produces it. Three studies; the first two on Gaussian designs
+(n=300, 25 candidate features, 5 of them signal, effect 3.0, unit noise):
 
 1. Permutation selector, Benjamini-Hochberg and Benjamini-Yekutieli, at
    nominal FDR 0.05 / 0.10 / 0.20 -- realised FDR and power over 100 trials.
