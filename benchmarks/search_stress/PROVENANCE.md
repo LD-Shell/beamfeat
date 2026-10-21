@@ -73,6 +73,37 @@ predicts it is large; no fit at that width had been made.
 
 The grid then held 114 cells, 5,700 fits.
 
+## `magnitude_slots`
+
+The option was written after the default settings' records were complete,
+and measured at 10 slots, a fifth of the default beam, a value fixed before
+any of its runs:
+
+- on the stress grid's 48 cells at beam 50 (every cell but the wide beam's),
+  on the default's replicates, so that every comparison is paired;
+- on the main suite and the high-dimensional study, run unchanged through
+  `with_options.py`, which sets the option as a new default for the
+  process;
+- by `null.py` on four null and two planted designs, 200 paired replicates
+  each, defined before its first fit.
+
+The first version computed the magnitude score on every search row. Its run
+of the suites took 2.2 times the default's processor time on the three
+10,000-row sets, timed side by side, against 1.2 to 1.7 on the stress grid,
+whose fits have at most 1,000 search rows. The score was then capped at
+1,000 search rows, evenly spaced, and the suites were run again; those are
+the figures the report gives, with the first run's kept in
+`results/suites/magnitude_slots_uncapped/`. The cap cannot change a fit with
+1,000 search rows or fewer, which covers every fit of the stress grid and of
+the null study: their records were made before it, and four stress
+replicates, one with exactly 1,000 search rows, gave the same fit to the bit
+before and after it.
+
+The fit times in the records were taken hours apart on a shared machine, so
+the option's cost was measured side by side as well: `stress.py --timing`
+fits ten replicates of ten base cells at the default and with the option in
+turn, in one process.
+
 ## Following the search
 
 `stress.py` replaces the `BeamSearch` the estimators module looks up with a
@@ -90,8 +121,11 @@ all matched.
 
 Python 3.12.14, numpy 2.5.4, scipy 1.18.1, scikit-learn 1.9.1, sympy 1.14.0,
 beamfeat at the commit `summary.json` names, imported from this checkout's
-`src`. Three worker processes at `nice 10`, one BLAS thread each, on a
-22-thread machine that was running other long jobs at the same time. Fit
+`src`; the option's records name their commits, which differ from the
+default's only by the option and by records, documentation and the
+benchmark scripts. Three worker processes at `nice 10`, one BLAS thread
+each, on a 22-thread machine that was running other long jobs at the same
+time. Fit
 times are wall times on that shared machine: compare them within the study,
 across cells, rather than with timings from elsewhere.
 
@@ -120,6 +154,12 @@ used `PYTHONPATH=src` and `OMP_NUM_THREADS=1`):
 python benchmarks/search_stress/stress.py --workers 3 --out <dir>   # 92 minutes here; resumable
 python benchmarks/search_stress/stress.py --tabulate --out <dir>    # tables from the records
 ```
+
+For the option, `--setting magnitude_slots=10 --kwargs '{"magnitude_slots": 10}'`
+with `--beams 50` (the run used three invocations, which `summary.json`
+lists), then `--compare results/default` and `--timing`; `null.py --out <dir>`
+for the null study; and the commands in `suites.py`'s docstring for the
+suites.
 
 It writes `parts/` (one record file per cell, while running),
 `records.csv.gz` (one row per fit), `summary.json` (provenance and every
