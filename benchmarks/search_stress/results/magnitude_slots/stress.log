@@ -1,0 +1,62 @@
+# stress.py --workers 3 --setting magnitude_slots=10 --kwargs '{"magnitude_slots": 10}' --beams 50 --sizes 500 --noises 0.1 --out <out>
+search stress: 38 cells, 50 seeds each, 3 worker(s), setting magnitude_slots=10 {'magnitude_slots': 10}
+{"commit": "f21316cd05303d43a41ac736bc0fa6fd9dea24b8", "tracked_changes": false, "beamfeat": "0.6.0.dev0", "beamfeat_path": "src/beamfeat", "python": "3.12.14", "numpy": "2.5.4", "scipy": "1.18.1", "scikit-learn": "1.9.1", "sympy": "1.14.0", "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39", "threads": {"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}}
+pair_unif_p300_n500_e10_b50: 616 s, 1 fits matched the plain search
+pair_unif_p1000_n500_e10_b50: 709 s, 1 fits matched the plain search
+pair_shifted_p1000_n500_e10_b50: 816 s, 1 fits matched the plain search
+pair_gauss_p300_n500_e10_b50: 618 s, 1 fits matched the plain search
+pair_shifted_p300_n500_e10_b50: 618 s, 1 fits matched the plain search
+triple_unif_p300_n500_e10_b50: 648 s, 1 fits matched the plain search
+triple_gauss_p300_n500_e10_b50: 513 s, 1 fits matched the plain search
+triple_shifted_p300_n500_e10_b50: 451 s, 1 fits matched the plain search
+pair_plus_unif_p300_n500_e10_b50: 604 s, 1 fits matched the plain search
+pair_unif_p100_n500_e10_b50: 116 s, 1 fits matched the plain search
+pair_plus_gauss_p300_n500_e10_b50: 491 s, 1 fits matched the plain search
+pair_gauss_p100_n500_e10_b50: 101 s, 1 fits matched the plain search
+pair_shifted_p100_n500_e10_b50: 96 s, 1 fits matched the plain search
+pair_plus_shifted_p300_n500_e10_b50: 603 s, 1 fits matched the plain search
+triple_unif_p100_n500_e10_b50: 144 s, 1 fits matched the plain search
+triple_gauss_p100_n500_e10_b50: 107 s, 1 fits matched the plain search
+triple_shifted_p100_n500_e10_b50: 136 s, 1 fits matched the plain search
+pair_plus_unif_p100_n500_e10_b50: 139 s, 1 fits matched the plain search
+pair_plus_gauss_p100_n500_e10_b50: 148 s, 1 fits matched the plain search
+pair_unif_p20_n500_e10_b50: 25 s, 1 fits matched the plain search
+pair_gauss_p20_n500_e10_b50: 24 s, 1 fits matched the plain search
+pair_shifted_p20_n500_e10_b50: 25 s, 1 fits matched the plain search
+pair_plus_shifted_p100_n500_e10_b50: 109 s, 1 fits matched the plain search
+triple_unif_p20_n500_e10_b50: 23 s, 1 fits matched the plain search
+triple_gauss_p20_n500_e10_b50: 26 s, 1 fits matched the plain search
+triple_shifted_p20_n500_e10_b50: 23 s, 1 fits matched the plain search
+pair_plus_gauss_p20_n500_e10_b50: 26 s, 1 fits matched the plain search
+pair_plus_unif_p20_n500_e10_b50: 35 s, 1 fits matched the plain search
+pair_plus_shifted_p20_n500_e10_b50: 29 s, 1 fits matched the plain search
+pair_unif_p5_n500_e10_b50: 19 s, 1 fits matched the plain search
+pair_shifted_p5_n500_e10_b50: 17 s, 1 fits matched the plain search
+pair_gauss_p5_n500_e10_b50: 25 s, 1 fits matched the plain search
+triple_unif_p5_n500_e10_b50: 16 s, 1 fits matched the plain search
+triple_shifted_p5_n500_e10_b50: 14 s, 1 fits matched the plain search
+triple_gauss_p5_n500_e10_b50: 20 s, 1 fits matched the plain search
+pair_plus_unif_p5_n500_e10_b50: 16 s, 1 fits matched the plain search
+pair_plus_gauss_p5_n500_e10_b50: 19 s, 1 fits matched the plain search
+pair_plus_shifted_p5_n500_e10_b50: 21 s, 1 fits matched the plain search
+1900 records -> <out>/summary.json, <out>/tables.md
+
+# stress.py --workers 3 --setting magnitude_slots=10 --kwargs '{"magnitude_slots": 10}' --beams 50 --widths 300 --sizes 2000 --out <out>
+search stress: 2 cells, 50 seeds each, 3 worker(s), setting magnitude_slots=10 {'magnitude_slots': 10}
+{"commit": "66c158b305ac5b3b4d820242018ae9a6aacf7d66", "tracked_changes": false, "beamfeat": "0.6.0.dev0", "beamfeat_path": "src/beamfeat", "python": "3.12.14", "numpy": "2.5.4", "scipy": "1.18.1", "scikit-learn": "1.9.1", "sympy": "1.14.0", "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39", "threads": {"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}}
+pair_unif_p300_n2000_e1_b50: 1273 s, 1 fits matched the plain search
+pair_plus_unif_p300_n2000_e1_b50: 1406 s, 1 fits matched the plain search
+2000 records -> <out>/summary.json, <out>/tables.md
+
+# stress.py --workers 3 --setting magnitude_slots=10 --kwargs '{"magnitude_slots": 10}' --beams 50 --laws triple --dists unif,gauss --widths 20,100 --noises 0.01 --out <out>
+search stress: 8 cells, 50 seeds each, 3 worker(s), setting magnitude_slots=10 {'magnitude_slots': 10}
+{"commit": "66c158b305ac5b3b4d820242018ae9a6aacf7d66", "tracked_changes": false, "beamfeat": "0.6.0.dev0", "beamfeat_path": "src/beamfeat", "python": "3.12.14", "numpy": "2.5.4", "scipy": "1.18.1", "scikit-learn": "1.9.1", "sympy": "1.14.0", "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39", "threads": {"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}}
+triple_unif_p20_n2000_e1_b50: 67 s, 1 fits matched the plain search
+triple_gauss_p20_n2000_e1_b50: 67 s, 1 fits matched the plain search
+triple_unif_p100_n500_e1_b50: 166 s, 1 fits matched the plain search
+triple_unif_p100_n2000_e1_b50: 305 s, 1 fits matched the plain search
+triple_gauss_p100_n2000_e1_b50: 317 s, 1 fits matched the plain search
+triple_unif_p20_n500_e1_b50: 48 s, 1 fits matched the plain search
+triple_gauss_p20_n500_e1_b50: 45 s, 1 fits matched the plain search
+triple_gauss_p100_n500_e1_b50: 167 s, 1 fits matched the plain search
+2400 records -> <out>/summary.json, <out>/tables.md

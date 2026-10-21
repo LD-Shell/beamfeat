@@ -95,6 +95,10 @@ class TestApiConventions:
         assert clone(cls(max_inputs=2)).max_inputs == 2
         assert cls(max_inputs=0).max_inputs == 0
 
+    def test_magnitude_slots_is_a_parameter(self, cls):
+        assert cls().get_params()["magnitude_slots"] == 0
+        assert clone(cls(magnitude_slots=5)).magnitude_slots == 5
+
     def test_clone(self, cls):
         estimator = cls(max_depth=3, beam_width=17)
         cloned = clone(estimator)
@@ -887,6 +891,26 @@ class TestConfiguration:
         X, y = regression_data
         model = BeamFeatRegressor(max_depth=2, beam_width=30, max_inputs=3).fit(X, y)
         assert model.score(X, y) > 0.99
+
+    def test_magnitude_slots_find_a_centred_product(self):
+        rng = np.random.default_rng(3)
+        X = rng.uniform(-1.0, 1.0, (400, 10))
+        law = X[:, 0] * X[:, 1] * X[:, 2]
+        y = law + rng.normal(0, 0.05 * law.std(), 400)
+        with warnings.catch_warnings():
+            # The default finds nothing here, and says so.
+            warnings.simplefilter("ignore", NoDiscoveriesWarning)
+            plain = BeamFeatRegressor(max_depth=2, beam_width=10).fit(X, y)
+        assert not any(set(node.columns()) == {"x0", "x1", "x2"} for node in plain.features_)
+        model = BeamFeatRegressor(max_depth=2, beam_width=10, magnitude_slots=3).fit(X, y)
+        assert [set(node.columns()) for node in model.features_] == [{"x0", "x1", "x2"}]
+        assert model.fdr_controlled_
+        assert model.search_result_.trace[1].n_magnitude == 3
+
+    def test_magnitude_slots_raise_for_classification(self, classification_data):
+        X, y = classification_data
+        with pytest.raises(ValueError, match="magnitude_slots"):
+            _fast(BeamFeatClassifier, magnitude_slots=3).fit(X, y)
 
     def test_alpha_affects_regressor(self, regression_data):
         X, y = regression_data

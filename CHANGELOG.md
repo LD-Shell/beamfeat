@@ -54,9 +54,9 @@ the features, p-values and predictions of 0.5.0, to the last bit.
 ### Towards 0.6.0
 
 On branch `feature/0.6.0` only. No default changes: `certify_test` defaults
-to `"marginal"`, and a fit that leaves it there gives the results of 0.5.1
-to the last bit. The re-test's figures below are from
-`benchmarks/parsimony_holdout/`: 48,000 fits of a global null and of
+to `"marginal"` and `magnitude_slots` to 0, and a fit that leaves them there
+gives the results of 0.5.1 to the last bit. The re-test's figures below are
+from `benchmarks/parsimony_holdout/`: 48,000 fits of a global null and of
 `y = a*b/c` plus noise among 5 or 20 distractors, with and without a column
 correlated 0.9 with `a`, at signal-to-noise ratios 1 and 3, 300 and 1,000
 rows, 200 replicates per cell, q = 0.1 and 0.2. A printed term counts as
@@ -121,6 +121,47 @@ as a rider such as `(a*b/c) * x7` does.
   own code with other lists of 30 seeds gives 79 to 88 classes, the
   commonest in 18 to 23.
 
+- `magnitude_slots` on `BeamSearch`, `BeamFeatTransformer`,
+  `BeamFeatRegressor` and `BeamFeatClassifier` (default 0, which leaves
+  every result unchanged; regression only, and a classifier raises): beam
+  slots for laws whose parts do not correlate with the target, which the
+  score ranks among noise, such as `x0` and `x1` in `x0*x1` or the pairwise
+  products in `x0*x1*x2` when the inputs are centred. At every depth but the
+  last, after the `beam_width` candidates the score keeps, up to that many
+  more are kept, ranked by the absolute correlation of `log(1 + |c|/rms(c))`
+  with the same transform of the centred target or of its residuals; one
+  residual is on the best-scoring columns kept so far, at most a quarter as
+  many as the rows, since the residual on every input is empty once they
+  outnumber the rows. When `max_candidates_per_depth` can bind at the first
+  depth, the inputs are proposed in an order that interleaves that ranking
+  with the score's. Measured at 10 slots on `benchmarks/search_stress/`, the
+  three-way product on centred inputs went from 0.54, 0.18 and 0.10 to 1.00
+  with 20, 100 and 300 columns, the centred pair with 1,000 columns from
+  0.32 to 1.00, and `x0*x1 + x2` with 300 columns and 250 search rows from
+  0.00 to 0.88; no cell got worse. The score is computed on at most 1,000
+  search rows, evenly spaced. Fits took 1.2 to 1.7 times as long on the
+  stress grid and 1.4 times on the three 10,000-row high-dimensional sets;
+  the main suite's mean held-out score over its 24 regression sets went from
+  0.8851 to 0.8841 (diabetes and california housing about 0.01 lower) and
+  the high-dimensional study's from 0.647 to 0.649. The ranking uses the
+  search rows only, so the screen sees fixed expressions and its guarantee
+  is unchanged; on four null and two planted designs, 200 paired replicates
+  each, the share of fits with a false feature moved by at most one in 200.
+  `magnitude_scores` and `SearchTrace.n_magnitude` support it.
+- `benchmarks/search_stress/`: a stress test of the search on `x0*x1`,
+  `x0*x1*x2` and `x0*x1 + x2` among distractors, on centred and on positive
+  inputs, with 5 to 1,000 columns, 500 and 2,000 rows, 1% and 10% noise and
+  beams of 50 and 200: 5,700 fits at the defaults, each followed through the
+  search to the stage that lost the law. On positive inputs every law was
+  recovered in every fit. On centred ones with 500 rows, `x0*x1*x2` was
+  recovered in 54%, 18% and 10% of fits with 20, 100 and 300 columns, every
+  miss the first depth's beam dropping the pairwise products, and a beam of
+  200 lifted 54% to 96% and 18% to 26%; a centred pair was never proposed in
+  68% of fits with 1,000 columns, and `x0*x1 + x2` was lost in every fit
+  with 300 columns and 250 search rows, crowded out by sums with `x2`. A
+  paired null study and a launcher that runs the other suites with new
+  option defaults measure `magnitude_slots` as well.
+
 #### Changed
 
 - `parsimony_holdout` is calibrated, and the guarantees page reports the
@@ -136,6 +177,9 @@ as a rider such as `(a*b/c) * x7` does.
   and at 3, 0.42 to 0.44 at the defaults and 0.53 to 0.62 with the marginal
   re-test. Power and held-out R² hardly move (R² within 0.0033 of the
   default, paired).
+- The guide has a section on laws whose parts the score cannot see, with
+  `magnitude_slots`, and the guarantees page says why the option leaves the
+  guarantee unchanged.
 
 ## [0.5.0] - 2026-10-20
 

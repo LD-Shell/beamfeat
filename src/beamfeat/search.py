@@ -24,6 +24,13 @@ The check is within a depth: a candidate that restates a feature from an
 earlier depth can occupy a beam slot. Such restatements are removed in the
 final ranking, which applies the same check across all depths.
 
+**Magnitude slots**, off by default (``magnitude_slots``). A part of a law
+can be uncorrelated with the target, as ``x0*x1`` is with ``x0*x1*x2`` when
+the inputs are centred, and the score then ranks it among noise. With the
+option, each depth but the last keeps a few more candidates, those whose
+magnitude best tracks the target's (see :func:`magnitude_scores`), and a
+first depth too wide to propose every pair proposes those inputs early.
+
 Memory stays bounded as well. On a wide table one depth can propose
 hundreds of thousands of candidates. They are evaluated and scored a chunk at a time
 (``chunk_size``, by default as many columns as fit in :data:`CHUNK_BYTES`) and
@@ -40,6 +47,7 @@ the returned features and their order are identical across runs, whatever
 from __future__ import annotations
 
 import logging
+import math
 import numbers
 import time
 from collections.abc import Callable, Sequence
@@ -64,9 +72,18 @@ from beamfeat.expression import (
     transform,
 )
 from beamfeat.parametric import fit_constants
-from beamfeat.scoring import CorrelationScorer, ProblemType, Scorer, make_scorer
+from beamfeat.scoring import (
+    ColumnStats,
+    CorrelationScorer,
+    ProblemType,
+    Scorer,
+    _standardise,
+    _standardise_block,
+    column_stats,
+    make_scorer,
+)
 
-__all__ = ["BeamSearch", "SearchResult", "SearchTrace"]
+__all__ = ["BeamSearch", "SearchResult", "SearchTrace", "magnitude_scores"]
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +118,13 @@ MIN_PARALLEL_CANDIDATES = 4096
 # Candidates per chunk for a scorer that fits a model per candidate, so that
 # a round of a few hundred still divides between workers.
 EXPENSIVE_CHUNK = 8
+
+# Search rows the magnitude score of ``magnitude_slots`` is computed on, at
+# most: beyond this many, that many evenly spaced through them. It ranks a few
+# extra slots, and a correlation over 1,000 rows has a standard error near 0.03,
+# far below what a factor of the target scores (0.4 to 0.8 in
+# benchmarks/search_stress/); the cap keeps its cost from growing with the rows.
+MAGNITUDE_ROWS = 1000
 
 
 def report(verbose: int, level: int, message: str) -> None:
@@ -138,6 +162,8 @@ class SearchTrace:
             ``max_inputs``; 0 when it is not set.
         n_fitted: Of the candidates proposed, those carrying a constant
             fitted at this depth (see ``fitted_ops`` on :class:`BeamSearch`).
+        n_magnitude: Of the candidates kept, those kept for their magnitude
+            score in the slots ``magnitude_slots`` adds; 0 when it is not set.
     """
 
     depth: int
@@ -151,12 +177,14 @@ class SearchTrace:
     elapsed: float
     n_rejected_constraints: int = 0
     n_fitted: int = 0
+    n_magnitude: int = 0
 
     def __str__(self) -> str:  # pragma: no cover - display only
         return (
             f"depth {self.depth}: proposed {self.n_proposed}, evaluated {self.n_evaluated}, "
             f"kept {self.n_kept}, best {self.best_score:.4f} ({self.elapsed:.2f}s)"
             + (f", {self.n_rejected_constraints} constrained" if self.n_rejected_constraints else "")
+            + (f", {self.n_magnitude} by magnitude" if self.n_magnitude else "")
         )
 
 
@@ -310,6 +338,34 @@ class BeamSearch:
             more than that margin above 0 (see
             :func:`~beamfeat.expression.pole_margins`). The fit sees only the
             rows the search is given.
+        magnitude_slots: Beam slots added at each depth for candidates
+            ranked by how well their magnitude tracks the target's, for
+            laws whose parts do not correlate with the target. ``0``
+            (default) adds none and leaves the search unchanged. With
+            centred inputs, ``x0`` and ``x1`` do not correlate with
+            ``x0*x1``, nor does ``x0*x1`` with ``x0*x1*x2``, so the ranking
+            by score leaves them among noise; but the magnitude of a factor
+            tracks the magnitude of the product. The magnitude score of a
+            candidate ``c`` is the absolute correlation of
+            ``log(1 + |c|/rms(c))`` with the same transform of the centred
+            target, or of its residual on the expressions kept so far,
+            whichever is larger; ``rms`` is the root mean square. When those
+            expressions outnumber a quarter of the rows, the residual on
+            that many of the best-scoring ones counts too: a residual on as
+            many columns as rows is empty. After the
+            ``beam_width`` candidates the score keeps, up to this many more
+            are kept from those it left out, best magnitude score first and
+            subject to the same redundancy check, at every depth but the
+            last, which has no next depth to build on. At the first depth, when
+            ``max_candidates_per_depth`` can bind, the inputs are proposed in
+            an order that interleaves their magnitude ranking with their
+            score ranking, at a share of ``magnitude_slots / (beam_width +
+            magnitude_slots)`` and starting with the best magnitude score, so
+            that a pair of inputs neither of which correlates with the target
+            is still proposed. Regression only: a class label carries no
+            magnitude. The score sees only the rows the search is given, and
+            of more than :data:`MAGNITUDE_ROWS` of them, that many evenly
+            spaced.
 
     Attributes:
         result_: :class:`SearchResult` from the most recent :meth:`run`.
@@ -333,6 +389,7 @@ class BeamSearch:
         chunk_size: int | None = None,
         max_inputs: int | None = None,
         fitted_ops: Sequence[str] = (),
+        magnitude_slots: int = 0,
     ) -> None:
         if max_depth < 0:
             raise ValueError(f"max_depth must be non-negative, got {max_depth}")
@@ -352,6 +409,17 @@ class BeamSearch:
             isinstance(max_inputs, bool) or not isinstance(max_inputs, numbers.Integral) or max_inputs < 1
         ):
             raise ValueError(f"max_inputs must be an integer of at least 1 or None, got {max_inputs!r}")
+        if (
+            isinstance(magnitude_slots, bool)
+            or not isinstance(magnitude_slots, numbers.Integral)
+            or magnitude_slots < 0
+        ):
+            raise ValueError(f"magnitude_slots must be a non-negative integer, got {magnitude_slots!r}")
+        if magnitude_slots and problem_type == "classification":
+            raise ValueError(
+                "magnitude_slots is for regression only: a class label has no magnitude for a "
+                "candidate's to track. Leave it at 0 for classification."
+            )
 
         unknown = [op for op in (*unary_ops, *binary_ops) if op not in OPERATORS]
         if unknown:
@@ -393,6 +461,7 @@ class BeamSearch:
         # start and end.
         self._profiles: dict[str, frozenset[str] | None] = {}
         self.fitted_ops = fitted_ops
+        self.magnitude_slots = int(magnitude_slots)
 
         self.result_: SearchResult | None = None
 
@@ -743,6 +812,130 @@ class BeamSearch:
 
         return kept_indices, n_dropped
 
+    # -- magnitude slots ---------------------------------------------------- #
+
+    def _magnitude_references(
+        self, target: np.ndarray, incumbent: np.ndarray | None, incumbent_scores: Sequence[float] = ()
+    ) -> list[np.ndarray]:
+        """Log-magnitudes of the centred target and of its residuals, standardised.
+
+        The residuals are the target's on the incumbent set, as
+        :class:`~beamfeat.scoring.CorrelationScorer` computes them, and, when
+        the set holds more columns than a quarter of the rows, on that many
+        of its best-scoring columns. A residual on as many columns as there
+        are rows is empty, and on nearly as many it is mostly the fit's own
+        noise; the shorter one still shows what the best columns leave
+        unexplained, such as ``x0*x1`` behind ``x2`` in ``x0*x1 + x2`` on a
+        table with more columns than rows. An empty residual is left out.
+        Each is fitted on every row and kept on the rows
+        :func:`_magnitude_rows` names.
+        """
+        scorer = CorrelationScorer(self.problem_type)
+        prepared = [scorer.prepare(target)]
+        if incumbent is not None:
+            prepared.append(scorer.prepare(target, incumbent))
+            limit = max(1, len(target) // 4)
+            if incumbent.shape[1] > limit and len(incumbent_scores) == incumbent.shape[1]:
+                order = np.argsort(-np.asarray(incumbent_scores, dtype=np.float64), kind="stable")
+                prepared.append(scorer.prepare(target, incumbent[:, np.sort(order[:limit])]))
+        rows = _magnitude_rows(len(target))
+        references = []
+        for vector in prepared:
+            if vector is not None:
+                if rows is not None:
+                    vector = _standardise(vector[rows])
+                # A standardised vector has a root mean square of 1.
+                reference = _standardise(np.log1p(np.abs(vector)))
+                if np.any(reference):
+                    references.append(reference)
+        return references
+
+    def _weave(
+        self, ranked: list[Node], leaves: list[Node], values: np.ndarray, scores: np.ndarray, target: np.ndarray
+    ) -> list[Node]:
+        """The inputs in score order, with their magnitude ranking interleaved.
+
+        The magnitude ranking takes the first place and then its share,
+        ``magnitude_slots / (beam_width + magnitude_slots)``, of the places
+        that follow, skipping inputs already placed. Its references are those
+        of the first depth, the inputs being the incumbent set there.
+        """
+        references = self._magnitude_references(target, values, scores)
+        if not references:
+            return ranked
+        rows = _magnitude_rows(values.shape[0])
+        order = _rank(leaves, magnitude_scores(values if rows is None else values[rows], references))
+        by_magnitude = [leaves[i] for i in order]
+        share = self.magnitude_slots / (self.beam_width + self.magnitude_slots)
+        woven: list[Node] = []
+        placed: set[Node] = set()
+        lists = {True: iter(by_magnitude), False: iter(ranked)}
+        n_magnitude = 0
+        while len(woven) < len(ranked):
+            from_magnitude = n_magnitude < math.ceil(share * (len(woven) + 1) - 1e-12)
+            for node in lists[from_magnitude]:
+                if node not in placed:
+                    placed.add(node)
+                    woven.append(node)
+                    n_magnitude += from_magnitude
+                    break
+            else:  # pragma: no cover - both lists hold every input
+                break
+        return woven
+
+    def _reserve(
+        self,
+        nodes: list[Node],
+        scores: np.ndarray,
+        magnitude: np.ndarray,
+        beam: list[Node],
+        beam_values: np.ndarray,
+        evaluator: Evaluator,
+    ) -> tuple[list[Node], np.ndarray, np.ndarray]:
+        """Up to ``magnitude_slots`` candidates the beam left out, best magnitude first.
+
+        Each is checked against the beam and against those reserved before it
+        with the beam's redundancy threshold. Columns are evaluated again in
+        the order they are needed, as the beam's are. Only the head of the
+        ranking is built, a few times the slots at first and twice as much
+        whenever it runs out; it is the head of the ranking of the whole
+        round, ties included.
+
+        Returns:
+            Tuple of (reserved nodes, their values, their scores).
+        """
+        n_samples = evaluator.n_rows
+        in_beam = set(beam)
+        cutoff = min(self.redundancy_threshold, 1.0 - EXACT_COPY_TOL)
+        admitted = np.empty((len(beam) + self.magnitude_slots, n_samples))
+        admitted[: len(beam)] = _standardise_columns(beam_values).T
+        n_admitted = len(beam)
+        kept: list[int] = []
+        values: list[np.ndarray] = []
+        done = 0
+        size = len(beam) + 4 * self.magnitude_slots
+        while len(kept) < self.magnitude_slots and done < len(nodes):
+            head = _rank_head(nodes, magnitude, size)
+            order = np.array([i for i in head[done:] if nodes[i] not in in_beam], dtype=np.intp)
+            done = len(head)
+            size *= 2
+            if not order.size:
+                continue
+            columns = _RankedColumns(order, nodes, evaluator, block=max(2, min(self.magnitude_slots, 256)))
+            for index in order:
+                if len(kept) >= self.magnitude_slots:
+                    break
+                column = columns.standardised(index)
+                if n_admitted and float(np.max(np.abs(admitted[:n_admitted] @ column))) / n_samples >= cutoff:
+                    continue
+                admitted[n_admitted] = column
+                n_admitted += 1
+                kept.append(int(index))
+                values.append(np.array(columns.raw(index), dtype=evaluator.dtype))
+        if not kept:
+            return [], np.empty((n_samples, 0)), np.empty(0)
+        return [nodes[i] for i in kept], np.column_stack(values), scores[kept]
+
     # -- evaluation and scoring --------------------------------------------- #
 
     def _chunk_columns(self, evaluator: Evaluator, scorer: Scorer) -> int:
@@ -761,7 +954,8 @@ class BeamSearch:
         target: np.ndarray,
         absolute: Any,
         incumbent: np.ndarray | None,
-    ) -> tuple[list[Node], np.ndarray, np.ndarray | None]:
+        magnitude: tuple[list[np.ndarray], np.ndarray | None] | None = None,
+    ) -> tuple[list[Node], np.ndarray, np.ndarray | None, np.ndarray | None]:
         """Evaluate and score one depth's candidates, a chunk at a time.
 
         Every candidate is ranked on the larger of its score against the raw
@@ -779,10 +973,14 @@ class BeamSearch:
             target: Target vector.
             absolute: ``scorer.prepare(target)``, for a column-by-column scorer.
             incumbent: Values of the features selected so far, if any.
+            magnitude: References for :func:`magnitude_scores` and the rows
+                they are on (``None`` for all), or ``None`` when no magnitude
+                score is needed.
 
         Returns:
             Tuple of (evaluated nodes, their scores, their values as a
-            matrix, or ``None`` when the values were dropped).
+            matrix, or ``None`` when the values were dropped, and their
+            magnitude scores, or ``None`` without ``magnitude``).
         """
         by_column = scorer.scores_by_column()
         references = None
@@ -796,7 +994,7 @@ class BeamSearch:
         n_jobs = self.n_jobs if expensive or len(candidates) >= MIN_PARALLEL_CANDIDATES else 1
         outcomes = _map(
             _run_chunk,
-            [(batch, scorer, references) for batch in batches],
+            [(batch, scorer, references, magnitude) for batch in batches],
             n_jobs,
             prefer="processes" if expensive else "threads",
         )
@@ -804,18 +1002,22 @@ class BeamSearch:
         evaluated: list[Node] = []
         score_parts: list[np.ndarray] = []
         value_parts: list[np.ndarray] = []
-        for chunk, (outcome, chunk_scores) in zip(chunks, outcomes, strict=True):
+        magnitude_parts: list[np.ndarray] = []
+        for chunk, (outcome, chunk_scores, chunk_magnitude) in zip(chunks, outcomes, strict=True):
             evaluated.extend(evaluator.commit_batch(chunk, outcome))
             if by_column:
                 score_parts.append(chunk_scores)
             else:
                 value_parts.append(outcome.values)
+            if chunk_magnitude is not None:
+                magnitude_parts.append(chunk_magnitude)
 
         if not evaluated:
-            return evaluated, np.empty(0), None
+            return evaluated, np.empty(0), None, None
+        magnitudes = np.concatenate(magnitude_parts) if magnitude is not None else None
         if by_column:
             scores = np.concatenate(score_parts) if score_parts else np.empty(0)
-            return evaluated, scores, None
+            return evaluated, scores, None, magnitudes
 
         # Row-major, as evaluate_many returns: a scorer that reduces along the
         # rows sums in an order that depends on the layout.
@@ -830,7 +1032,7 @@ class BeamSearch:
             scores = scorer.score_batch(values, target, None)
             if incumbent is not None:
                 scores = np.maximum(scores, scorer.score_batch(values, target, incumbent))
-        return evaluated, scores, values
+        return evaluated, scores, values, magnitudes
 
     # -- main loop ---------------------------------------------------------- #
 
@@ -929,6 +1131,8 @@ class BeamSearch:
             # first when the ceiling can bind, which it usually then does.
             if depth == 1 and self._can_reach_ceiling(beam):
                 ranked = [beam[i] for i in _rank(beam, beam_scores)]
+                if self.magnitude_slots:
+                    ranked = self._weave(ranked, beam, beam_values, beam_scores, target)
                 candidates, n_unit_rejected, n_constrained = self._propose(ranked, ranked, seen)
                 if len(candidates) < self.max_candidates_per_depth:
                     seen.difference_update(candidates)
@@ -978,8 +1182,16 @@ class BeamSearch:
             # this depth; restatements of earlier depths are left to the
             # final ranking.
             incumbent = selected_values if selected_values.shape[1] else None
-            evaluated, scores, values = self._score_round(
-                evaluator, candidates, scorer, target, absolute, incumbent
+            # The slots keep parts for the next depth to build on; the last
+            # depth has none. A target whose magnitude does not vary, such as
+            # one of two values either side of its mean, gives them nothing.
+            magnitude = None
+            if self.magnitude_slots and depth < self.max_depth:
+                references = self._magnitude_references(target, incumbent, selected_scores)
+                if references:
+                    magnitude = (references, _magnitude_rows(evaluator.n_rows))
+            evaluated, scores, values, magnitudes = self._score_round(
+                evaluator, candidates, scorer, target, absolute, incumbent, magnitude
             )
             n_numeric_rejected = len(candidates) - len(evaluated)
             n_evaluated_total += len(evaluated)
@@ -996,6 +1208,16 @@ class BeamSearch:
                     evaluated, values, scores, self.beam_width, shield=bool(self.fitted_ops)
                 )
             del values
+            n_magnitude = 0
+            if magnitudes is not None and beam:
+                reserved, reserved_values, reserved_scores = self._reserve(
+                    evaluated, scores, magnitudes, beam, beam_values, evaluator
+                )
+                if reserved:
+                    n_magnitude = len(reserved)
+                    beam = beam + reserved
+                    beam_values = np.column_stack([beam_values, reserved_values])
+                    kept_scores = np.concatenate([kept_scores, reserved_scores])
             if not beam:
                 report(self.verbose, 2, f"  depth {depth}: beam collapsed after redundancy pruning; stopping")
                 break
@@ -1023,6 +1245,7 @@ class BeamSearch:
                     elapsed=time.perf_counter() - depth_started,
                     n_rejected_constraints=n_constrained,
                     n_fitted=n_fitted,
+                    n_magnitude=n_magnitude,
                 )
             )
             dropped = []
@@ -1041,6 +1264,7 @@ class BeamSearch:
                 + (f" ({n_fitted} with a fitted constant)" if n_fitted else "")
                 + f" -> {len(evaluated)} evaluated"
                 f" -> {len(beam)} kept by beam"
+                + (f" ({n_magnitude} by magnitude)" if n_magnitude else "")
                 + (f" ({', '.join(dropped)} rejected)" if dropped else "")
                 + f", best {float(np.max(kept_scores)):.4f}"
                 f", {time.perf_counter() - depth_started:.2f}s",
@@ -1126,6 +1350,32 @@ def _rank(nodes: Sequence[Node], scores: np.ndarray) -> np.ndarray:
     return np.lexsort((sizes, -quantised))
 
 
+def _magnitude_rows(n_rows: int) -> np.ndarray | None:
+    """Rows the magnitude score is computed on: ``None`` for all of them.
+
+    All of them up to :data:`MAGNITUDE_ROWS`; beyond, that many evenly
+    spaced through them, the first and the last included.
+    """
+    if n_rows <= MAGNITUDE_ROWS:
+        return None
+    return np.unique(np.round(np.linspace(0, n_rows - 1, MAGNITUDE_ROWS)).astype(np.intp))
+
+
+def _rank_head(nodes: Sequence[Node], scores: np.ndarray, size: int) -> np.ndarray:
+    """The first ``size`` or more places of :func:`_rank`, and every tie at the last.
+
+    Ranks only the candidates whose quantised score reaches that of the
+    ``size``-th best, so the structural sizes :func:`_rank` breaks ties on
+    are computed for those alone.
+    """
+    if size >= len(nodes):
+        return _rank(nodes, scores)
+    quantised = np.round(np.asarray(scores, dtype=np.float64) / SCORE_TIE_TOL)
+    threshold = np.partition(quantised, len(nodes) - size)[len(nodes) - size]
+    chosen = np.flatnonzero(quantised >= threshold)
+    return chosen[_rank([nodes[i] for i in chosen], scores[chosen])]
+
+
 class _RankedColumns:
     """Candidate columns evaluated again in rank order, a block at a time.
 
@@ -1205,22 +1455,89 @@ def _check_fitted_ops(fitted_ops: Sequence[str]) -> tuple[str, ...]:
 
 
 def _run_chunk(
-    batch: EvaluationBatch, scorer: Scorer, references: tuple[Any, ...] | None
-) -> tuple[BatchOutcome, np.ndarray | None]:
+    batch: EvaluationBatch,
+    scorer: Scorer,
+    references: tuple[Any, ...] | None,
+    magnitude: tuple[list[np.ndarray], np.ndarray | None] | None = None,
+) -> tuple[BatchOutcome, np.ndarray | None, np.ndarray | None]:
     """Evaluate one chunk and, given prepared references, score it.
 
     With references, each candidate's score is the largest against any of
     them, and the values are dropped from the outcome to keep it small.
+    With ``magnitude``, references and the rows they are on, the chunk's
+    :func:`magnitude_scores` are computed on those rows as well, before the
+    values are dropped.
     """
     outcome = batch.run()
-    if references is None:
-        return outcome, None
     values = outcome.values
     stats = outcome.stats if values.dtype == np.float64 else None
+    magnitudes = None
+    if magnitude is not None:
+        vectors, rows = magnitude
+        magnitudes = (
+            magnitude_scores(values, vectors, stats) if rows is None else magnitude_scores(values[rows], vectors)
+        )
+    if references is None:
+        return outcome, None, magnitudes
     scores = scorer.score_prepared(values, references[0], stats)
     for prepared in references[1:]:
         scores = np.maximum(scores, scorer.score_prepared(values, prepared, stats))
-    return outcome._replace(values=None), scores
+    return outcome._replace(values=None), scores, magnitudes
+
+
+def magnitude_scores(
+    candidates: np.ndarray, references: Sequence[np.ndarray], stats: ColumnStats | None = None
+) -> np.ndarray:
+    """How well each candidate's magnitude tracks a reference's, at best.
+
+    Each column ``c`` is transformed to ``log(1 + |c|/rms(c))``, where
+    ``rms`` is its root mean square, and scored by its largest absolute
+    correlation with any of ``references``, which are standardised
+    transforms of the same kind (see ``magnitude_slots`` on
+    :class:`BeamSearch`). The logarithm turns a product into a sum, so the
+    magnitude of a factor correlates with the magnitude of the product even
+    when the factor itself does not correlate with it; the 1 inside it
+    treats magnitudes far below the column's scale alike, so that rows where
+    a product nears zero, and the noise there, do not dominate, and it
+    compresses a heavy tail. The score does not change when a column is
+    scaled or changes sign.
+
+    Each column is transformed, standardised and reduced on its own, so a
+    score does not depend on the other columns it is computed with.
+
+    Args:
+        candidates: ``(n_samples, n_candidates)`` candidate values.
+        references: Standardised reference vectors of length ``n_samples``.
+        stats: Optional :func:`~beamfeat.scoring.column_stats` of
+            ``candidates``, when the caller has them already.
+
+    Returns:
+        ``(n_candidates,)`` scores in [0, 1]; 0 for a column that is zero
+        throughout or not finite.
+    """
+    candidates = np.asarray(candidates, dtype=np.float64)
+    if candidates.ndim == 1:
+        candidates = candidates.reshape(-1, 1)
+    n_samples, n_candidates = candidates.shape
+    scores = np.zeros(n_candidates)
+    if not references:
+        return scores
+    step = max(1, (16 * 2**20) // max(1, 8 * n_samples))
+    for start in range(0, n_candidates, step):
+        block = candidates[:, start : start + step]
+        block_stats = column_stats(block) if stats is None else stats.take(slice(start, start + step))
+        with np.errstate(all="ignore"):
+            rms = np.sqrt(block_stats.variance + block_stats.mean**2)
+            transformed = np.log1p(np.abs(block) / rms)
+        standardised = _standardise_block(transformed, column_stats(transformed))
+        # One dot product per column and reference, as the correlation
+        # scorer computes its scores: a matrix product sums in another order.
+        for offset, column in enumerate(standardised.T):
+            best = 0.0
+            for reference in references:
+                best = max(best, abs(float(column @ reference)))
+            scores[start + offset] = best / n_samples
+    return np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
 
 
 def _joblib_threads(n_jobs: int | None) -> AbstractContextManager[Any]:
