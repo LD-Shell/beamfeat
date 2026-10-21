@@ -783,6 +783,32 @@ class TestMagnitudeSlots:
         search = BeamSearch(max_depth=2, beam_width=5, magnitude_slots=3, include_originals=False)
         assert all(record.n_magnitude == 0 for record in search.run(data, target).trace)
 
+    def test_rows_capped_and_evenly_spaced(self):
+        assert beamfeat.search._magnitude_rows(beamfeat.search.MAGNITUDE_ROWS) is None
+        rows = beamfeat.search._magnitude_rows(2501)
+        assert len(rows) == beamfeat.search.MAGNITUDE_ROWS
+        assert rows[0] == 0 and rows[-1] == 2500 and np.all(np.diff(rows) > 0)
+
+    def test_many_rows_scored_on_the_capped_rows(self, monkeypatch):
+        monkeypatch.setattr(beamfeat.search, "MAGNITUDE_ROWS", 100)
+        data, target = _centred_triple(5)
+        references = BeamSearch()._magnitude_references(target, None)
+        assert [len(reference) for reference in references] == [100]
+        result = BeamSearch(max_depth=2, beam_width=5, magnitude_slots=3).run(data, target)
+        assert _has_law(result, ("x0", "x1", "x2"))
+
+    def test_capped_rows_do_not_depend_on_workers_or_chunks(self, rng, monkeypatch):
+        monkeypatch.setattr(beamfeat.search, "MIN_PARALLEL_CANDIDATES", 0)
+        monkeypatch.setattr(beamfeat.search, "MAGNITUDE_ROWS", 60)
+        data, target = _awkward_data(rng)
+        runs = [
+            BeamSearch(max_depth=3, beam_width=12, magnitude_slots=4, n_jobs=n_jobs, chunk_size=chunk_size)
+            .run(data, target)
+            for n_jobs, chunk_size in ((1, 10**9), (2, 7))
+        ]
+        assert _signature(runs[1]) == _signature(runs[0])
+        assert sum(record.n_magnitude for record in runs[0].trace) > 0
+
     def test_slots_reported(self, capsys):
         data, target = _centred_triple(5, n=200, p=8)
         BeamSearch(max_depth=2, beam_width=5, magnitude_slots=2, verbose=2).run(data, target)
