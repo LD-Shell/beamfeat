@@ -1,0 +1,19 @@
+{
+ "commit": "45c850d97ce6ed2c50955e1194cc13e1ad78a7c4",
+ "tracked_changes": false,
+ "beamfeat": "0.6.0.dev0",
+ "beamfeat_path": "src/beamfeat",
+ "python": "3.12.14",
+ "numpy": "2.5.4",
+ "scipy": "1.18.1",
+ "scikit-learn": "1.9.1",
+ "sympy": "1.14.0",
+ "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+ "seeds": 200,
+ "settings": {
+  "default": {},
+  "magnitude_slots=10": {
+   "magnitude_slots": 10
+  }
+ }
+}
