@@ -146,6 +146,19 @@ pure-noise targets (50 seeds, 200 rows, 5 columns, defaults otherwise) the
 fraction of fits with any discovery was the same with all four fitted
 operators as without: 0/50 for regression, 2/50 for classification.
 
+`magnitude_slots` changes which expressions the search keeps, not how they
+are tested. Its magnitude score is computed inside the search, on the search
+rows, as the score is; the expressions it keeps are built on and ranked like
+any other; and the selection rows receive the search's output as a fixed
+set of expressions, chosen without them. The premise of the screen holds as
+before and its guarantee is unchanged. Measured on 200 paired replicates per
+design at q = 0.1 (`benchmarks/search_stress/null.py`, the screened set),
+the share of fits with a false feature was the same with the option as
+without on four null designs, 0.015 to 0.025, among them centred and
+Gaussian inputs and 200 columns on 150 search rows; on a planted
+`x0*x1*x2` among centred distractors it was 0.025 against 0.020, one fit in
+200, with a false discovery rate of 0.005 either way.
+
 ## Parsimony within the screened set
 
 Three things can be wanted of the fitted equation: that it be short, that the

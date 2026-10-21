@@ -637,6 +637,98 @@ still help, because it keeps the beam from filling with combinations of many
 columns. Compare the held-out score with and without it rather than assuming
 either way.
 
+## Laws whose parts the score cannot see
+
+The search keeps, at each depth, the candidates that correlate best with the
+target and builds the next depth from them. A law can need a part that does
+not correlate with the target at all. With inputs centred on zero, `x0` and
+`x1` are each uncorrelated with `x0*x1`, and every pairwise product is
+uncorrelated with `x0*x1*x2`: the score ranks those parts among the noise,
+and the beam drops them before they can be combined. On positive inputs, as
+in most physical tables, each factor of a product correlates with it, and
+the problem does not arise.
+
+[`benchmarks/search_stress/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/search_stress)
+measures what it costs. At the defaults, with 500 rows and 10% noise, the
+search recovered `x0*x1*x2` on centred uniform inputs in 54% of fits with 20
+columns, 18% with 100 and 10% with 300, and in every fit on positive inputs;
+each miss was the first depth's beam dropping the pairwise products. A beam
+of 200 lifted the 20-column figure to 96% at about nine times the fit time,
+but the 100-column one only to 26%. Past the proposal ceiling, from about 258
+columns at the defaults, a centred pair can be lost before it is scored:
+with 1,000 columns `x0*x1` was recovered in 32% of fits, because neither
+input scored well enough for the pair to be proposed. A miss mostly ends in
+no equation and a `NoDiscoveriesWarning`, sometimes in terms that ride on
+one of the law's columns.
+
+`magnitude_slots` adds beam slots for candidates whose magnitude tracks the
+target's:
+
+```python
+rng = np.random.default_rng(3)
+X = rng.uniform(-1, 1, (400, 10))
+y = X[:, 0] * X[:, 1] * X[:, 2] + rng.normal(0, 0.01, 400)
+for slots in (0, 3):
+    model = BeamFeatRegressor(max_depth=2, beam_width=10, magnitude_slots=slots).fit(X, y)
+    print(slots, model.formulas())
+```
+
+```text
+0 []
+3 ['(x0 * (x1 * x2))']
+```
+
+The first fit finds nothing and warns `NoDiscoveriesWarning`.
+
+How it works:
+
+- **The score.** A candidate `c` is scored by the absolute correlation of
+  `log(1 + |c|/rms(c))` with the same transform of the centred target, where
+  `rms` is the root mean square. The logarithm turns a product into a sum,
+  so a factor's magnitude tracks the product's even where the factor itself
+  does not correlate with it. The 1 keeps the rows where a product nears
+  zero, and the noise there, from dominating, and it compresses a heavy
+  tail, so that a ratio with a denominator near zero does not score by
+  accident. On more than 1,000 search rows the score is computed on 1,000
+  of them, evenly spaced, which is plenty to rank a few slots and keeps its
+  cost from growing with the table.
+- **The slots.** After the `beam_width` candidates the score keeps, up to
+  `magnitude_slots` more are kept from the rest, best magnitude score first,
+  under the same redundancy check. They are kept at every depth but the
+  last, since they are there to be built on.
+- **The proposals.** When the first depth cannot propose every pair of
+  inputs, the inputs are proposed in an order that interleaves their
+  magnitude ranking with their score ranking. The magnitude ranking takes
+  the first place and `magnitude_slots / (beam_width + magnitude_slots)` of
+  those after it.
+- **A part behind a visible term.** In `x0*x1 + x2` the product does
+  correlate with the target, but hundreds of sums of `x2` with another column
+  can outrank it. The search then relies on scoring candidates against the
+  residual left by the inputs, and with more inputs than search rows that
+  residual is empty. The magnitude score is also taken against the residual
+  on the best-scoring columns, at most a quarter as many as the rows, which
+  keeps `x0*x1` in view.
+
+Measured at 10 slots on the stress test, it recovered `x0*x1*x2` on
+centred inputs in every fit with 20, 100 and 300 columns, the centred pair
+in every fit with 1,000 columns, and `x0*x1 + x2` with 300 columns and 250
+search rows in 88% of fits, where the default recovered none; in no setting
+did it lose a law the default found. Fits took 1.2 to 1.7 times as long
+there, and 1.4 times on the high-dimensional study's three 10,000-row
+tables. Where no such law is hidden it changes little either way: the main
+suite's mean held-out score over 24 regression datasets went from 0.885 to
+0.884, with diabetes and california housing about 0.01 lower, and the
+high-dimensional study's mean from 0.647 to 0.649. Try it when a law may
+hide behind centred or signed inputs, and keep it if the held-out score
+agrees.
+
+It is for regression only, since a class label has no magnitude to track.
+The ranking runs inside the search, on the search rows only, so the screen on
+the selection rows sees fixed expressions and its guarantee is unchanged;
+see the [guarantees page](guarantees.md#selective-inference-why-the-estimators-split-their-data).
+It was measured on products and on a product beside a visible term, and a
+law whose parts the magnitude score cannot see either is still out of reach.
+
 ## Real data with missing values or categoricals
 
 beamfeat never imputes or encodes silently — compose explicitly:
