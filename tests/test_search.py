@@ -8,7 +8,7 @@ import pytest
 import beamfeat.search
 from beamfeat.expression import Evaluator, combine, leaf, transform
 from beamfeat.scoring import CorrelationScorer, GradientBoostingScorer, MutualInformationScorer, Scorer
-from beamfeat.search import BeamSearch
+from beamfeat.search import BeamSearch, magnitude_scores
 
 
 @pytest.fixture
@@ -581,6 +581,212 @@ class TestConstraintsChangeNothingWhenOff:
         counts = [[record.n_rejected_constraints for record in run.trace] for run in runs]
         assert counts[1] == counts[0]
         assert sum(counts[0]) > 0
+
+
+# --------------------------------------------------------------------------- #
+# Magnitude slots: laws whose parts do not correlate with the target
+# --------------------------------------------------------------------------- #
+
+
+def _centred_triple(seed, n=300, p=20, noise=0.05):
+    """Centred inputs and ``x0*x1*x2``: no input and no pairwise product correlates with it."""
+    rng = np.random.default_rng(seed)
+    data = {f"x{i}": rng.uniform(-1.0, 1.0, n) for i in range(p)}
+    target = data["x0"] * data["x1"] * data["x2"]
+    return data, target + rng.normal(0, noise * target.std(), n)
+
+
+def _has_law(result, columns, score=0.99) -> bool:
+    return any(node.columns() == set(columns) and value > score for node, value in zip(result.nodes, result.scores))
+
+
+class TestMagnitudeScores:
+    def test_a_factor_scores_where_correlation_does_not(self):
+        data, target = _centred_triple(0, n=1000)
+        values = np.column_stack([data["x0"], data["x0"] * data["x1"], data["x5"], data["x5"] * data["x6"]])
+        references = BeamSearch()._magnitude_references(target, None)
+        magnitude = magnitude_scores(values, references)
+        correlation = CorrelationScorer().score_batch(values, target)
+        assert correlation.max() < 0.15
+        assert magnitude[0] > 0.4 and magnitude[1] > 0.6
+        assert magnitude[2] < 0.15 and magnitude[3] < 0.15
+
+    def test_unchanged_by_scale_and_sign(self, rng):
+        values = rng.normal(size=(200, 3))
+        references = BeamSearch()._magnitude_references(values[:, 0] * values[:, 1], None)
+        scores = magnitude_scores(values, references)
+        np.testing.assert_allclose(magnitude_scores(-3.0 * values, references), scores, atol=1e-12)
+
+    def test_each_column_scored_on_its_own(self, rng):
+        values = rng.normal(size=(150, 9))
+        references = BeamSearch()._magnitude_references(values[:, 0] * values[:, 1], None)
+        together = magnitude_scores(values, references)
+        alone = [magnitude_scores(values[:, [j]], references)[0] for j in range(values.shape[1])]
+        assert together.tolist() == alone
+
+    def test_largest_over_the_references(self, rng):
+        values = rng.normal(size=(200, 4))
+        first = BeamSearch()._magnitude_references(values[:, 0] * values[:, 3], None)
+        second = BeamSearch()._magnitude_references(values[:, 1] * values[:, 2], None)
+        both = magnitude_scores(values, first + second)
+        np.testing.assert_array_equal(
+            both, np.maximum(magnitude_scores(values, first), magnitude_scores(values, second))
+        )
+
+    def test_degenerate_columns_score_zero(self, rng):
+        values = np.column_stack([np.zeros(50), rng.normal(size=50)])
+        references = BeamSearch()._magnitude_references(rng.normal(size=50), None)
+        assert magnitude_scores(values, references)[0] == 0.0
+        assert magnitude_scores(values, []).tolist() == [0.0, 0.0]
+
+    def test_residual_reference_dropped_when_nothing_is_left(self, rng):
+        target = rng.normal(size=40)
+        incumbent = rng.normal(size=(40, 45))
+        assert len(BeamSearch()._magnitude_references(target, incumbent)) == 1
+        assert len(BeamSearch()._magnitude_references(target, incumbent[:, :5])) == 2
+
+    def test_residual_on_the_best_columns_when_they_outnumber_a_quarter_of_the_rows(self, rng):
+        target = rng.normal(size=40)
+        incumbent = rng.normal(size=(40, 45))
+        scores = np.arange(45.0)
+        references = BeamSearch()._magnitude_references(target, incumbent, scores)
+        assert len(references) == 2
+        short = BeamSearch()._magnitude_references(target, incumbent[:, 35:], scores[35:])
+        np.testing.assert_allclose(references[1], short[1], atol=1e-12)
+        assert len(BeamSearch()._magnitude_references(target, incumbent[:, :10], scores[:10])) == 2
+
+
+class TestMagnitudeSlotValidation:
+    @pytest.mark.parametrize("value", [-1, 1.5, True, "2", None])
+    def test_bad_values_rejected(self, value):
+        with pytest.raises(ValueError, match="magnitude_slots"):
+            BeamSearch(magnitude_slots=value)
+
+    def test_off_by_default(self):
+        assert BeamSearch().magnitude_slots == 0
+
+    def test_regression_only(self):
+        with pytest.raises(ValueError, match="regression only"):
+            BeamSearch(problem_type="classification", magnitude_slots=5)
+        assert BeamSearch(problem_type="classification").magnitude_slots == 0
+
+
+class TestMagnitudeSlots:
+    def test_zero_changes_nothing(self, rng):
+        data, target = _awkward_data(rng)
+        plain = BeamSearch(max_depth=3, beam_width=15).run(data, target)
+        idle = BeamSearch(max_depth=3, beam_width=15, magnitude_slots=0).run(data, target)
+        assert _signature(idle) == _signature(plain)
+        assert all(record.n_magnitude == 0 for record in idle.trace)
+
+    def test_finds_a_product_whose_parts_do_not_correlate(self):
+        data, target = _centred_triple(5)
+        plain = BeamSearch(max_depth=2, beam_width=5).run(data, target)
+        assert not _has_law(plain, ("x0", "x1", "x2"))
+        slots = BeamSearch(max_depth=2, beam_width=5, magnitude_slots=3).run(data, target)
+        assert _has_law(slots, ("x0", "x1", "x2"))
+        assert slots.nodes[0].columns() == {"x0", "x1", "x2"}
+
+    def test_slots_counted_and_left_out_at_the_last_depth(self):
+        data, target = _centred_triple(5)
+        result = BeamSearch(max_depth=3, beam_width=5, magnitude_slots=3).run(data, target)
+        assert [record.n_magnitude for record in result.trace] == [0, 3, 3, 0]
+        assert [record.n_kept for record in result.trace[1:]] == [8, 8, 5]
+
+    def test_reserved_candidates_are_not_near_duplicates(self, rng):
+        n = 200
+        x = {name: rng.uniform(-1.0, 1.0, n) for name in ("a", "b", "c")}
+        x["d"] = x["c"] + rng.normal(0, 1e-4, n)
+        evaluator = Evaluator(x)
+        a, b, c, d = (leaf(name) for name in "abcd")
+        nodes = [combine("mul", a, c), combine("mul", a, d), combine("mul", b, c), combine("add", a, b)]
+        values = np.column_stack([evaluator.evaluate(node) for node in nodes])
+        target = x["a"] * x["c"] * x["b"]
+        magnitude = magnitude_scores(values, BeamSearch()._magnitude_references(target, None))
+        beam = [nodes[3]]
+        search = BeamSearch(beam_width=1, magnitude_slots=3)
+        reserved, reserved_values, reserved_scores = search._reserve(
+            nodes, np.zeros(len(nodes)), magnitude, beam, values[:, [3]], evaluator
+        )
+        assert len(reserved) == 2
+        assert {nodes[0], nodes[1]} & set(reserved) and nodes[2] in reserved
+        assert reserved_values.shape == (n, 2)
+        assert reserved_scores.tolist() == [0.0, 0.0]
+
+    def test_a_hidden_term_behind_a_visible_one_on_more_columns_than_rows(self):
+        """``x0*x1`` loses to sums with ``x2``, and the residual on all inputs is empty."""
+        rng = np.random.default_rng(0)
+        n, p = 60, 80
+        data = {f"x{i}": rng.uniform(-1.0, 1.0, n) for i in range(p)}
+        target = data["x0"] * data["x1"] + data["x2"] + rng.normal(0, 0.01, n)
+        plain = BeamSearch(max_depth=2, beam_width=10).run(data, target)
+        assert not _has_law(plain, ("x0", "x1", "x2"))
+        slots = BeamSearch(max_depth=2, beam_width=10, magnitude_slots=3).run(data, target)
+        assert _has_law(slots, ("x0", "x1", "x2"))
+
+    def test_a_binding_ceiling_still_proposes_a_pair_neither_part_ranks(self):
+        rng = np.random.default_rng(103)
+        n, p = 200, 12
+        data = {f"x{i}": rng.uniform(-1.0, 1.0, n) for i in range(p)}
+        target = data["x10"] * data["x11"] + rng.normal(0, 0.01, n)
+        kwargs = {"max_depth": 1, "beam_width": 10, "unary_ops": (), "binary_ops": ("mul",),
+                  "max_candidates_per_depth": 20}
+        plain = BeamSearch(**kwargs).run(data, target)
+        assert plain.trace[1].n_proposed == 20
+        assert "(x10 * x11)" not in plain.names
+        slots = BeamSearch(magnitude_slots=2, **kwargs).run(data, target)
+        assert slots.trace[1].n_proposed == 20
+        assert slots.names[0] == "(x10 * x11)"
+
+    def test_weave_takes_its_share_starting_with_the_magnitude_ranking(self):
+        data, target = _centred_triple(5, p=12)
+        evaluator = Evaluator(data)
+        leaves, values = evaluator.evaluate_many(evaluator.leaf_nodes())
+        ranked = list(reversed(leaves))
+        scores = CorrelationScorer().score_batch(values, target)
+        search = BeamSearch(beam_width=4, magnitude_slots=1)
+        woven = search._weave(ranked, leaves, values, scores, target)
+        assert sorted(node.name for node in woven) == sorted(node.name for node in leaves)
+        by_magnitude = [leaves[i] for i in beamfeat.search._rank(
+            leaves, magnitude_scores(values, search._magnitude_references(target, values, scores))
+        )]
+        assert woven[0] == by_magnitude[0]
+        assert woven[0].column in {"x0", "x1", "x2"}
+        rest = [node for node in ranked if node != woven[0]]
+        assert woven[1:5] == rest[:4]
+
+    def test_workers_and_chunks_do_not_change_it(self, rng, monkeypatch):
+        monkeypatch.setattr(beamfeat.search, "MIN_PARALLEL_CANDIDATES", 0)
+        data, target = _awkward_data(rng)
+        reference = BeamSearch(max_depth=3, beam_width=12, magnitude_slots=4, chunk_size=10**9).run(data, target)
+        assert sum(record.n_magnitude for record in reference.trace) > 0
+        for n_jobs, chunk_size in ((1, 7), (2, 7), (2, 1)):
+            run = BeamSearch(
+                max_depth=3, beam_width=12, magnitude_slots=4, n_jobs=n_jobs, chunk_size=chunk_size
+            ).run(data, target)
+            assert _signature(run) == _signature(reference)
+            assert [r.n_magnitude for r in run.trace] == [r.n_magnitude for r in reference.trace]
+
+    def test_whole_batch_scorers_take_slots_too(self):
+        data, target = _centred_triple(5, n=200, p=8)
+        result = BeamSearch(
+            scorer=MutualInformationScorer(), max_depth=2, beam_width=5, magnitude_slots=2
+        ).run(data, target)
+        assert result.trace[1].n_magnitude == 2
+
+    def test_no_slots_for_a_target_without_magnitude(self, rng):
+        data = {f"x{i}": rng.uniform(-1.0, 1.0, 200) for i in range(6)}
+        target = np.tile([1.0, -1.0], 100)
+        assert BeamSearch()._magnitude_references(target, None) == []
+        # Without the inputs among the kept expressions, the first depth has no
+        # residual to fall back on.
+        search = BeamSearch(max_depth=2, beam_width=5, magnitude_slots=3, include_originals=False)
+        assert all(record.n_magnitude == 0 for record in search.run(data, target).trace)
+
+    def test_slots_reported(self, capsys):
+        data, target = _centred_triple(5, n=200, p=8)
+        BeamSearch(max_depth=2, beam_width=5, magnitude_slots=2, verbose=2).run(data, target)
+        assert "2 by magnitude" in capsys.readouterr().out
 
 
 # --------------------------------------------------------------------------- #
