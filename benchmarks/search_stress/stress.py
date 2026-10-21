@@ -68,6 +68,9 @@ Run from the repository root, with this checkout's ``src`` importable:
     python benchmarks/search_stress/stress.py --workers 3        # resumable
     python benchmarks/search_stress/stress.py --tabulate         # tables from the records
     python benchmarks/search_stress/stress.py --seeds 1 --out /tmp/pilot
+    python benchmarks/search_stress/stress.py --setting magnitude_slots=10 \
+        --kwargs '{"magnitude_slots": 10}' --beams 50 --out <dir>   # an option on the grid
+    python benchmarks/search_stress/stress.py --out <dir> --compare <default dir>
 """
 
 from __future__ import annotations
@@ -263,6 +266,15 @@ def traced_class():
             kept = super()._prune_evaluated(nodes, scores, limit, evaluator, shield)
             self._record(nodes, scores, kept[0])
             return kept
+
+        def _reserve(self, nodes, scores, magnitude, beam, beam_values, evaluator):
+            # With magnitude_slots, the slots it adds to the round's beam.
+            reserved = super()._reserve(nodes, scores, magnitude, beam, beam_values, evaluator)
+            record = self.rounds[-1]
+            tracked = self.follow.get(len(self.rounds), [])
+            added = set(reserved[0])
+            record["in_beam"] = [kept or node in added for kept, node in zip(record["in_beam"], tracked)]
+            return reserved
 
         def _record(self, nodes, scores, beam) -> None:
             round_index = len(self.rounds) + 1
@@ -723,6 +735,76 @@ def tabulate(out: Path, run_info: dict | None = None) -> None:
     print(f"{len(rows)} records -> {info_path}, {out / 'tables.md'}")
 
 
+def compare(out: Path, baseline: Path) -> str:
+    """The cells of ``out`` against the same cells of ``baseline``, replicate by replicate.
+
+    Writes ``compare.md`` and ``compare.json`` to ``out``. Differences are of
+    the paired replicates, with their Monte Carlo standard errors; time is the
+    ratio of the median fit times.
+    """
+    def by_cell(rows):
+        cells: dict[str, dict[int, dict]] = {}
+        for row in rows:
+            cells.setdefault(row["cell"], {})[int(row["seed"])] = row
+        return cells
+
+    new, old = by_cell(load(out)), by_cell(load(baseline))
+    setting = next(iter(next(iter(new.values())).values()))["setting"] if new else ""
+    lines = [
+        f"`{setting}` against the default, on the replicates both hold.",
+        "",
+        "| cell | fits | exact, default | exact, option | paired difference "
+        "| held-out R² (median), default → option | distractor term printed, default → option "
+        "| fit s (median), default → option | time ratio |",
+        "| :-- | --: | --: | --: | --: | :-- | :-- | :-- | --: |",
+    ]
+    summary = {}
+    for law in LAWS:
+        for dist in DISTS:
+            for p in WIDTHS:
+                for n in SIZES:
+                    for noise in NOISES:
+                        for beam in BEAMS:
+                            name = cell_name(law, dist, p, n, noise, beam)
+                            if name not in new or name not in old:
+                                continue
+                            seeds = sorted(set(new[name]) & set(old[name]))
+                            a = [old[name][s] for s in seeds]
+                            b = [new[name][s] for s in seeds]
+
+                            def col(rows, key, cast=float):
+                                return np.array([cast(r[key]) for r in rows])
+
+                            exact_a, exact_b = col(a, "exact", int), col(b, "exact", int)
+                            false_a = col(a, "marginal_false", int) > 0
+                            false_b = col(b, "marginal_false", int) > 0
+                            r2_a, r2_b = col(a, "r2_test"), col(b, "r2_test")
+                            t_a, t_b = col(a, "fit_seconds"), col(b, "fit_seconds")
+                            entry = {
+                                "fits": len(seeds),
+                                "exact_default": _mean_se(exact_a), "exact_option": _mean_se(exact_b),
+                                "exact_difference": _mean_se(exact_b - exact_a),
+                                "r2_median": [float(np.nanmedian(r2_a)), float(np.nanmedian(r2_b))],
+                                "distractor_printed": [float(false_a.mean()), float(false_b.mean())],
+                                "fit_seconds_median": [float(np.median(t_a)), float(np.median(t_b))],
+                                "time_ratio": float(np.median(t_b) / np.median(t_a)),
+                                "stages_option": {s: int(sum(r["stage"] == s for r in b)) for s in STAGES},
+                            }
+                            summary[name] = entry
+                            lines.append(
+                                f"| {name} | {len(seeds)} | {_pm(entry['exact_default'])} | "
+                                f"{_pm(entry['exact_option'])} | {_pm(entry['exact_difference'])} | "
+                                f"{entry['r2_median'][0]:.4f} → {entry['r2_median'][1]:.4f} | "
+                                f"{entry['distractor_printed'][0]:.2f} → {entry['distractor_printed'][1]:.2f} | "
+                                f"{entry['fit_seconds_median'][0]:.1f} → {entry['fit_seconds_median'][1]:.1f} | "
+                                f"{entry['time_ratio']:.2f} |"
+                            )
+    text = "\n".join(lines)
+    (out / "compare.md").write_text(text + "\n")
+    (out / "compare.json").write_text(json.dumps(summary, indent=1) + "\n")
+    return text
+
+
 # --------------------------------------------------------------------------- #
 # Command line
 # --------------------------------------------------------------------------- #
@@ -753,10 +835,15 @@ def main(argv: list[str] | None = None) -> None:
                         help="MB the machine must have available before a cell starts (default 2000)")
     parser.add_argument("--out", type=Path, default=HERE / "results")
     parser.add_argument("--tabulate", action="store_true", help="only rebuild the tables from the records")
+    parser.add_argument("--compare", type=Path, default=None,
+                        help="compare the records in --out with those in this directory, cell by cell")
     parser.add_argument("--allow-dirty", action="store_true",
                         help="run although tracked files differ from the commit")
     args = parser.parse_args(argv)
 
+    if args.compare is not None:
+        print(compare(args.out, args.compare))
+        return
     if args.tabulate:
         tabulate(args.out)
         return
