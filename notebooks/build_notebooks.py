@@ -31,9 +31,15 @@ def build(
     url = f"https://colab.research.google.com/github/LD-Shell/beamfeat/blob/main/notebooks/{path.name}"
     badge = markdown(
         f"[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)]({url})\n\n"
-        f"Running in Colab? Install first: `%pip install {requirement}`."
+        "Run the cells in order (in Colab: Runtime → Run all)."
     )
-    notebook.cells = [badge] + cells
+    # A cell rather than a hint, so that Run all installs it. Where beamfeat
+    # is installed already, as in CI, pip has nothing to do.
+    install = code(
+        "# In Colab, or wherever beamfeat is not installed yet\n"
+        f"%pip install -q {requirement}"
+    )
+    notebook.cells = [badge, install] + cells
     notebook.metadata = {
         "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
         "language_info": {"name": "python", "version": "3.12"},
@@ -159,6 +165,17 @@ and to tell a search that found nothing from a screen that certified nothing.
     code(
         """
 BeamFeatRegressor(max_depth=2, beam_width=30, random_state=0, verbose=1).fit(X, y)
+        """
+    ),
+    markdown(
+        """
+The box under the progress lines is scikit-learn's summary of the fitted
+estimator. Expanded, it shows a parameter table on scikit-learn 1.7 or newer,
+and recent versions (1.9) also list the fitted attributes. Colab's
+preinstalled scikit-learn can be older: run `%pip install -U scikit-learn`,
+then Runtime → Restart session, to see the full box. The fit is the same on
+every supported version, and `model.get_params()`, `model.formulas()` and
+`model.equation()` give the same information on any of them.
         """
     ),
     markdown(
