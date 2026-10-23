@@ -948,6 +948,14 @@ class TestInputPermutationTest:
         # Permuting x1 puts log's operand below zero on almost every draw.
         assert result.p_values[pairs.index((0, "x1"))] > 0.05
 
+    @pytest.mark.parametrize("n_jobs", [2, -1])
+    def test_same_p_values_for_every_n_jobs(self, n_jobs):
+        data, y = self._data()
+        serial = _InputPermutationTest(target_fdr=0.1).test_inputs(self._nodes(), data, y)
+        threaded = _InputPermutationTest(target_fdr=0.1, n_jobs=n_jobs).test_inputs(self._nodes(), data, y)
+        assert serial[0] == threaded[0]
+        np.testing.assert_array_equal(serial[1].p_values, threaded[1].p_values)
+
     def test_classification(self):
         data, y = self._data()
         labels = (y > np.median(y)).astype(int)

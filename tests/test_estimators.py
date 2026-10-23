@@ -2134,6 +2134,13 @@ class TestInputTest:
         certified = BeamFeatRegressor(random_state=0, input_test=True, parsimony_holdout=0.5).fit(X, y)
         assert self._columns(certified) <= {"x0", "x1"}
 
+    def test_n_jobs_gives_the_same_fit(self):
+        X, y = self._distractors(seed=4)
+        serial = BeamFeatRegressor(random_state=0, input_test=True).fit(X, y)
+        threaded = BeamFeatRegressor(random_state=0, input_test=True, n_jobs=2).fit(X, y)
+        assert serial.input_report_ == threaded.input_report_
+        assert serial.formulas() == threaded.formulas()
+
     def test_classifier(self):
         X, y = self._distractors(seed=3)
         labels = (y > np.median(y)).astype(int)

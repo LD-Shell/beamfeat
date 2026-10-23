@@ -188,6 +188,9 @@ as a rider such as `(a*b/c) * x7` does.
   0.415 (6.2 → 5.0 terms), breast cancer accuracy 0.969 → 0.969 (24.2 →
   13.4 terms). The cost grows with the rows: california housing (15,480
   training rows) took 135 s against 2.6 s, R² 0.655 → 0.664 on one split.
+  `n_jobs` threads share the tests, with the same p-values for every value:
+  on california housing, 77 s with 8 threads against 202 s with one, in a
+  later run on the same machine.
 
 #### Changed
 

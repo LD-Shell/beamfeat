@@ -755,7 +755,8 @@ class _BeamFeatBase(BaseEstimator):
 
         Its permutation budget and step-up correction are the screen's when
         the screen is a permutation selector, and otherwise the defaults and
-        the estimator's ``selection_correction``.
+        the estimator's ``selection_correction``. The estimator's ``n_jobs``
+        threads share the work; the p-values are the same for every value.
         """
         screen = self._make_selector()
         budget = {
@@ -768,6 +769,7 @@ class _BeamFeatBase(BaseEstimator):
             problem_type=self._problem_type,
             random_state=screen.random_state,
             correction=getattr(screen, "correction", self.selection_correction),
+            n_jobs=self.n_jobs,
             **budget,
         )
 
@@ -1783,8 +1785,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             calling thread only, ``-1`` every core, and ``None`` follows an
             enclosing joblib configuration (``joblib.parallel_config``, or
             ``parallel_backend`` before joblib 1.3). Small searches run in the
-            calling thread regardless. The fitted result is the same for
-            every value.
+            calling thread regardless. With ``input_test``, as many threads
+            share its tests. The fitted result is the same for every value.
         max_inputs: Most distinct input columns one feature may use, or
             ``None`` (default) for no limit. Candidates over it are rejected
             during the search, before evaluation. A feature of depth d uses
@@ -1856,7 +1858,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             screened term passes, the screened set is used with a warning.
             Each draw re-evaluates the expression, so the time grows with the
             rows: a few seconds at a few hundred rows, minutes at ten
-            thousand.
+            thousand, which ``n_jobs`` threads share.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.

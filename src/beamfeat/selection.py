@@ -82,10 +82,12 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from typing import Literal
 
 import numpy as np
+from joblib import Parallel, delayed, effective_n_jobs
 
 from beamfeat._compat import l1_logistic_coefficients, quiet
 from beamfeat.expression import OPERATORS, Node
@@ -823,6 +825,8 @@ class _InputPermutationTest(PermutationSelector):
     **Cost.** Each draw re-evaluates the expression, so the time grows with
     the number of pairs, the number of draws the needed columns take and
     the number of rows, where the screen's draws are one matrix product.
+    ``n_jobs`` threads share the pairs of each block of draws; the draws
+    themselves, and so every p-value, are the same for every ``n_jobs``.
 
     References:
         Besag, J. & Clifford, P. (1991). Sequential Monte Carlo p-values.
@@ -830,6 +834,10 @@ class _InputPermutationTest(PermutationSelector):
     """
 
     name = "input_permutation"
+
+    def __init__(self, *args, n_jobs: int | None = 1, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.n_jobs = n_jobs
 
     def test_inputs(
         self, nodes: Sequence[Node], data: Mapping[str, np.ndarray], target: np.ndarray
@@ -868,11 +876,13 @@ class _InputPermutationTest(PermutationSelector):
                     stat = self._classification_stat(_standardise(values.T), codes, len(classes))
                 else:
                     # |Pearson correlation| row by row, as the screen computes
-                    # it, with a row of (near) zero spread scoring 0.
+                    # it, with a row of (near) zero spread scoring 0. einsum
+                    # rather than a matrix product, which would start BLAS
+                    # threads inside each of the n_jobs workers.
                     centred = values - values.mean(axis=1, keepdims=True)
                     spread = np.sqrt(np.mean(centred**2, axis=1))
                     norms = spread * np.sqrt(n_samples) * target_norm
-                    inner = np.abs(centred @ centred_target)
+                    inner = np.abs(np.einsum("ij,j->i", centred, centred_target))
                     stat = np.divide(inner, norms, out=np.zeros_like(inner), where=spread >= 1e-12)
             return np.where(finite, np.nan_to_num(stat), np.inf)
 
@@ -881,19 +891,10 @@ class _InputPermutationTest(PermutationSelector):
         ])
         exceedances = np.zeros(len(pairs), dtype=np.int64)
         stopped_at = np.zeros(len(pairs), dtype=np.int64)
-        # Every pair sees the same permutations, drawn once per block. Blocks
-        # start small and double, so a pair that stops early costs little.
-        rng = np.random.default_rng(self.random_state)
-        largest = int(max(1, min(512, _BLOCK_ELEMENTS // n_samples)))
-        start, size = 0, min(64, largest)
-        while start < n_permutations and not np.all(stopped_at):
-            size = min(size, n_permutations - start)
-            order = rng.permuted(np.tile(np.arange(n_samples), (size, 1)), axis=1)
-            active = np.flatnonzero(stopped_at == 0)
-            permuted = {
-                column: np.asarray(data[column])[order] for column in {pairs[i][1] for i in active}
-            }
-            for position in active:
+
+        def update(positions: np.ndarray, permuted: dict, start: int, size: int) -> None:
+            """Count one block's exceedances for ``positions``; each writes only its own entries."""
+            for position in positions:
                 index, column = pairs[position]
                 values = _evaluate_stacked(nodes[index], {**data, column: permuted[column]})
                 null = statistic(np.broadcast_to(values, (size, n_samples)))
@@ -902,8 +903,30 @@ class _InputPermutationTest(PermutationSelector):
                 if running[-1] >= _STOP_EXCEEDANCES:
                     stopped_at[position] = start + int(np.argmax(running >= _STOP_EXCEEDANCES)) + 1
                 exceedances[position] = min(int(running[-1]), _STOP_EXCEEDANCES)
-            start += size
-            size = min(2 * size, largest)
+
+        # Every pair sees the same permutations, drawn once per block. Blocks
+        # start small and double, so a pair that stops early costs little.
+        rng = np.random.default_rng(self.random_state)
+        largest = int(max(1, min(512, _BLOCK_ELEMENTS // n_samples)))
+        start, size = 0, min(64, largest)
+        n_workers = min(int(effective_n_jobs(self.n_jobs)), len(pairs))
+        with Parallel(n_jobs=n_workers, prefer="threads") if n_workers > 1 else nullcontext() as parallel:
+            while start < n_permutations and not np.all(stopped_at):
+                size = min(size, n_permutations - start)
+                order = rng.permuted(np.tile(np.arange(n_samples), (size, 1)), axis=1)
+                active = np.flatnonzero(stopped_at == 0)
+                permuted = {
+                    column: np.asarray(data[column])[order] for column in {pairs[i][1] for i in active}
+                }
+                if parallel is None or len(active) == 1:
+                    update(active, permuted, start, size)
+                else:
+                    parallel(
+                        delayed(update)(active[worker::n_workers], permuted, start, size)
+                        for worker in range(min(n_workers, len(active)))
+                    )
+                start += size
+                size = min(2 * size, largest)
         p_values = np.where(
             stopped_at > 0,
             _STOP_EXCEEDANCES / np.maximum(stopped_at, 1),
