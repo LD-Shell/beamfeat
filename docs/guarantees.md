@@ -95,6 +95,22 @@ columns are therefore left out of the construction, get `W = 0`, and are
 named in a runtime warning. Routing and the `n > 2p` requirement count the
 retained columns.
 
+**Statistic.** The fixed-X guarantee holds for a statistic that sees the
+data only through `[X X̃]'[X X̃]` and `[X X̃]'y`. On the fixed-X path for
+regression beamfeat uses the lasso-path signed maximum,
+`W_j = max(Z_j, Z̃_j)·sign(Z_j − Z̃_j)`, where `Z_j` is the penalty at which
+column `j` enters the path, computed from those inner products alone; a
+test checks that rotating the rows, which keeps them, leaves `W` unchanged.
+Versions up to 0.5.0 used the difference of cross-validated lasso
+coefficients there, whose folds look at individual rows, so the guarantee
+did not strictly cover it. On Gaussian linear models at q = 0.2 (200 trials
+each) knockoff+ realised 0.180, 0.172 and 0.135 with the path statistic
+against 0.151, 0.165 and 0.155 before, with power 0.96, 0.98 and 0.48
+against 0.97, 0.99 and 0.82: both under the level, and the price of the
+valid statistic is power when columns are correlated (0.7 between
+neighbours in the third design). Model-X, which admits any statistic that
+swaps sign with the pair, keeps the cross-validated one.
+
 **Model-X Gaussian** (Candès et al., 2018), used only when `n ≤ 2p`: assumes
 jointly Gaussian features, which engineered features violate; a warning is
 recorded, and the permutation selector is recommended in this regime.
@@ -158,6 +174,34 @@ without on four null designs, 0.015 to 0.025, among them centred and
 Gaussian inputs and 200 columns on 150 search rows; on a planted
 `x0*x1*x2` among centred distractors it was 0.025 against 0.020, one fit in
 200, with a false discovery rate of 0.005 either way.
+
+## Columns inside a term (`input_test`)
+
+The screen's null is that a term is independent of the target, so
+`(x0*x1)/(x1 + x8)` is a true discovery when `y = x0*x1`: `x0*x1` carries it,
+however unrelated `x8` is. A reader of the equation still takes `x8` to
+matter. `input_test=True` tests each column inside each candidate that reads
+more than one: the column's rows are permuted, wherever it occurs in the
+expression, and the screen's statistic is recomputed. The null for a column
+is that it is independent of the target and of the candidate's other columns
+together; under it, with independent rows from one distribution, permuting
+the column leaves the distribution of the data unchanged, so the p-values
+are exact. The screen's step-up correction runs across every
+(candidate, column) pair of every candidate, so which pairs are tested does
+not depend on the screen's outcome. A screened term with a column that fails
+is dropped before parsimony; `input_report_` lists every pair.
+
+What it does not cover: a junk column correlated with a real one is not null
+in this sense, and can stay. Testing it given the other columns needs a model
+of the column given the others (knockoffs or the conditional randomisation
+test), which this test does not assume. The screen's guarantee is unchanged
+and still covers the screened set.
+
+Measured on 20 seeds of `y = x0*x1` plus 25% noise among 10 junk columns
+(500 training and 500 test rows), against the default: printed equations with
+a junk column 14 → 1, printed terms with one 23/45 → 1/28, held-out R² 0.9413
+→ 0.9416. With the junk `x8` correlated 0.82 with `x1`, 10 → 3. On pure-noise
+targets nothing passes either way, and the physics panel is unchanged.
 
 ## Parsimony within the screened set
 

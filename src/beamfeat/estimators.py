@@ -39,7 +39,12 @@ from beamfeat._compat import logistic_regression
 from beamfeat.expression import OPERATORS, Evaluator, Node, _sympy_symbols
 from beamfeat.scoring import Scorer, is_constant
 from beamfeat.search import DEFAULT_BINARY, DEFAULT_UNARY, BeamSearch, report
-from beamfeat.selection import Selector, _ConditionalPermutationSelector, make_selector  # noqa: F401
+from beamfeat.selection import (  # noqa: F401
+    Selector,
+    _ConditionalPermutationSelector,
+    _InputPermutationTest,
+    make_selector,
+)
 
 __all__ = [
     "BeamFeatClassifier",
@@ -496,6 +501,7 @@ class _BeamFeatBase(BaseEstimator):
         fitted_ops: tuple[str, ...] = (),
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
+        input_test: bool = False,
     ) -> None:
         self.scorer = scorer
         self.selector = selector
@@ -521,6 +527,7 @@ class _BeamFeatBase(BaseEstimator):
         self.fitted_ops = fitted_ops
         self.certify_test = certify_test
         self.magnitude_slots = magnitude_slots
+        self.input_test = input_test
 
     # -- fitting ------------------------------------------------------------ #
 
@@ -662,6 +669,13 @@ class _BeamFeatBase(BaseEstimator):
                 "the target on a linear model of the other terms, which a class label does "
                 "not support. Use certify_test='marginal' for classification."
             )
+        if not isinstance(self.input_test, (bool, np.bool_)):
+            raise ValueError(f"input_test must be True or False, got {self.input_test!r}")
+        if self.input_test and self.selector is None:
+            raise ValueError(
+                "input_test=True tests the inputs of the screened terms, and selector=None "
+                "runs no screen; pass a selector or input_test=False"
+            )
 
     def _make_selector(self, warn: bool = False) -> Selector:
         """Build the configured selector.
@@ -736,6 +750,73 @@ class _BeamFeatBase(BaseEstimator):
             **budget,
         )
 
+    def _make_input_test(self) -> _InputPermutationTest:
+        """The test ``input_test=True`` applies, at the screen's level and seed.
+
+        Its permutation budget and step-up correction are the screen's when
+        the screen is a permutation selector, and otherwise the defaults and
+        the estimator's ``selection_correction``. The estimator's ``n_jobs``
+        threads share the work; the p-values are the same for every value.
+        """
+        screen = self._make_selector()
+        budget = {
+            name: getattr(screen, name)
+            for name in ("n_permutations", "auto_permutations", "max_permutations")
+            if hasattr(screen, name)
+        }
+        return _InputPermutationTest(
+            target_fdr=screen.target_fdr,
+            problem_type=self._problem_type,
+            random_state=screen.random_state,
+            correction=getattr(screen, "correction", self.selection_correction),
+            n_jobs=self.n_jobs,
+            **budget,
+        )
+
+    def _test_inputs(self, nodes, data, target, screened):
+        """The screened candidates whose every input passes the input test.
+
+        Every candidate is tested, not only the screened ones, so which
+        pairs are tested does not depend on the screen's outcome on these
+        rows. Fills :attr:`input_report_`. If no screened candidate passes,
+        the screened set is returned with a warning, as the re-test of
+        ``parsimony_holdout`` does.
+        """
+        pairs, result = self._make_input_test().test_inputs(nodes, data, target)
+        for diagnostic in result.warnings_raised:
+            warnings.warn(f"beamfeat input test: {diagnostic}", UserWarning, stacklevel=3)
+        passed = set(int(i) for i in result.selected)
+        self.input_report_ = [
+            {
+                "formula": nodes[index].name,
+                "column": column,
+                "p_value": float(result.p_values[position]),
+                "q_value": float(result.q_values[position]),
+                "passed": position in passed,
+            }
+            for position, (index, column) in enumerate(pairs)
+        ]
+        failed = {pairs[position][0] for position in range(len(pairs)) if position not in passed}
+        eligible = [index for index in screened if index not in failed]
+        self._inputs_dropped_ = len(screened) - len(eligible)
+        report(
+            self.verbose,
+            1,
+            f"input test: {len(pairs)} (term, column) pairs, {len(pairs) - len(passed)} not needed"
+            f" -> {len(eligible)} of {len(screened)} certified terms kept",
+        )
+        if not eligible:
+            self._inputs_dropped_ = 0
+            warnings.warn(
+                "beamfeat: every certified term reads a column the input test could not "
+                f"show it needs, at target FDR {result.target_fdr:.3g}. The certified terms "
+                "are used as if input_test were False.",
+                NoDiscoveriesWarning,
+                stacklevel=3,
+            )
+            return list(screened)
+        return eligible
+
     def _setting(self, name: str) -> Any:
         """The estimator's value for a selector setting it shares."""
         if name == "problem_type":
@@ -786,9 +867,12 @@ class _BeamFeatBase(BaseEstimator):
         # A subset can also arise without the parsimony step, when a screened
         # expression cannot be evaluated on the full training data; pointing
         # that caller at parsimony=None would be advice they have taken.
+        dropped = int(getattr(self, "_inputs_dropped_", 0))
         remedy = (
-            f"; parsimony=None prints all {screened}" if self.parsimony is not None else ""
+            f"; parsimony=None prints all {screened - dropped}" if self.parsimony is not None else ""
         )
+        if dropped:
+            remedy += f"; {dropped} failed input_test"
         return f"   [{kept} of {screened} certified terms{remedy}]"
 
     def _latex_parsimony_note(self) -> str:
@@ -1065,16 +1149,14 @@ class _BeamFeatBase(BaseEstimator):
         self.certification_result_ = None
         self.fdp_inflation_: float | None = None
         self.equations_: list[dict] | None = None
+        self.input_report_: list[dict] | None = None
+        self._inputs_dropped_ = 0
         forward_path = None
 
         if self.selector is not None:
-            if use_holdout:
-                holdout_data = {name: X[holdout_index, index] for index, name in enumerate(feature_names)}
-                evaluator = Evaluator(holdout_data, units=units)
-            else:
-                evaluator = Evaluator(
-                    {name: X[:, index] for index, name in enumerate(feature_names)}, units=units
-                )
+            selection_rows = holdout_index if use_holdout else np.arange(n_samples)
+            selection_data = {name: X[selection_rows, index] for index, name in enumerate(feature_names)}
+            evaluator = Evaluator(selection_data, units=units)
             selection_target = y[holdout_index] if use_holdout else y
 
             # Candidates are a fixed set here; expressions that cannot be
@@ -1126,24 +1208,29 @@ class _BeamFeatBase(BaseEstimator):
                 screened = set(int(i) for i in selection_result.selected)
 
                 if selection_result.n_selected > 0:
-                    forward_path = self._forward_path(
-                        matrix, selection_target, list(selection_result.selected)
-                    )
+                    # The terms parsimony and its fallbacks draw from: the
+                    # screened set, less any term the input test removes.
+                    eligible = sorted(screened)
+                    if self.input_test:
+                        eligible = self._test_inputs(
+                            candidate_nodes, selection_data, selection_target, eligible
+                        )
+                    forward_path = self._forward_path(matrix, selection_target, eligible)
                     keep_order = self._parsimonious_subset(
-                        matrix, selection_target, list(selection_result.selected), forward_path
+                        matrix, selection_target, eligible, forward_path
                     )
                     report(
                         self.verbose,
                         1,
-                        f"parsimony: {selection_result.n_selected} certified -> "
+                        f"parsimony: {len(eligible)} certified -> "
                         f"{len(keep_order)} term{'' if len(keep_order) == 1 else 's'}"
-                        f" (|S|/|S'| = {selection_result.n_selected / len(keep_order):.2f})"
+                        f" (|S|/|S'| = {len(eligible) / len(keep_order):.2f})"
                         if self.parsimony is not None
-                        else f"parsimony: off, keeping all {selection_result.n_selected} "
-                        f"certified term{'' if selection_result.n_selected == 1 else 's'}",
+                        else f"parsimony: off, keeping all {len(eligible)} "
+                        f"certified term{'' if len(eligible) == 1 else 's'}",
                     )
                     if fell_back_to_screened:
-                        keep_order = sorted(screened)
+                        keep_order = list(eligible)
                     elif use_certify:
                         certified = self._certify_subset(
                             X, y, certify_index, feature_names, units,
@@ -1151,8 +1238,9 @@ class _BeamFeatBase(BaseEstimator):
                             keep_order,
                         )
                         # Nothing compact could be certified, but the screened
-                        # set still is; return that rather than nothing.
-                        keep_order = certified if certified else sorted(screened)
+                        # set still is; return that (less any term the input
+                        # test removed) rather than nothing.
+                        keep_order = certified if certified else list(eligible)
                     nodes = [candidate_nodes[index] for index in keep_order]
                     kept = set(keep_order)
                     self.fdr_controlled_ = bool(nodes)
@@ -1697,8 +1785,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             calling thread only, ``-1`` every core, and ``None`` follows an
             enclosing joblib configuration (``joblib.parallel_config``, or
             ``parallel_backend`` before joblib 1.3). Small searches run in the
-            calling thread regardless. The fitted result is the same for
-            every value.
+            calling thread regardless. With ``input_test``, as many threads
+            share its tests. The fitted result is the same for every value.
         max_inputs: Most distinct input columns one feature may use, or
             ``None`` (default) for no limit. Candidates over it are rejected
             during the search, before evaluation. A feature of depth d uses
@@ -1753,6 +1841,24 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             :class:`~beamfeat.search.BeamSearch`), so the screen on the
             selection rows sees fixed expressions and its guarantee is
             unchanged. Regression only.
+        input_test: Whether to test, on the selection rows, each column
+            inside each candidate that reads more than one, and drop a
+            screened term with a column it does not need before
+            ``parsimony`` runs. ``False`` (default) leaves the fit
+            unchanged. A column is tested by permuting its rows alone,
+            wherever it occurs in the expression, and recomputing the
+            screen's statistic; the screen's step-up correction is applied
+            across every (candidate, column) pair of every candidate,
+            screened or not. The null is that the column is independent of
+            the target and of the candidate's other columns, under which the
+            p-values are exact: it removes ``(x0*x1)/(x1 + x8)`` when ``x8``
+            is unrelated to everything, but a junk column correlated with a
+            real one is not null in that sense and can stay. The screen's
+            guarantee is unchanged and still covers the screened set. If no
+            screened term passes, the screened set is used with a warning.
+            Each draw re-evaluates the expression, so the time grows with the
+            rows: a few seconds at a few hundred rows, minutes at ten
+            thousand, which ``n_jobs`` threads share.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
@@ -1797,6 +1903,11 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             subset can raise the realised false discovery proportion. ``1.0``
             when the returned features are the certified set, ``None`` when
             nothing was certified.
+        input_report_: One dict per (candidate, column) pair the input test
+            ran on: ``"formula"``, ``"column"``, ``"p_value"``,
+            ``"q_value"`` and ``"passed"``, whether the candidate needs the
+            column at the step-up level. ``None`` when ``input_test`` is
+            ``False``.
         certification_result_: The :class:`~beamfeat.selection.SelectionResult`
             of the ``parsimony_holdout`` re-test, or ``None`` when it did not
             run. Its ``method`` is ``"conditional_permutation"`` under
@@ -1840,6 +1951,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         fitted_ops: tuple[str, ...] = (),
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
+        input_test: bool = False,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1866,6 +1978,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             fitted_ops=fitted_ops,
             certify_test=certify_test,
             magnitude_slots=magnitude_slots,
+            input_test=input_test,
         )
         self.problem_type = problem_type
 
@@ -1964,6 +2077,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         fitted_ops: tuple[str, ...] = (),
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
+        input_test: bool = False,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1990,6 +2104,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             fitted_ops=fitted_ops,
             certify_test=certify_test,
             magnitude_slots=magnitude_slots,
+            input_test=input_test,
         )
         self.alpha = alpha
 
@@ -2216,6 +2331,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         fitted_ops: tuple[str, ...] = (),
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
+        input_test: bool = False,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -2242,6 +2358,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             fitted_ops=fitted_ops,
             certify_test=certify_test,
             magnitude_slots=magnitude_slots,
+            input_test=input_test,
         )
         self.C = C
 
