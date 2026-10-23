@@ -36,13 +36,10 @@ classifiers = [
 # problems this library exists to avoid.
 # joblib is imported directly by the search; scikit-learn already requires it,
 # so it adds nothing to an install, and 1.2 is scikit-learn 1.6's own floor.
-# scipy likewise (the constant fits use its bounded scalar minimiser); 1.10 is
-# the oldest that installs beside numpy 1.26 on Python 3.10.
 dependencies = [
   "joblib>=1.2",
   "numpy>=1.26",
   "scikit-learn>=1.6",
-  "scipy>=1.10",
 ]
 dynamic = ["version"]
 

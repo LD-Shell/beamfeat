@@ -71,7 +71,7 @@ from beamfeat.expression import (
     parametric_operators,
     transform,
 )
-from beamfeat.parametric import fit_constants
+from beamfeat.parametric import fit_constants_many
 from beamfeat.scoring import (
     ColumnStats,
     CorrelationScorer,
@@ -637,9 +637,9 @@ class BeamSearch:
                 fitted.append(node)
 
         partners = values if n_partners is None else values[:, :n_partners]
+        # The parents each operator applies to, by the units, in order.
+        applicable: dict[str, list[int]] = {op: [] for op in self.fitted_ops}
         for index, parent in enumerate(parents):
-            # A product with a partner is two levels above the parent.
-            products = "mul" in self.binary_ops and parent.depth + 2 <= self.max_depth
             for op in self.fitted_ops:
                 spec = OPERATORS[op]
                 try:
@@ -650,8 +650,22 @@ class BeamSearch:
                 except UnitError:
                     n_unit_rejected += 1
                     continue
-                found = fit_constants(spec, values[:, index], prepared, partners if products else None)
-                for constant, partner in found:
+                applicable[op].append(index)
+        # Each operator is fitted to all its parents at once; the nodes are
+        # then added parent by parent, as one fit at a time would add them.
+        # A product with a partner is two levels above the parent.
+        fits: dict[tuple[str, int], list] = {}
+        for op, indices in applicable.items():
+            if not indices:
+                continue
+            products = ["mul" in self.binary_ops and parents[i].depth + 2 <= self.max_depth for i in indices]
+            found = fit_constants_many(
+                OPERATORS[op], values[:, indices], prepared, partners if any(products) else None, products
+            )
+            fits.update(zip(((op, index) for index in indices), found))
+        for index, parent in enumerate(parents):
+            for op in self.fitted_ops:
+                for constant, partner in fits.get((op, index), []):
                     try:
                         node = transform(op, parent, const=constant)
                     except NodeError:

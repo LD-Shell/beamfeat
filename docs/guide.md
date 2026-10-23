@@ -447,7 +447,7 @@ How the constants are chosen:
 - **How.** Each constant maximises the absolute correlation with the target:
   a coarse grid scaled to the operand (for `exp_scaled`, `|a|` up to
   10/max|x|; for `pow`, `a` from -4 to 4; for the shifts, poles kept off the
-  observed range), then a refinement by Brent's bounded method. A fit that runs to the edge of its grid, or
+  observed range), then a golden-section refinement. A fit that runs to the edge of its grid, or
   that does not clearly beat the operand on its own (each operator becomes
   linear in `x` at one end of its range), is discarded. Correlation is used
   whatever the `scorer`; the scorer then ranks the result.

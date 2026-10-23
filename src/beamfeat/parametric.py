@@ -3,8 +3,11 @@
 A parametric operator, such as ``exp_scaled`` (``exp(a*x)``) or ``inv_shift``
 (``1/(x + a)``), carries one constant. :func:`fit_constants` chooses it for a
 given operand by a one-dimensional search: a coarse grid from the operator's
-:attr:`~beamfeat.expression.OperatorSpec.constant_grid`, then a refinement by
-Brent's bounded method between the grid neighbours of the best point.
+:attr:`~beamfeat.expression.OperatorSpec.constant_grid`, then a golden-section
+refinement between the grid neighbours of the best point.
+:func:`fit_constants_many` fits many operands at once: the refinements and
+the snapping run side by side, one array operation per step for all of them,
+which is what a search fitting hundreds of operands needs.
 
 **Objective.** The constant maximises the absolute Pearson correlation of
 the transformed operand with the target, whatever scorer the search uses.
@@ -65,7 +68,7 @@ Everything here is deterministic.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from fractions import Fraction
 from typing import NamedTuple
 
@@ -73,7 +76,7 @@ import numpy as np
 
 from beamfeat.expression import OperatorSpec
 
-__all__ = ["ROUND_LR", "SNAP_LR", "SNAP_VALUES", "FittedConstant", "fit_constants"]
+__all__ = ["ROUND_LR", "SNAP_LR", "SNAP_VALUES", "FittedConstant", "fit_constants", "fit_constants_many"]
 
 #: Simple constants tried after a fit, simplest first: zero, the integers to
 #: 3, halves, thirds and quarters. Among the values the data accept, one with
@@ -103,9 +106,14 @@ _LOSS_FLOOR = 1e-12
 # then refined on every row, so a subsample of large data is enough.
 _GRID_ROWS = 2000
 
-# The refinement stops once the bracket is this small relative to the
+# Golden-section steps stop once the bracket is this small relative to the
 # constant, well past the six significant digits a constant is rounded to.
 _REFINE_RTOL = 1e-10
+_INVERSE_PHI = (math.sqrt(5.0) - 1.0) / 2.0
+
+# Values computed at once when many fits are evaluated together, so that a
+# block stays near 8 MB however many rows there are.
+_BLOCK_ELEMENTS = 1 << 20
 
 
 class FittedConstant(NamedTuple):
@@ -143,44 +151,201 @@ def fit_constants(
         then the one best in a product, each omitted when its fit ran into
         a bound or produced no valid values. The two may have equal values.
     """
+    operand = np.asarray(operand, dtype=np.float64)
+    return fit_constants_many(spec, operand.reshape(-1, 1), target, partners)[0]
+
+
+def fit_constants_many(
+    spec: OperatorSpec,
+    operands: np.ndarray,
+    target: np.ndarray,
+    partners: np.ndarray | None = None,
+    with_partners: Sequence[bool] | None = None,
+) -> list[list[FittedConstant]]:
+    """:func:`fit_constants` for each column of ``operands``, fitted together.
+
+    The result for a column is the one :func:`fit_constants` gives it, with
+    ``partners`` when ``with_partners`` is ``None`` or true for that column
+    and without them otherwise.
+
+    Args:
+        spec: A parametric operator.
+        operands: ``(n_rows, n_operands)``, one operand per column.
+        target: The standardised target.
+        partners: Optional ``(n_rows, n_partners)`` matrix, as for
+            :func:`fit_constants`.
+        with_partners: Per operand, whether to fit the product with a
+            partner too.
+
+    Returns:
+        One list of fitted constants per operand.
+    """
     if not spec.parametric:
         raise ValueError(f"operator {spec.name!r} has no constant to fit")
-    operand = np.asarray(operand, dtype=np.float64)
+    operands = np.asarray(operands, dtype=np.float64)
     target = np.asarray(target, dtype=np.float64)
-    segments = [np.asarray(s, dtype=np.float64) for s in spec.constant_grid(operand) if len(s) >= 3]
-    if not segments:
-        return []
-
-    sample = _grid_rows(len(operand))
-    grid = np.concatenate(segments)
-    # Each grid point's position in its segment, to recognise a segment's ends.
-    ends = np.concatenate([np.r_[True, np.zeros(len(s) - 2, dtype=bool), True] for s in segments])
-    columns = _grid_columns(spec, operand[sample], grid)
-    # The segments' ends bound the constant, snapped or rounded too.
-    bounds = [(float(np.min(s)), float(np.max(s))) for s in segments]
-
-    def admissible(constant: float) -> bool:
-        return any(low <= constant <= high for low, high in bounds)
-
-    found: list[FittedConstant] = []
-    solo = _correlations(columns, target[sample], None)
-    constant = _fit_one(
-        spec, operand, target, None, grid, ends, solo[0], _correlation(operand, target), admissible
-    )
-    if constant is not None:
-        found.append(FittedConstant(constant, None))
-
-    if partners is not None and partners.shape[1]:
+    n_rows, n_operands = operands.shape
+    sample = _grid_rows(n_rows)
+    if partners is not None:
         partners = np.asarray(partners, dtype=np.float64)
-        scores = _correlations(columns, target[sample], partners[sample])
-        if np.isfinite(scores).any():
-            best = int(np.argmax(np.where(np.isfinite(scores), scores, -1.0).max(axis=1)))
-            partner = partners[:, best]
-            alone = _correlation(partner, target)
-            constant = _fit_one(spec, operand, target, partner, grid, ends, scores[best], alone, admissible)
-            if constant is not None:
-                found.append(FittedConstant(constant, best))
+        if not partners.shape[1]:
+            partners = None
+    sampled_partners = None if partners is None else partners[sample]
+    # The correlations each fit has to beat, all at once: the operands' own,
+    # and the partners' for the products.
+    baselines = _correlation_rows(np.ascontiguousarray(operands.T), target)
+    partner_baselines = None if partners is None else _correlation_rows(np.ascontiguousarray(partners.T), target)
+
+    jobs: list[_Job] = []
+    for column in range(n_operands):
+        operand = operands[:, column]
+        segments = [np.asarray(s, dtype=np.float64) for s in spec.constant_grid(operand) if len(s) >= 3]
+        if not segments:
+            continue
+        grid = np.concatenate(segments)
+        # Each grid point's position in its segment, to recognise a segment's ends.
+        ends = np.concatenate([np.r_[True, np.zeros(len(s) - 2, dtype=bool), True] for s in segments])
+        columns = _grid_columns(spec, operand[sample], grid)
+        # The segments' ends bound the constant, snapped or rounded too.
+        bounds = tuple((float(np.min(s)), float(np.max(s))) for s in segments)
+        solo = _correlations(columns, target[sample], None)[0]
+        _add_job(jobs, column, None, grid, ends, solo, float(baselines[column]), bounds)
+        if sampled_partners is not None and (with_partners is None or with_partners[column]):
+            scores = _correlations(columns, target[sample], sampled_partners)
+            if np.isfinite(scores).any():
+                best = int(np.argmax(np.where(np.isfinite(scores), scores, -1.0).max(axis=1)))
+                _add_job(jobs, column, best, grid, ends, scores[best], float(partner_baselines[best]), bounds)
+
+    found: list[list[FittedConstant]] = [[] for _ in range(n_operands)]
+    for job, constant in zip(jobs, _fit_jobs(spec, operands, target, partners, jobs)):
+        if constant is not None:
+            found[job.column].append(FittedConstant(constant, job.partner))
     return found
+
+
+class _Job(NamedTuple):
+    """One constant to fit: an operand, alone or times a partner."""
+
+    column: int
+    partner: int | None
+    low: float
+    high: float
+    point: float
+    baseline: float
+    bounds: tuple[tuple[float, float], ...]
+
+
+def _add_job(jobs, column, partner, grid, ends, grid_scores, baseline, bounds) -> None:
+    """Queue a fit around the best grid point, unless it is invalid or on a bound.
+
+    A best point at the end of a grid segment ran into a bound (see the
+    module notes), and is not refined.
+    """
+    if not np.isfinite(grid_scores).any():
+        return
+    best = int(np.nanargmax(grid_scores))
+    if ends[best]:
+        return
+    # An interior grid point's neighbours lie in its own segment.
+    jobs.append(
+        _Job(column, partner, float(grid[best - 1]), float(grid[best + 1]), float(grid[best]), baseline, bounds)
+    )
+
+
+def _within(bounds: tuple[tuple[float, float], ...], constant: float) -> bool:
+    return any(low <= constant <= high for low, high in bounds)
+
+
+def _fit_jobs(
+    spec: OperatorSpec,
+    operands: np.ndarray,
+    target: np.ndarray,
+    partners: np.ndarray | None,
+    jobs: list[_Job],
+) -> list[float | None]:
+    """Refine, then snap or round, the best grid constant of every job.
+
+    Each job's objective is the |corr| of the operator's values, times the
+    job's partner if it has one, with the target. The refinement is
+    golden-section search between the grid neighbours of the best grid
+    point; the grid point itself is kept if it scores better. A job's
+    ``baseline`` is the correlation the fit has to beat: the operand's own,
+    or the partner's for a product. Every operator here tends to an affine
+    function of its operand at one end of its range (a small scale, a far
+    shift, a power of 1), so a constant that does not improve on the operand
+    clearly, by the likelihood-ratio test of the snap, only fits noise; the
+    fit is then rejected. Returns each job's constant, or ``None``.
+    """
+    if not jobs:
+        return []
+    n_rows = operands.shape[0]
+    # Rows of these are contiguous, so a row's sums are taken exactly as a
+    # single column's would be.
+    operand_rows = np.ascontiguousarray(operands.T)
+    partner_rows = None if partners is None else np.ascontiguousarray(partners.T)
+    columns = np.array([job.column for job in jobs])
+    partner_of = np.array([-1 if job.partner is None else job.partner for job in jobs])
+
+    def evaluate(which: np.ndarray, constants: np.ndarray) -> np.ndarray:
+        scores = np.full(len(which), np.nan)
+        step = max(1, _BLOCK_ELEMENTS // n_rows)
+        for start in range(0, len(which), step):
+            part = slice(start, start + step)
+            values = _apply_rows(spec, operand_rows[columns[which[part]]], constants[part])
+            paired = partner_of[which[part]]
+            if partner_rows is not None and (paired >= 0).any():
+                values[paired >= 0] *= partner_rows[paired[paired >= 0]]
+            scores[part] = _correlation_rows(values, target)
+        return scores
+
+    everyone = np.arange(len(jobs))
+    optima, scores = _golden_max_many(
+        evaluate, np.array([job.low for job in jobs]), np.array([job.high for job in jobs])
+    )
+    points = np.array([job.point for job in jobs])
+    point_scores = evaluate(everyone, points)
+    keep_point = ~np.isfinite(scores) | (np.isfinite(point_scores) & (point_scores > scores))
+    optima = np.where(keep_point, points, optima)
+    scores = np.where(keep_point, point_scores, scores)
+
+    live = np.flatnonzero(np.isfinite(scores))
+    constants, constant_scores = _simplify_many(
+        evaluate, live, optima[live], scores[live], n_rows,
+        [lambda constant, bounds=jobs[i].bounds: _within(bounds, constant) for i in live],
+    )
+    result: list[float | None] = [None] * len(jobs)
+    for i, constant, score in zip(live, constants, constant_scores):
+        if _statistic(jobs[i].baseline, float(score), n_rows) > SNAP_LR:
+            result[i] = float(constant)
+    return result
+
+
+def _apply_rows(spec: OperatorSpec, operands: np.ndarray, constants: np.ndarray) -> np.ndarray:
+    """:func:`_apply` for each row of ``operands`` with its constant; NaN rows where it rejects.
+
+    All rows are computed at once; if that raises a floating-point error, or
+    does not broadcast, they are computed one at a time, which tells the
+    failing ones apart.
+    """
+    try:
+        with np.errstate(all="raise"):
+            values = np.asarray(spec.fn(operands, constants[:, None]), dtype=np.float64)
+            inside = spec.domain is None or spec.domain(operands, constants[:, None])
+    except (FloatingPointError, ValueError, TypeError):
+        values = None
+    if values is not None and values.shape == operands.shape:
+        if not inside:
+            for row, constant in enumerate(constants):
+                if not spec.domain(operands[row], float(constant)):
+                    values[row] = np.nan
+        values[~np.isfinite(values).all(axis=1)] = np.nan
+        return values
+    values = np.full(operands.shape, np.nan)
+    for row, constant in enumerate(constants):
+        computed = _apply(spec, operands[row], float(constant))
+        if computed is not None:
+            values[row] = computed
+    return values
 
 
 def _grid_rows(n_rows: int) -> np.ndarray:
@@ -260,90 +425,57 @@ def _correlations(columns: np.ndarray, target: np.ndarray, partners: np.ndarray 
     return np.where(usable, np.minimum(correlation, 1.0), np.nan)
 
 
+def _correlation_rows(values: np.ndarray, target: np.ndarray) -> np.ndarray:
+    """|corr| of each row with the standardised target, NaN for an invalid or constant row."""
+    n_rows = values.shape[1]
+    with np.errstate(all="ignore"):
+        centred = values - values.sum(axis=1, keepdims=True) / n_rows
+        spread = np.sqrt((centred * centred).sum(axis=1) / n_rows)
+        scale = np.abs(values).sum(axis=1) / n_rows
+        correlation = np.minimum(np.abs((centred * target).sum(axis=1)) / (n_rows * spread), 1.0)
+    valid = np.isfinite(spread) & (spread > 1e-12 * scale) & (spread != 0.0)
+    return np.where(valid, correlation, np.nan)
+
+
 def _correlation(values: np.ndarray, target: np.ndarray) -> float:
     """|corr| of a column with the standardised target, NaN for a constant column."""
-    # Sums divided by the count are numpy's means, without their call overhead.
-    n_rows = len(values)
-    centred = values - values.sum() / n_rows
-    spread = math.sqrt(float((centred * centred).sum()) / n_rows)
-    if not math.isfinite(spread) or spread <= 1e-12 * (float(np.abs(values).sum()) / n_rows) or spread == 0.0:
-        return math.nan
-    return min(abs(float(centred @ target)) / (n_rows * spread), 1.0)
+    return float(_correlation_rows(np.asarray(values, dtype=np.float64).reshape(1, -1), target)[0])
 
 
-def _fit_one(
-    spec: OperatorSpec,
-    operand: np.ndarray,
-    target: np.ndarray,
-    partner: np.ndarray | None,
-    grid: np.ndarray,
-    ends: np.ndarray,
-    grid_scores: np.ndarray,
-    baseline: float,
-    admissible: Callable[[float], bool],
-) -> float | None:
-    """Refine, then snap or round, the best grid constant for one objective.
+def _golden_max_many(
+    evaluate: Callable[[np.ndarray, np.ndarray], np.ndarray], lows: np.ndarray, highs: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Golden-section search for the maximum of each job's objective on its bracket.
 
-    ``admissible`` says whether a constant lies within the grid's bounds;
-    snapping and rounding never leave them.
-
-    ``baseline`` is the correlation the fit has to beat: the operand's own,
-    or the partner's for a product. Every operator here tends to an affine
-    function of its operand at one end of its range (a small scale, a far
-    shift, a power of 1), so a constant that does not improve on the operand
-    clearly, by the likelihood-ratio test of the snap, only fits noise; the
-    fit is then rejected. Returns the constant, or ``None``.
+    The jobs step side by side, each exactly as it would alone: one new
+    point per unfinished job per step, all evaluated by one call of
+    ``evaluate(jobs, points)``. NaN counts as worse than any value. Returns
+    each job's best point evaluated and its value.
     """
-    if not np.isfinite(grid_scores).any():
-        return None
-    best = int(np.nanargmax(grid_scores))
-    if ends[best]:
-        return None
 
-    def objective(constant: float) -> float:
-        values = _apply(spec, operand, constant)
-        if values is None:
-            return math.nan
-        if partner is not None:
-            values = values * partner
-        return _correlation(values, target)
+    def value(which: np.ndarray, points: np.ndarray) -> np.ndarray:
+        result = evaluate(which, points)
+        return np.where(np.isfinite(result), result, -np.inf)
 
-    # An interior grid point's neighbours lie in its own segment.
-    optimum, score = _bounded_max(objective, float(grid[best - 1]), float(grid[best + 1]))
-    best_grid_score = objective(float(grid[best]))
-    if not math.isfinite(score) or (math.isfinite(best_grid_score) and best_grid_score > score):
-        optimum, score = float(grid[best]), best_grid_score
-    if not math.isfinite(score):
-        return None
-    constant = _simplify(objective, optimum, score, len(operand), admissible)
-    if _statistic(baseline, objective(constant), len(operand)) <= SNAP_LR:
-        return None
-    return constant
-
-
-def _bounded_max(objective: Callable[[float], float], low: float, high: float) -> tuple[float, float]:
-    """Maximum of ``objective`` on ``[low, high]`` by Brent's bounded method.
-
-    Golden-section steps with parabolic ones wherever they are safe
-    (scipy's ``minimize_scalar(method="bounded")``), which reach the same
-    tolerance in about a third of the evaluations golden-section search alone
-    takes. NaN counts as worse than any value. Returns the point found and
-    its value.
-    """
-    from scipy.optimize import minimize_scalar
-
-    def loss(point: float) -> float:
-        # |corr| is at most 1, so 2 is worse than every valid value.
-        result = objective(point)
-        return -result if math.isfinite(result) else 2.0
-
-    tolerance = _REFINE_RTOL * max(abs(low), abs(high), 1e-300)
-    found = minimize_scalar(
-        loss, bounds=(low, high), method="bounded", options={"xatol": tolerance, "maxiter": 500}
-    )
-    point = float(found.x)
-    value = objective(point)
-    return point, (value if math.isfinite(value) else -math.inf)
+    low, high = lows.astype(np.float64), highs.astype(np.float64)
+    inner_low = high - _INVERSE_PHI * (high - low)
+    inner_high = low + _INVERSE_PHI * (high - low)
+    everyone = np.arange(len(low))
+    value_low, value_high = value(everyone, inner_low), value(everyone, inner_high)
+    tolerance = _REFINE_RTOL * np.maximum(np.maximum(np.abs(low), np.abs(high)), 1e-300)
+    active = np.flatnonzero(high - low > tolerance)
+    while active.size:
+        left = value_low[active] >= value_high[active]
+        down, up = active[left], active[~left]
+        high[down], inner_high[down], value_high[down] = inner_high[down], inner_low[down], value_low[down]
+        inner_low[down] = high[down] - _INVERSE_PHI * (high[down] - low[down])
+        low[up], inner_low[up], value_low[up] = inner_low[up], inner_high[up], value_high[up]
+        inner_high[up] = low[up] + _INVERSE_PHI * (high[up] - low[up])
+        values = value(active, np.where(left, inner_low[active], inner_high[active]))
+        value_low[down], value_high[up] = values[left], values[~left]
+        active = active[high[active] - low[active] > tolerance[active]]
+    pick = value_low >= value_high
+    return np.where(pick, inner_low, inner_high), np.where(pick, value_low, value_high)
 
 
 def _statistic(simple: float, better: float, n_rows: int) -> float:
@@ -374,24 +506,73 @@ def _simplify(
     pole past its margin into the data, or a scale past the grid's bound.
     """
 
-    def statistic(constant: float) -> float:
-        return _statistic(objective(constant), score, n_rows)
+    def evaluate(which: np.ndarray, constants: np.ndarray) -> np.ndarray:
+        return np.array([objective(float(constant)) for constant in constants])
 
-    accepted: list[tuple[int, float, float]] = []
-    for fraction in SNAP_VALUES:
-        if accepted and fraction.denominator > accepted[0][0]:
-            break
-        constant = float(fraction)
-        if not admissible(constant):
-            continue
-        lr = statistic(constant)
+    constants, _ = _simplify_many(
+        evaluate, np.zeros(1, dtype=np.intp), np.array([optimum]), np.array([score]), n_rows, [admissible]
+    )
+    return float(constants[0])
+
+
+def _simplify_many(
+    evaluate: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    which: np.ndarray,
+    optima: np.ndarray,
+    scores: np.ndarray,
+    n_rows: int,
+    admissible: Sequence[Callable[[float], bool]],
+) -> tuple[np.ndarray, np.ndarray]:
+    """:func:`_simplify` for jobs ``which``, with every candidate constant evaluated at once.
+
+    Among the snap values a job accepts, the ones with the smallest
+    denominator compete and the best fit wins (the smaller constant on a
+    tie); failing a snap, the fewest significant digits that pass win;
+    failing those, the optimum. Returns the constants and their scores.
+    """
+    constants, chosen = optima.astype(np.float64), scores.astype(np.float64)
+
+    def candidates(make) -> tuple[list[int], list[float], list]:
+        jobs, values, keys = [], [], []
+        for position in range(len(which)):
+            for key, constant in make(position):
+                if admissible[position](constant):
+                    jobs.append(position)
+                    values.append(constant)
+                    keys.append(key)
+        return jobs, values, keys
+
+    def tested(jobs, values):
+        if not jobs:
+            return np.empty(0), []
+        found = evaluate(which[np.array(jobs)], np.array(values, dtype=np.float64))
+        return found, [_statistic(float(s), float(scores[j]), n_rows) for j, s in zip(jobs, found)]
+
+    jobs, values, denominators = candidates(
+        lambda position: [(fraction.denominator, float(fraction)) for fraction in SNAP_VALUES]
+    )
+    found, statistics = tested(jobs, values)
+    best: dict[int, tuple[int, float, float, float]] = {}
+    for job, constant, denominator, score, lr in zip(jobs, values, denominators, found, statistics):
         if lr <= SNAP_LR:
-            accepted.append((fraction.denominator, lr, constant))
-    if accepted:
-        return min(accepted)[2]
+            entry = (denominator, lr, constant, float(score))
+            if job not in best or entry[:3] < best[job][:3]:
+                best[job] = entry
+    for job, (_, _, constant, score) in best.items():
+        constants[job], chosen[job] = constant, score
 
-    for digits in range(1, 7):
-        constant = float(f"{optimum:.{digits}g}")
-        if admissible(constant) and statistic(constant) <= ROUND_LR:
-            return constant
-    return optimum
+    rest = [position for position in range(len(which)) if position not in best]
+    jobs, values, digits = candidates(
+        lambda position: (
+            [(d, float(f"{optima[position]:.{d}g}")) for d in range(1, 7)] if position not in best else []
+        )
+    )
+    found, statistics = tested(jobs, values)
+    rounded: dict[int, tuple[int, float, float]] = {}
+    for job, constant, digit, score, lr in zip(jobs, values, digits, found, statistics):
+        if lr <= ROUND_LR and (job not in rounded or digit < rounded[job][0]):
+            rounded[job] = (digit, constant, float(score))
+    for job in rest:
+        if job in rounded:
+            _, constants[job], chosen[job] = rounded[job]
+    return constants, chosen
