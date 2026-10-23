@@ -164,6 +164,18 @@ as a rider such as `(a*b/c) * x7` does.
 
 #### Changed
 
+- `fitted_ops` fits are about 1.7 times faster, with the same results to
+  the last bit (the formulas, the screened candidates and the predictions of
+  18 fits, five distractor sets, the physics panel and diabetes, are
+  identical): the refinement uses Brent's bounded method in place of
+  golden-section search, the coarse grid is applied to every constant at
+  once, and the search counts each subexpression's operators and constants
+  once per ranking instead of once per candidate, which speeds up fits
+  without `fitted_ops` slightly too. On those 18 fits `fitted_ops` cost 3.7
+  times the plain fit's time and now costs 2.3 times. scipy, which
+  scikit-learn already requires, is now a declared dependency (`>=1.10`,
+  the oldest that installs beside numpy 1.26 on Python 3.10, and the floor
+  CI job pins it).
 - `parsimony_holdout` is calibrated, and the guarantees page reports the
   figures in place of the sentence saying it had not been. In the marginal
   sense, the guarantee's, the printed equation's realised FDR stays far

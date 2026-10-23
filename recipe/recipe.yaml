@@ -24,6 +24,7 @@ requirements:
     - joblib >=1.2
     - numpy >=1.26
     - scikit-learn >=1.6
+    - scipy >=1.10
 
 tests:
   - python:

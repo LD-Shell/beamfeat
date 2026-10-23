@@ -1345,7 +1345,8 @@ def _rank(nodes: Sequence[Node], scores: np.ndarray) -> np.ndarray:
     keep their given order. lexsort uses its last key as primary and is
     stable.
     """
-    sizes = np.array([node.n_operators + node.n_constants for node in nodes])
+    memo: dict[str, tuple[int, int]] = {}
+    sizes = np.array([sum(_counts(node, memo)) for node in nodes])
     quantised = np.round(np.asarray(scores, dtype=np.float64) / SCORE_TIE_TOL)
     return np.lexsort((sizes, -quantised))
 
@@ -1437,7 +1438,30 @@ def _fitted_mask(nodes: Sequence[Node], shield: bool) -> np.ndarray | None:
     """Per node, whether it carries a fitted constant; ``None`` unless ``shield``."""
     if not shield:
         return None
-    return np.array([node.n_constants > 0 for node in nodes], dtype=bool)
+    memo: dict[str, tuple[int, int]] = {}
+    return np.array([_counts(node, memo)[1] > 0 for node in nodes], dtype=bool)
+
+
+def _counts(node: Node, memo: dict[str, tuple[int, int]]) -> tuple[int, int]:
+    """``(node.n_operators, node.n_constants)``, sharing work through ``memo``.
+
+    The properties recurse through the whole tree on every call, and a round
+    ranks thousands of candidates built from the same few hundred
+    subexpressions; the memo, keyed by structural key, visits each once.
+    """
+    counts = memo.get(node.key)
+    if counts is None:
+        if node.is_leaf:
+            counts = (0, 0)
+        else:
+            operators, constants = 1, 0 if node.const is None else 1
+            for child in node.children:
+                child_operators, child_constants = _counts(child, memo)
+                operators += child_operators
+                constants += child_constants
+            counts = (operators, constants)
+        memo[node.key] = counts
+    return counts
 
 
 def _check_fitted_ops(fitted_ops: Sequence[str]) -> tuple[str, ...]:

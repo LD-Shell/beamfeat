@@ -3,8 +3,8 @@
 A parametric operator, such as ``exp_scaled`` (``exp(a*x)``) or ``inv_shift``
 (``1/(x + a)``), carries one constant. :func:`fit_constants` chooses it for a
 given operand by a one-dimensional search: a coarse grid from the operator's
-:attr:`~beamfeat.expression.OperatorSpec.constant_grid`, then a golden-section
-refinement between the grid neighbours of the best point.
+:attr:`~beamfeat.expression.OperatorSpec.constant_grid`, then a refinement by
+Brent's bounded method between the grid neighbours of the best point.
 
 **Objective.** The constant maximises the absolute Pearson correlation of
 the transformed operand with the target, whatever scorer the search uses.
@@ -103,10 +103,9 @@ _LOSS_FLOOR = 1e-12
 # then refined on every row, so a subsample of large data is enough.
 _GRID_ROWS = 2000
 
-# Golden-section steps stop once the bracket is this small relative to the
+# The refinement stops once the bracket is this small relative to the
 # constant, well past the six significant digits a constant is rounded to.
 _REFINE_RTOL = 1e-10
-_INVERSE_PHI = (math.sqrt(5.0) - 1.0) / 2.0
 
 
 class FittedConstant(NamedTuple):
@@ -196,8 +195,28 @@ def _grid_columns(spec: OperatorSpec, operand: np.ndarray, grid: np.ndarray) -> 
 
     A column is NaN where the evaluator would reject the result: outside the
     operator's domain, or on a floating-point error, underflow included.
+
+    The registered operators are elementwise, so every constant is applied
+    at once, and their domain predicates hold for every element or fail, so
+    one check over all the constants settles the usual case where all are
+    inside. If the joint pass raises a floating-point error anywhere, or does
+    not broadcast, the columns are computed one at a time instead, which
+    tells the failing ones apart.
     """
-    columns = np.full((len(operand), len(grid)), np.nan)
+    shape = (len(operand), len(grid))
+    try:
+        with np.errstate(all="raise"):
+            columns = np.asarray(spec.fn(operand[:, None], grid[None, :]), dtype=np.float64)
+            inside = spec.domain is None or spec.domain(operand[:, None], grid[None, :])
+    except (FloatingPointError, ValueError, TypeError):
+        columns = None
+    if columns is not None and columns.shape == shape and np.isfinite(columns).all():
+        if not inside:
+            for index, constant in enumerate(grid):
+                if not spec.domain(operand, float(constant)):
+                    columns[:, index] = np.nan
+        return columns
+    columns = np.full(shape, np.nan)
     for index, constant in enumerate(grid):
         values = _apply(spec, operand, float(constant))
         if values is not None:
@@ -243,11 +262,13 @@ def _correlations(columns: np.ndarray, target: np.ndarray, partners: np.ndarray 
 
 def _correlation(values: np.ndarray, target: np.ndarray) -> float:
     """|corr| of a column with the standardised target, NaN for a constant column."""
-    centred = values - values.mean()
-    spread = math.sqrt(float(np.mean(centred * centred)))
-    if not math.isfinite(spread) or spread <= 1e-12 * float(np.mean(np.abs(values))) or spread == 0.0:
+    # Sums divided by the count are numpy's means, without their call overhead.
+    n_rows = len(values)
+    centred = values - values.sum() / n_rows
+    spread = math.sqrt(float((centred * centred).sum()) / n_rows)
+    if not math.isfinite(spread) or spread <= 1e-12 * (float(np.abs(values).sum()) / n_rows) or spread == 0.0:
         return math.nan
-    return min(abs(float(centred @ target)) / (len(values) * spread), 1.0)
+    return min(abs(float(centred @ target)) / (n_rows * spread), 1.0)
 
 
 def _fit_one(
@@ -288,7 +309,7 @@ def _fit_one(
         return _correlation(values, target)
 
     # An interior grid point's neighbours lie in its own segment.
-    optimum, score = _golden_max(objective, float(grid[best - 1]), float(grid[best + 1]))
+    optimum, score = _bounded_max(objective, float(grid[best - 1]), float(grid[best + 1]))
     best_grid_score = objective(float(grid[best]))
     if not math.isfinite(score) or (math.isfinite(best_grid_score) and best_grid_score > score):
         optimum, score = float(grid[best]), best_grid_score
@@ -300,33 +321,29 @@ def _fit_one(
     return constant
 
 
-def _golden_max(objective: Callable[[float], float], low: float, high: float) -> tuple[float, float]:
-    """Golden-section search for the maximum of ``objective`` on ``[low, high]``.
+def _bounded_max(objective: Callable[[float], float], low: float, high: float) -> tuple[float, float]:
+    """Maximum of ``objective`` on ``[low, high]`` by Brent's bounded method.
 
-    NaN counts as worse than any value. Returns the best point evaluated and
+    Golden-section steps with parabolic ones wherever they are safe
+    (scipy's ``minimize_scalar(method="bounded")``), which reach the same
+    tolerance in about a third of the evaluations golden-section search alone
+    takes. NaN counts as worse than any value. Returns the point found and
     its value.
     """
+    from scipy.optimize import minimize_scalar
 
-    def value(point: float) -> float:
+    def loss(point: float) -> float:
+        # |corr| is at most 1, so 2 is worse than every valid value.
         result = objective(point)
-        return result if math.isfinite(result) else -math.inf
+        return -result if math.isfinite(result) else 2.0
 
-    inner_low = high - _INVERSE_PHI * (high - low)
-    inner_high = low + _INVERSE_PHI * (high - low)
-    value_low, value_high = value(inner_low), value(inner_high)
     tolerance = _REFINE_RTOL * max(abs(low), abs(high), 1e-300)
-    while high - low > tolerance:
-        if value_low >= value_high:
-            high, inner_high, value_high = inner_high, inner_low, value_low
-            inner_low = high - _INVERSE_PHI * (high - low)
-            value_low = value(inner_low)
-        else:
-            low, inner_low, value_low = inner_low, inner_high, value_high
-            inner_high = low + _INVERSE_PHI * (high - low)
-            value_high = value(inner_high)
-    if value_low >= value_high:
-        return inner_low, value_low
-    return inner_high, value_high
+    found = minimize_scalar(
+        loss, bounds=(low, high), method="bounded", options={"xatol": tolerance, "maxiter": 500}
+    )
+    point = float(found.x)
+    value = objective(point)
+    return point, (value if math.isfinite(value) else -math.inf)
 
 
 def _statistic(simple: float, better: float, n_rows: int) -> float:
