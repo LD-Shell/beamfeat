@@ -54,8 +54,9 @@ the features, p-values and predictions of 0.5.0, to the last bit.
 ### Towards 0.6.0
 
 On branch `feature/0.6.0` only. No default changes: `certify_test` defaults
-to `"marginal"` and `magnitude_slots` to 0, and a fit that leaves them there
-gives the results of 0.5.1 to the last bit. The re-test's figures below are
+to `"marginal"`, `magnitude_slots` to 0 and `input_test` to `False`, and a
+fit that leaves them there gives the results of 0.5.1 to the last bit,
+except with `selector="knockoff"`, whose fixed-X statistic is fixed (below). The re-test's figures below are
 from `benchmarks/parsimony_holdout/`: 48,000 fits of a global null and of
 `y = a*b/c` plus noise among 5 or 20 distractors, with and without a column
 correlated 0.9 with `a`, at signal-to-noise ratios 1 and 3, 300 and 1,000
@@ -162,6 +163,32 @@ as a rider such as `(a*b/c) * x7` does.
   paired null study and a launcher that runs the other suites with new
   option defaults measure `magnitude_slots` as well.
 
+- `input_test` on `BeamFeatTransformer`, `BeamFeatRegressor` and
+  `BeamFeatClassifier` (default `False`): after the screen, each column
+  inside each candidate that reads more than one is tested by permuting
+  that column alone and recomputing the screen's statistic, with the
+  screen's step-up correction across every (candidate, column) pair, and a
+  screened term with a column it does not need is dropped before
+  parsimony. It removes riders such as `(x0*x1)/(x1 + x8)`, which pass the
+  screen because `x0*x1` carries them. The null for a column is that it is
+  independent of the target and of the candidate's other columns, under
+  which the p-values are exact; a junk column correlated with a real one is
+  not null in that sense and can stay. A pair stops at its tenth
+  exceedance (Besag & Clifford, 1991). `input_report_` lists every pair
+  with its p- and q-value, and `equation()` counts the terms it dropped. If
+  no screened term passes, the screened set is used with a warning. Measured
+  against the default, 20 seeds of `y = x0*x1` plus 25% noise among 10
+  junk columns, 500 training and 500 test rows: printed equations with a
+  junk column 14 → 1, printed terms with one 23/45 → 1/28, held-out R²
+  0.9413 → 0.9416 (true formula 0.9425), 0.25 → 2.6 s a fit. With the junk
+  `x8` correlated 0.82 with `x1`: 10 → 3. The physics panel is unchanged at
+  10/12 solved, 8 exact; with five junk columns appended, equations with
+  one 2 → 0, solved and exact unchanged. On pure-noise targets nothing
+  passes either way. Real data, mean over 5 splits: diabetes R² 0.429 →
+  0.415 (6.2 → 5.0 terms), breast cancer accuracy 0.969 → 0.969 (24.2 →
+  13.4 terms). The cost grows with the rows: california housing (15,480
+  training rows) took 135 s against 2.6 s, R² 0.655 → 0.664 on one split.
+
 #### Changed
 
 - `parsimony_holdout` is calibrated, and the guarantees page reports the
@@ -191,6 +218,25 @@ as a rider such as `(a*b/c) * x7` does.
   units, LaTeX and export included, and the first notes which scikit-learn
   versions show the parameters and fitted attributes in the estimator's
   summary box.
+
+#### Fixed
+
+- The fixed-X knockoff statistic. The fixed-X guarantee (Barber & Candès,
+  2015) needs a statistic that sees the data only through the Gram matrix
+  of originals and knockoffs and their products with the target; the
+  difference of cross-validated lasso coefficients used until now does not,
+  since its folds look at individual rows. Regression on the fixed-X path
+  now uses the lasso-path signed maximum, `max(Z_j, Z~_j) * sign(Z_j -
+  Z~_j)` with `Z_j` the penalty at which column `j` enters the path,
+  computed from those inner products (`lars_path_gram`). Model-X and
+  classification keep the cross-validated statistic, which model-X allows.
+  On Gaussian linear models at q = 0.2, 200 trials each, knockoff+ realised
+  FDR 0.180, 0.172 and 0.135 (previously 0.151, 0.165 and 0.155) with power
+  0.96, 0.98 and 0.48 (previously 0.97, 0.99 and 0.82) at n = 300, p = 25;
+  n = 500, p = 50; and the same with correlation 0.7 between neighbouring
+  columns: the guarantee now covers the statistic, at a cost in power on
+  correlated designs, and a fit is 2–4 times faster. The permutation
+  selector, the default, is unaffected.
 
 ## [0.5.0] - 2026-10-20
 

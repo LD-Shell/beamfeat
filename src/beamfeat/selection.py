@@ -33,7 +33,9 @@ holds.
       design as fixed and makes *no distributional assumption about the
       features* — deterministic engineered columns are fine. The guarantee
       requires the linear model ``y = X beta + noise`` with Gaussian,
-      homoskedastic noise, and a design of full column rank. Columns that
+      homoskedastic noise, and a design of full column rank, and a statistic
+      that sees the data only through ``[X X~]' [X X~]`` and ``[X X~]' y``;
+      the lasso-path entry statistic used here is one. Columns that
       are constant or linearly dependent on earlier ones are left out of the
       construction and cannot be selected (see :class:`KnockoffSelector`).
     - **Model-X Gaussian** (Candès et al., 2018), used when ``n <= 2p``, or
@@ -44,7 +46,10 @@ holds.
 The estimators' ``certify_test="conditional"`` re-tests the terms they
 return with a Freedman-Lane permutation test of each term given the others.
 It is not a screen and is not exported; its null and the assumptions behind
-it are stated with that parameter and on the guarantees page.
+it are stated with that parameter and on the guarantees page. The
+estimators' ``input_test=True`` tests, inside each candidate, whether the
+candidate needs each column it reads, by permuting that column alone; it is
+not exported either.
 
 **Selective inference caveat.** Every guarantee above is for testing a
 candidate set that is *fixed before seeing the data used for testing*. If
@@ -76,12 +81,14 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
 import numpy as np
 
 from beamfeat._compat import l1_logistic_coefficients, quiet
+from beamfeat.expression import OPERATORS, Node
 
 __all__ = [
     "KnockoffSelector",
@@ -240,6 +247,32 @@ class Selector(ABC):
                 model.fit(design, target)
                 coefficients = np.abs(model.coef_)
         return np.nan_to_num(coefficients, nan=0.0, posinf=0.0, neginf=0.0)
+
+    @staticmethod
+    def _lasso_entry(design: np.ndarray, target: np.ndarray) -> np.ndarray:
+        """Penalty at which each column first enters the lasso path (knockoff statistic).
+
+        Computed from ``design' design`` and ``design' target`` alone, which
+        is the sufficiency the fixed-X knockoff guarantee requires of its
+        statistic (Barber & Candès, 2015). A cross-validated penalty does not
+        qualify: its folds look at individual rows. The design is centred, so
+        centring the target leaves ``design' target`` unchanged. A column that
+        never enters scores 0.
+        """
+        from sklearn.linear_model import lars_path_gram
+
+        centred = np.asarray(target, dtype=np.float64) - float(np.mean(target))
+        with quiet():
+            alphas, _, path = lars_path_gram(
+                Xy=design.T @ centred,
+                Gram=design.T @ design,
+                n_samples=design.shape[0],
+                max_iter=max(500, 4 * design.shape[1]),
+                method="lasso",
+            )
+        entered = path != 0.0
+        entry = np.where(entered.any(axis=1), alphas[np.argmax(entered, axis=1)], 0.0)
+        return np.nan_to_num(entry, nan=0.0, posinf=0.0, neginf=0.0)
 
     def __repr__(self) -> str:  # pragma: no cover - display only
         return f"{type(self).__name__}(target_fdr={self.target_fdr}, problem_type={self.problem_type!r})"
@@ -716,6 +749,185 @@ class _ConditionalPermutationSelector(PermutationSelector):
         )
 
 
+# Exceedances at which the input test stops drawing for a pair (Besag &
+# Clifford, 1991). Ten keeps the stopped p-value, 10/L, at least 10/B, and
+# so out of reach of the correction's threshold except where many pairs pass.
+_STOP_EXCEEDANCES = 10
+
+
+def _evaluate_stacked(node: Node, data: Mapping[str, np.ndarray]) -> np.ndarray:
+    """Values of ``node`` with numpy broadcasting, without error checks.
+
+    Every operator is elementwise, so a column given as a stack of row
+    orders, one per row of a 2-D array, evaluates the expression once per
+    order. Non-finite results are returned as they are, for the caller to
+    count.
+    """
+    cache: dict[str, np.ndarray] = {}
+
+    def walk(current: Node) -> np.ndarray:
+        values = cache.get(current.key)
+        if values is None:
+            if current.is_leaf:
+                values = np.asarray(data[str(current.column)], dtype=np.float64)
+            else:
+                operands = [walk(child) for child in current.children]
+                if current.const is not None:
+                    operands.append(current.const)
+                values = np.asarray(OPERATORS[current.op].fn(*operands), dtype=np.float64)
+            cache[current.key] = values
+        return values
+
+    with np.errstate(all="ignore"):
+        return walk(node)
+
+
+class _InputPermutationTest(PermutationSelector):
+    """Permutation test of each input column inside each candidate expression.
+
+    The test behind the estimators' ``input_test=True``. The screen asks
+    whether a candidate is associated with the target; this asks, of each
+    column the candidate reads, whether the candidate needs that column to
+    be associated with it. It is what removes ``(x0*x1)/(x1 + x8)`` when
+    ``x8`` is unrelated to everything: the expression is a genuine discovery
+    under the screen's null, because ``x0*x1`` carries it, but ``x8`` is not.
+
+    **Statistic.** The screen's: |Pearson correlation| of the candidate with
+    the target for regression, eta-squared for classification.
+
+    **Null draws.** The candidate re-evaluated with the rows of the tested
+    column permuted, wherever the column occurs in it, and every other
+    column as it is. Draws continue up to the number of permutations the
+    budget rule of :class:`PermutationSelector` sets for the number of
+    tests, and the p-value is its add-one estimator, except that a pair
+    stops at its tenth exceedance, after ``L`` draws, with the p-value
+    ``10 / L``: the sequential estimator of Besag & Clifford (1991), valid
+    in the same sense, which spends few draws on a column that is plainly
+    not needed. The step-up correction is applied across every
+    (candidate, column) pair. With a fixed ``random_state`` every pair is
+    tested against the same permutations. A permutation on which the
+    candidate is not finite everywhere counts as an exceedance, which can
+    only raise the p-value.
+
+    **Null and validity.** The null for a column is that it is independent
+    of the target and of the candidate's other columns together. Under it,
+    with rows drawn independently from one distribution, permuting the
+    column's rows leaves the distribution of the data unchanged, so the
+    p-values are exact in finite samples, whatever the expression. A column
+    correlated with another input or with the target is not null in this
+    sense even where the candidate would do as well without it, and can
+    pass. Candidates that read a single column are not tested: permuting
+    their only column is the same test as permuting the target, which the
+    screen has run.
+
+    **Cost.** Each draw re-evaluates the expression, so the time grows with
+    the number of pairs, the number of draws the needed columns take and
+    the number of rows, where the screen's draws are one matrix product.
+
+    References:
+        Besag, J. & Clifford, P. (1991). Sequential Monte Carlo p-values.
+        *Biometrika*, 78(2), 301-304.
+    """
+
+    name = "input_permutation"
+
+    def test_inputs(
+        self, nodes: Sequence[Node], data: Mapping[str, np.ndarray], target: np.ndarray
+    ) -> tuple[list[tuple[int, str]], SelectionResult]:
+        """Test every column of every candidate that reads more than one.
+
+        Returns the (candidate index, column) pairs in the order tested, and
+        a result over those pairs: ``selected`` holds the positions of the
+        pairs whose column the candidate needs at the step-up level.
+        """
+        target = np.asarray(target).ravel()
+        pairs = [
+            (index, column)
+            for index, node in enumerate(nodes)
+            if len(columns := sorted(node.columns())) > 1
+            for column in columns
+        ]
+        if not pairs:
+            return pairs, SelectionResult(target_fdr=self.target_fdr, method=self.name)
+        n_samples = target.shape[0]
+        n_permutations, messages = self._permutation_budget(len(pairs))
+        if self.problem_type == "classification":
+            classes, codes = np.unique(target, return_inverse=True)
+        else:
+            numeric = target.astype(np.float64)
+
+            centred_target = numeric - numeric.mean()
+            target_norm = float(np.linalg.norm(centred_target))
+
+        def statistic(values: np.ndarray) -> np.ndarray:
+            """The statistic of each row of ``values``; inf where a row is not finite."""
+            finite = np.all(np.isfinite(values), axis=1)
+            values = np.where(finite[:, None], values, 0.0)
+            with np.errstate(all="ignore"):
+                if self.problem_type == "classification":
+                    stat = self._classification_stat(_standardise(values.T), codes, len(classes))
+                else:
+                    # |Pearson correlation| row by row, as the screen computes
+                    # it, with a row of (near) zero spread scoring 0.
+                    centred = values - values.mean(axis=1, keepdims=True)
+                    spread = np.sqrt(np.mean(centred**2, axis=1))
+                    norms = spread * np.sqrt(n_samples) * target_norm
+                    inner = np.abs(centred @ centred_target)
+                    stat = np.divide(inner, norms, out=np.zeros_like(inner), where=spread >= 1e-12)
+            return np.where(finite, np.nan_to_num(stat), np.inf)
+
+        observed = np.array([
+            statistic(_evaluate_stacked(nodes[index], data).reshape(1, -1))[0] for index, _ in pairs
+        ])
+        exceedances = np.zeros(len(pairs), dtype=np.int64)
+        stopped_at = np.zeros(len(pairs), dtype=np.int64)
+        # Every pair sees the same permutations, drawn once per block. Blocks
+        # start small and double, so a pair that stops early costs little.
+        rng = np.random.default_rng(self.random_state)
+        largest = int(max(1, min(512, _BLOCK_ELEMENTS // n_samples)))
+        start, size = 0, min(64, largest)
+        while start < n_permutations and not np.all(stopped_at):
+            size = min(size, n_permutations - start)
+            order = rng.permuted(np.tile(np.arange(n_samples), (size, 1)), axis=1)
+            active = np.flatnonzero(stopped_at == 0)
+            permuted = {
+                column: np.asarray(data[column])[order] for column in {pairs[i][1] for i in active}
+            }
+            for position in active:
+                index, column = pairs[position]
+                values = _evaluate_stacked(nodes[index], {**data, column: permuted[column]})
+                null = statistic(np.broadcast_to(values, (size, n_samples)))
+                # Ties within rounding count against the column.
+                running = exceedances[position] + np.cumsum(null >= observed[position] - 1e-12)
+                if running[-1] >= _STOP_EXCEEDANCES:
+                    stopped_at[position] = start + int(np.argmax(running >= _STOP_EXCEEDANCES)) + 1
+                exceedances[position] = min(int(running[-1]), _STOP_EXCEEDANCES)
+            start += size
+            size = min(2 * size, largest)
+        p_values = np.where(
+            stopped_at > 0,
+            _STOP_EXCEEDANCES / np.maximum(stopped_at, 1),
+            (exceedances + 1.0) / (n_permutations + 1.0),
+        )
+
+        correct = _benjamini_hochberg if self.correction == "bh" else _benjamini_yekutieli
+        selected = correct(p_values, self.target_fdr)
+        q_values = _adjusted_p_values(p_values, self.correction)
+        statistics = 1.0 - p_values
+        threshold = float(np.min(statistics[selected])) if selected.size else float("inf")
+        return pairs, SelectionResult(
+            selected=np.sort(selected),
+            statistics=statistics,
+            p_values=p_values,
+            q_values=q_values,
+            threshold=threshold,
+            target_fdr=self.target_fdr,
+            n_candidates=len(pairs),
+            method=self.name,
+            warnings_raised=messages,
+        )
+
+
 # --------------------------------------------------------------------------- #
 # Knockoff threshold
 # --------------------------------------------------------------------------- #
@@ -759,6 +971,18 @@ class KnockoffSelector(Selector):
     The finite-sample FDR guarantee (with ``offset=1``) requires the linear
     model ``y = X beta + eps`` with i.i.d. Gaussian noise, and a design of
     full column rank.
+
+    **Statistic.** On the fixed-X path for regression, the signed maximum
+    of the lasso path: ``W_j = max(Z_j, Z~_j) * sign(Z_j - Z~_j)``, where
+    ``Z_j`` is the penalty at which column ``j`` first enters the path. It
+    depends on the data only through the Gram matrix of originals and
+    knockoffs and their inner products with the target, as the fixed-X
+    guarantee requires. Elsewhere — model-X, where any statistic that
+    swaps sign with the pair is valid, and the heuristic classification
+    path — it is the difference of cross-validated lasso (or L1-logistic)
+    coefficient magnitudes. Versions up to 0.5.0 used that difference on
+    the fixed-X path too, where cross-validation looks at individual rows
+    and the guarantee did not strictly cover it.
 
     **Rank-deficient designs.** When the design covariance has an eigenvalue
     below 1e-6 — a constant column, a duplicate, or a column that is a linear
@@ -1026,8 +1250,15 @@ class KnockoffSelector(Selector):
             retained = standardised[:, keep]
             knockoffs = self._fixed_x_knockoffs(retained) if use_fixed else self._model_x_knockoffs(retained)
             design = np.column_stack([retained, knockoffs])
-            importance = self._lasso_importance(design, target)
-            statistics[keep] = importance[:n_kept] - importance[n_kept:]
+            if use_fixed and self.problem_type == "regression":
+                # Signed max: the larger entry penalty of the pair, signed by
+                # which of the two entered first.
+                entry = self._lasso_entry(design, target)
+                original, knockoff = entry[:n_kept], entry[n_kept:]
+                statistics[keep] = np.maximum(original, knockoff) * np.sign(original - knockoff)
+            else:
+                importance = self._lasso_importance(design, target)
+                statistics[keep] = importance[:n_kept] - importance[n_kept:]
 
         threshold = knockoff_threshold(statistics, self.target_fdr, self.offset)
         selected = np.flatnonzero(statistics >= threshold) if np.isfinite(threshold) else np.empty(0, dtype=int)

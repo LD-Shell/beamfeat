@@ -12,6 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from beamfeat.expression import combine, leaf, transform
 from beamfeat.selection import (
     KnockoffSelector,
     PermutationSelector,
@@ -20,6 +21,7 @@ from beamfeat.selection import (
     _benjamini_hochberg,
     _benjamini_yekutieli,
     _ConditionalPermutationSelector,
+    _InputPermutationTest,
     knockoff_threshold,
     make_selector,
 )
@@ -829,3 +831,127 @@ class TestConditionalPermutation:
         assert selector._required_permutations(40) == PermutationSelector(
             target_fdr=0.1, correction="by"
         )._required_permutations(40)
+
+
+# --------------------------------------------------------------------------- #
+# Fixed-X knockoff statistic
+# --------------------------------------------------------------------------- #
+
+
+class TestLassoEntryStatistic:
+    """The fixed-X path's statistic sees the data only through X'X and X'y."""
+
+    @staticmethod
+    def _centred(rng, n=120, p=6):
+        X = rng.standard_normal((n, p))
+        X -= X.mean(axis=0)
+        return X, X[:, 0] * 2.0 + rng.standard_normal(n)
+
+    def test_unchanged_by_a_rotation_of_the_rows(self):
+        # An orthogonal Q with Q1 = 1 keeps X'X, X'y and the centring, while
+        # moving every row; a cross-validated statistic would change.
+        rng = np.random.default_rng(0)
+        X, y = self._centred(rng)
+        v = rng.standard_normal(X.shape[0])
+        v -= v.mean()
+        v /= np.linalg.norm(v)
+        Q = np.eye(X.shape[0]) - 2.0 * np.outer(v, v)
+        np.testing.assert_allclose(
+            Selector._lasso_entry(Q @ X, Q @ y), Selector._lasso_entry(X, y), rtol=1e-9, atol=1e-12
+        )
+
+    def test_the_signal_enters_first(self):
+        X, y = self._centred(np.random.default_rng(1))
+        entry = Selector._lasso_entry(X, y)
+        assert int(np.argmax(entry)) == 0
+        assert np.all(entry >= 0.0)
+
+    def test_fixed_x_selects_the_signals(self):
+        features, target, truth = _gaussian_design(np.random.default_rng(3), n=400, n_noise=35)
+        result = KnockoffSelector(target_fdr=0.2, construction="fixed", random_state=0).select(
+            features, target
+        )
+        assert set(np.flatnonzero(truth)) <= set(result.selected.tolist())
+
+
+# --------------------------------------------------------------------------- #
+# Input test
+# --------------------------------------------------------------------------- #
+
+
+class TestInputPermutationTest:
+    """Each column inside each candidate, tested by permuting it alone."""
+
+    @staticmethod
+    def _data(seed=0, n=300):
+        rng = np.random.default_rng(seed)
+        X = rng.uniform(1.0, 6.0, (n, 4))
+        data = {f"x{j}": X[:, j] for j in range(4)}
+        return data, X[:, 0] * X[:, 1] + rng.normal(0, 1.0, n)
+
+    @staticmethod
+    def _nodes():
+        x0, x1, x2 = leaf("x0"), leaf("x1"), leaf("x2")
+        product = combine("mul", x0, x1)
+        rider = combine("div", product, combine("add", x1, x2))
+        return [product, rider, x0, transform("log", x0)]
+
+    def test_keeps_the_signal_columns_and_flags_the_rider(self):
+        data, y = self._data()
+        pairs, result = _InputPermutationTest(target_fdr=0.1, correction="by").test_inputs(
+            self._nodes(), data, y
+        )
+        passed = {pairs[i] for i in result.selected}
+        assert pairs == [(0, "x0"), (0, "x1"), (1, "x0"), (1, "x1"), (1, "x2")]
+        assert {(0, "x0"), (0, "x1")} <= passed
+        assert (1, "x2") not in passed
+        assert result.n_candidates == 5 and result.method == "input_permutation"
+
+    def test_single_column_candidates_are_not_tested(self):
+        data, y = self._data()
+        pairs, result = _InputPermutationTest().test_inputs([leaf("x0"), transform("log", leaf("x1"))], data, y)
+        assert pairs == [] and result.n_candidates == 0
+
+    def test_null_column_p_values_are_valid(self):
+        # x2 is independent of the target and of x0, so its p-value inside
+        # x0*x2 is super-uniform: at most about 10% fall at or below 0.1.
+        x0, x2 = leaf("x0"), leaf("x2")
+        node = combine("mul", x0, x2)
+        tester = _InputPermutationTest(n_permutations=99, auto_permutations=False, correction="bh")
+        small = 0
+        for seed in range(200):
+            rng = np.random.default_rng(seed)
+            X = rng.uniform(1.0, 6.0, (60, 3))
+            data = {f"x{j}": X[:, j] for j in range(3)}
+            tester.random_state = seed
+            pairs, result = tester.test_inputs([node], data, X[:, 0] + rng.normal(0, 1.0, 60))
+            small += result.p_values[pairs.index((0, "x2"))] <= 0.1
+        assert small / 200 <= 0.1 + 3 * np.sqrt(0.1 * 0.9 / 200)
+
+    def test_stops_early_on_a_plainly_unneeded_column(self):
+        data, y = self._data()
+        pairs, result = _InputPermutationTest(target_fdr=0.1).test_inputs(self._nodes(), data, y)
+        p_rider = result.p_values[pairs.index((1, "x2"))]
+        # Stopped at its tenth exceedance: 10/L for some L well short of B.
+        assert p_rider > 0.01 and np.isclose(10.0 / p_rider, round(10.0 / p_rider))
+
+    def test_non_finite_permutations_count_against_the_column(self):
+        rng = np.random.default_rng(0)
+        x = rng.uniform(1.0, 2.0, 80)
+        shift = np.concatenate([-x[:40] + 0.5, rng.uniform(0.0, 1.0, 40)])
+        data = {"x0": x, "x1": shift}
+        node = transform("log", combine("add", leaf("x0"), leaf("x1")))
+        target = np.log(x + shift) + rng.normal(0, 0.01, 80)
+        pairs, result = _InputPermutationTest(n_permutations=99, auto_permutations=False).test_inputs(
+            [node], data, target
+        )
+        # Permuting x1 puts log's operand below zero on almost every draw.
+        assert result.p_values[pairs.index((0, "x1"))] > 0.05
+
+    def test_classification(self):
+        data, y = self._data()
+        labels = (y > np.median(y)).astype(int)
+        pairs, result = _InputPermutationTest(problem_type="classification").test_inputs(
+            self._nodes()[:1], data, labels
+        )
+        assert set(result.selected.tolist()) == {0, 1}

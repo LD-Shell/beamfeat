@@ -2082,3 +2082,91 @@ class TestLambdifyExport:
         offset = model.intercept_ - raw @ model.scaler_.mean_
         exported = np.column_stack(features(*X_new.T)) @ raw + offset
         np.testing.assert_allclose(exported, model.predict(X_new), rtol=1e-10, atol=1e-10)
+
+
+class TestInputTest:
+    """``input_test=True`` drops screened terms that read a column they do not need."""
+
+    @staticmethod
+    def _distractors(seed=0, n=500):
+        rng = np.random.default_rng(seed)
+        X = rng.uniform(1.0, 6.0, (n, 12))
+        signal = X[:, 0] * X[:, 1]
+        return X, signal + rng.normal(0, 0.25 * np.std(signal), n)
+
+    @staticmethod
+    def _columns(model):
+        return set().union(*(node.columns() for node in model.features_))
+
+    def test_removes_junk_columns_from_the_equation(self):
+        X, y = self._distractors(seed=0)
+        plain = BeamFeatRegressor(random_state=0).fit(X, y)
+        tested = BeamFeatRegressor(random_state=0, input_test=True).fit(X, y)
+        assert self._columns(plain) - {"x0", "x1"}
+        assert self._columns(tested) == {"x0", "x1"}
+        assert tested.fdr_controlled_ is True and tested.fdr_scope_ == "screened set"
+        assert "failed input_test" in tested.equation()
+
+    def test_report_lists_every_pair(self):
+        X, y = self._distractors(seed=0)
+        model = BeamFeatRegressor(random_state=0, input_test=True).fit(X, y)
+        report = model.input_report_
+        assert report and set(report[0]) == {"formula", "column", "p_value", "q_value", "passed"}
+        tested = {(row["formula"], row["column"]) for row in report}
+        for formula in model.formulas():
+            node = next(n for n in model.features_ if n.name == formula)
+            if len(node.columns()) > 1:
+                assert all((formula, c) in tested for c in node.columns())
+                assert all(row["passed"] for row in report if row["formula"] == formula)
+
+    def test_off_by_default_and_changes_nothing(self):
+        X, y = self._distractors(seed=1)
+        default = BeamFeatRegressor(random_state=0).fit(X, y)
+        explicit = BeamFeatRegressor(random_state=0, input_test=False).fit(X, y)
+        assert default.input_report_ is None
+        assert default.formulas() == explicit.formulas()
+        np.testing.assert_array_equal(default.predict(X), explicit.predict(X))
+
+    def test_with_parsimony_none_and_holdout(self):
+        X, y = self._distractors(seed=2, n=800)
+        whole = BeamFeatRegressor(random_state=0, input_test=True, parsimony=None).fit(X, y)
+        assert self._columns(whole) <= {"x0", "x1"}
+        certified = BeamFeatRegressor(random_state=0, input_test=True, parsimony_holdout=0.5).fit(X, y)
+        assert self._columns(certified) <= {"x0", "x1"}
+
+    def test_classifier(self):
+        X, y = self._distractors(seed=3)
+        labels = (y > np.median(y)).astype(int)
+        model = BeamFeatClassifier(random_state=0, input_test=True).fit(X, labels)
+        assert model.input_report_ is not None
+        assert self._columns(model) <= {"x0", "x1"}
+
+    def test_falls_back_when_no_term_passes(self, monkeypatch):
+        from beamfeat.selection import SelectionResult, _InputPermutationTest
+
+        def nothing_passes(self, nodes, data, target):
+            pairs = [(i, c) for i, n in enumerate(nodes) if len(n.columns()) > 1 for c in sorted(n.columns())]
+            ones = np.ones(len(pairs))
+            return pairs, SelectionResult(
+                statistics=0 * ones, p_values=ones, q_values=ones, n_candidates=len(pairs),
+                method="input_permutation",
+            )
+
+        monkeypatch.setattr(_InputPermutationTest, "test_inputs", nothing_passes)
+        X, y = self._distractors(seed=0)
+        with pytest.warns(NoDiscoveriesWarning, match="as if input_test were False"):
+            model = BeamFeatRegressor(
+                random_state=0, input_test=True, include_originals=False
+            ).fit(X, y)
+        assert model.n_features_out_ > 0
+
+    @pytest.mark.parametrize("value", ["yes", 1, None])
+    def test_rejects_non_boolean(self, value):
+        X, y = self._distractors()
+        with pytest.raises(ValueError, match="input_test must be True or False"):
+            BeamFeatRegressor(input_test=value).fit(X, y)
+
+    def test_rejects_without_a_selector(self):
+        X, y = self._distractors()
+        with pytest.raises(ValueError, match="runs no screen"):
+            BeamFeatRegressor(input_test=True, selector=None).fit(X, y)
