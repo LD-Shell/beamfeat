@@ -122,9 +122,10 @@ rather than "no evidence"; when knockoff+ selects nothing but `offset=0`
 would have, the warning says so and names the trade-off.
 
 **Offsets.** `offset=1` (knockoff+) carries the finite-sample FDR guarantee
-and realised 0.159 at nominal 0.20 over 100 trials; it is unsatisfiable with
+and realised 0.170 at nominal 0.20 over 100 trials; it is unsatisfiable with
 fewer than `1/q` features, and a warning fires on narrow designs. `offset=0`
-controls only a modified FDR and realised 0.249, above `offset=1` as expected.
+controls only a modified FDR and realised 0.260, above `offset=1` as expected.
+(With the cross-validated statistic used until 0.5.0, 0.159 and 0.249.)
 Both move across numeric stacks, since knockoff construction depends on matrix
 decompositions; treat the ordering and the nominal bound as the claim, not the
 second decimal. `benchmarks/selector_calibration.py` regenerates both, and the
@@ -160,7 +161,11 @@ constant is one more way the search adapts to its sample, so with
 the optimism for which the estimator already declines the claim. On
 pure-noise targets (50 seeds, 200 rows, 5 columns, defaults otherwise) the
 fraction of fits with any discovery was the same with all four fitted
-operators as without: 0/50 for regression, 2/50 for classification.
+operators as without: 0/50 for regression, 2/50 for classification. The
+four are on by default since 0.6.0; at that default the end-to-end study
+above gives the same result as without them (no false discovery in 200
+replicates, power 1.000, nothing selected in 60 global-null replicates), as
+does the pure-noise pipeline stress (BH 6/100, BY 1/100).
 
 `magnitude_slots` changes which expressions the search keeps, not how they
 are tested. Its magnitude score is computed inside the search, on the search

@@ -428,7 +428,8 @@ class TestTransformSemantics:
         n = 300
         X_train = rng.uniform(1.0, 5.0, (n, 2))
         y_train = np.log(X_train[:, 0]) + rng.normal(0, 0.05, n)
-        model = _fast(BeamFeatRegressor, max_depth=1, beam_width=10).fit(X_train, y_train)
+        # Without fitted constants, which would give log(x0 + a) instead.
+        model = _fast(BeamFeatRegressor, max_depth=1, beam_width=10, fitted_ops=()).fit(X_train, y_train)
         assert any("log(x0)" in formula for formula in model.formulas())
 
         X_test = rng.uniform(1.0, 5.0, (20, 2))
@@ -767,10 +768,14 @@ class TestUnitsIntegration:
         y = X[:, 0] * X[:, 1] + rng.normal(0, 0.05, n)
         units = {"x0": 1.0 * ureg.kilogram, "x1": 1.0 * ureg.meter}
 
-        model = _fast(BeamFeatRegressor, units=units).fit(X, y)
+        # A fitted shift, 1/(x0 + a), adds a constant in x0's own unit and
+        # would print a "+"; the check is for sums of different columns.
+        model = _fast(BeamFeatRegressor, units=units, fitted_ops=()).fit(X, y)
         formulas = model.formulas()
         assert not any("+" in formula or "-" in formula for formula in formulas)
         assert any("*" in formula for formula in formulas)
+        fitted = _fast(BeamFeatRegressor, units=units).fit(X, y)
+        assert not any("x0 + x1" in f or "x0 - x1" in f or "x1 - x0" in f for f in fitted.formulas())
 
     def test_units_are_optional(self, regression_data):
         X, y = regression_data
@@ -851,7 +856,9 @@ class TestConfiguration:
 
     def test_restricted_operators(self, regression_data):
         X, y = regression_data
-        model = _fast(BeamFeatRegressor, unary_ops=(), binary_ops=("mul",)).fit(X, y)
+        # The fitted operators are a list of their own: log(x + a) needs
+        # fitted_ops=() to be excluded too.
+        model = _fast(BeamFeatRegressor, unary_ops=(), binary_ops=("mul",), fitted_ops=()).fit(X, y)
         assert not any("log" in formula or "sqrt" in formula for formula in model.formulas())
 
     def test_include_originals_false(self, regression_data):
@@ -1723,7 +1730,9 @@ class TestEquationList:
             return 1 + sum(tree_size(child) for child in node.children)
 
         for record in model.equations_:
-            assert record["complexity"] == sum(tree_size(node) + 1 for node in record["features"])
+            assert record["complexity"] == sum(
+                tree_size(node) + 1 + node.n_constants for node in record["features"]
+            )
             assert [node.name for node in record["features"]] == record["formulas"]
 
     def test_the_marked_record_is_the_fitted_model(self, model):
@@ -2099,9 +2108,10 @@ class TestInputTest:
         return set().union(*(node.columns() for node in model.features_))
 
     def test_removes_junk_columns_from_the_equation(self):
+        # Without fitted constants, whose search keeps no rider on this seed.
         X, y = self._distractors(seed=0)
-        plain = BeamFeatRegressor(random_state=0).fit(X, y)
-        tested = BeamFeatRegressor(random_state=0, input_test=True).fit(X, y)
+        plain = BeamFeatRegressor(random_state=0, fitted_ops=()).fit(X, y)
+        tested = BeamFeatRegressor(random_state=0, input_test=True, fitted_ops=()).fit(X, y)
         assert self._columns(plain) - {"x0", "x1"}
         assert self._columns(tested) == {"x0", "x1"}
         assert tested.fdr_controlled_ is True and tested.fdr_scope_ == "screened set"
@@ -2162,8 +2172,9 @@ class TestInputTest:
         monkeypatch.setattr(_InputPermutationTest, "test_inputs", nothing_passes)
         X, y = self._distractors(seed=0)
         with pytest.warns(NoDiscoveriesWarning, match="as if input_test were False"):
+            # Without fitted constants, whose one-column terms need no test.
             model = BeamFeatRegressor(
-                random_state=0, input_test=True, include_originals=False
+                random_state=0, input_test=True, include_originals=False, fitted_ops=()
             ).fit(X, y)
         assert model.n_features_out_ > 0
 

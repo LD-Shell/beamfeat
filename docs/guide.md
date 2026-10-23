@@ -407,10 +407,14 @@ lets you write `{"rho": "kg/m**3"}` rather than `{"x0": ...}`.
 
 ## Constants inside expressions
 
-Expressions are free of constants by default; the linear model supplies the
-coefficients outside them. That cannot write `exp(-x²/2)`, `x^1.5` or
-`(x0 + x1)/(1 + x0·x1)`, where the constant sits inside a nonlinearity.
-`fitted_ops` adds operators that carry one fitted constant each:
+The linear model supplies the coefficients outside the expressions. That
+alone cannot write `exp(-x²/2)`, `x^1.5` or `(x0 + x1)/(1 + x0·x1)`, where the
+constant sits inside a nonlinearity, so the estimators also use operators that
+carry one fitted constant each, listed in `fitted_ops`. All four are on by
+default (since 0.6.0); `fitted_ops=()` keeps every expression free of
+constants, as the default did before, and fits about twice as fast on small
+data. They are a list of their own: restricting `unary_ops` leaves them on,
+so `unary_ops=()` still allows `log(x + a)` unless `fitted_ops=()` too.
 
 | name | expression | operand |
 |---|---|---|
@@ -423,7 +427,7 @@ coefficients outside them. That cannot write `exp(-x²/2)`, `x^1.5` or
 rng = np.random.default_rng(0)
 X = rng.uniform(0.1, 1.0, (500, 2))
 y = np.exp(-X[:, 0] ** 2 / 2) + rng.normal(0, 1e-3, 500)
-model = BeamFeatRegressor(max_depth=2, fitted_ops=("exp_scaled",), random_state=0).fit(X, y)
+model = BeamFeatRegressor(max_depth=2, random_state=0).fit(X, y)
 print(model.formulas(), model.to_sympy())
 ```
 
@@ -431,7 +435,7 @@ print(model.formulas(), model.to_sympy())
 ['exp(-0.5*(x0)^2)'] [exp(-x0**2/2)]
 ```
 
-Without `fitted_ops` the same data give `(x0 + (x0)^2)` and `log(x0)`, a
+With `fitted_ops=()` the same data give `(x0 + (x0)^2)` and `log(x0)`, a
 surrogate that scores well on this range and says nothing about the law.
 
 How the constants are chosen:

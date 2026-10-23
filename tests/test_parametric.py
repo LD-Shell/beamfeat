@@ -35,6 +35,7 @@ from beamfeat.expression import (
 )
 from beamfeat.parametric import SNAP_VALUES, FittedConstant, _simplify, fit_constants, fit_constants_many
 from beamfeat.scoring import CorrelationScorer
+from beamfeat.search import DEFAULT_FITTED
 
 FITTED = ("exp_scaled", "pow", "inv_shift", "log_shift")
 ESTIMATORS = [BeamFeatTransformer, BeamFeatRegressor, BeamFeatClassifier]
@@ -646,7 +647,7 @@ class TestSearch:
 class TestEstimators:
     @pytest.mark.parametrize("cls", ESTIMATORS)
     def test_parameter(self, cls):
-        assert cls().get_params()["fitted_ops"] == ()
+        assert cls().get_params()["fitted_ops"] == DEFAULT_FITTED == ("exp_scaled", "pow", "inv_shift", "log_shift")
         assert clone(cls(fitted_ops=("pow",))).fitted_ops == ("pow",)
 
     @pytest.mark.parametrize("cls", ESTIMATORS)

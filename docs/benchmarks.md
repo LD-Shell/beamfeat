@@ -10,6 +10,23 @@ under [Corrections since the paper](#corrections-since-the-paper).
 [Installation](installation.md#reproduce-the-benchmarks) describes the
 environment the comparisons need.
 
+Unless a result says otherwise, it was measured with constants inside
+expressions off (`fitted_ops=()`), the default before 0.6.0. The scripts build
+their estimators at the current defaults, so to reproduce an archived result,
+run the script through the options launcher with the old default:
+
+```bash
+BEAMFEAT_OPTIONS='{"fitted_ops": []}' \
+    python benchmarks/search_stress/with_options.py benchmarks/run_benchmarks.py
+```
+
+This reproduces the archived core-suite R² of every synthetic problem to
+within 1e-10. At the 0.6.0 defaults, the core suite recovers the same 10/10
+formulas, Friedman #1 rises from 0.745 to 0.766 and the other problems move
+by at most 0.0002; the robustness suite recovers the same 5/5, with R² lower
+by at most 0.004 (the distractors at 50% noise, 0.776 to 0.772); and the
+end-to-end calibration below is unchanged.
+
 ## High-dimensional data
 
 [`benchmarks/additional_experiments/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/additional_experiments)
@@ -107,8 +124,12 @@ under which assumptions.
   12 physics laws, 0.1% noise). 10/12 solved at the SRBench criterion, and
   the exact symbolic form on 8 of the 9 laws that have one, at 0.9 s per
   equation in the archived run, which predates the 0.5.0 search speed-up.
-  The misses are known limits of the search space: a depth-3 rational, a
-  literal constant, depth-4 nesting and the Gaussian's exponential.
+  The misses there are known limits of the search space: a depth-3 rational,
+  a literal constant, depth-4 nesting and the Gaussian's exponential. With
+  `fitted_ops`, on by default since 0.6.0, the last two are within reach:
+  the Gaussian comes out as `exp(-0.5*(x0)^2)` and relativistic velocity
+  addition as `(x0 + x1)/((x0*x1) + 1)`, the exact form on 10 of the 11 laws
+  that have one within the depth, still 10/12 solved, at 0.4 s per equation.
 - **Heavy-tailed noise** (Student t(2), infinite variance). The exact formula
   is recovered, at R² 0.956 against LightGBM's 0.866. The permutation test is
   distribution-free, so heavy tails do not affect its validity.

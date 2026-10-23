@@ -83,8 +83,9 @@ model.predict(X_new)
 - **A guarantee code can check.** `fdr_controlled_` says whether the
   features carry the guarantee, and `fdr_scope_` whether it covers the
   printed equation or the larger certified set the equation was drawn from.
-- **Fitted constants, opt in.** `fitted_ops` adds operators with one constant
-  fitted inside the expression, such as `exp(a*x)` and `1/(x + a)`.
+- **Fitted constants.** Expressions can carry one constant fitted inside
+  them, such as `exp(a*x)` and `1/(x + a)`, which recovers laws like
+  `exp(-x^2/2)` exactly. On by default; `fitted_ops=()` turns it off.
 - **Hidden building blocks, opt in.** `magnitude_slots` keeps a few beam
   places for parts whose size tracks the target's even when they do not
   correlate with it, such as `x0` and `x1` in `y = x0*x1` with centred

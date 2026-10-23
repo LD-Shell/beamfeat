@@ -1098,8 +1098,8 @@ print(
     ),
     markdown(
         """
-The physics is still in there — `(H / eta) * (Q * rho)` — but a junk term
-containing `noise_0` has been bolted onto it, and `fdr_controlled_` is still
+The physics is still in there — `(H / eta) * (Q * rho)` — but `noise_0`
+has been bolted onto it, and `fdr_controlled_` is still
 `True`. The R^2 is unchanged to four decimals. We searched four times as many
 candidates for an equation nobody can read.
 

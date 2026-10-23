@@ -8,8 +8,10 @@ Notable changes to `beamfeat`. Format follows
 
 Towards 0.5.1, and on branch `feature/0.6.0` towards 0.6.0, which builds on
 it: `beamfeat.__version__` is `0.5.1.dev0` or `0.6.0.dev0` until the release.
-The new options are off by default, and a fit that leaves them off gives
-the features, p-values and predictions of 0.5.0, to the last bit.
+The new options are off by default except `fitted_ops`, which 0.6.0 turns
+on (below). A fit with `fitted_ops=()` and the others left off gives the
+features, p-values and predictions of 0.5.0, to the last bit, except with
+`selector="knockoff"`.
 
 ### Added
 
@@ -53,10 +55,12 @@ the features, p-values and predictions of 0.5.0, to the last bit.
 
 ### Towards 0.6.0
 
-On branch `feature/0.6.0` only. No default changes: `certify_test` defaults
+On branch `feature/0.6.0` only. One default changes: the estimators fit
+constants inside expressions, `fitted_ops` (below). `certify_test` defaults
 to `"marginal"`, `magnitude_slots` to 0 and `input_test` to `False`, and a
-fit that leaves them there gives the results of 0.5.1 to the last bit,
-except with `selector="knockoff"`, whose fixed-X statistic is fixed (below).
+fit that leaves them there and passes `fitted_ops=()` gives the results of
+0.5.1 to the last bit, except with `selector="knockoff"`, whose fixed-X
+statistic is fixed (below).
 The re-test's figures below are from `benchmarks/parsimony_holdout/`:
 48,000 fits of a global null and of
 `y = a*b/c` plus noise among 5 or 20 distractors, with and without a column
@@ -195,6 +199,29 @@ as a rider such as `(a*b/c) * x7` does.
 
 #### Changed
 
+- **`fitted_ops` is on by default** in `BeamFeatTransformer`,
+  `BeamFeatRegressor` and `BeamFeatClassifier`: all four operators,
+  `DEFAULT_FITTED` in `beamfeat.search` (`BeamSearch` itself still defaults
+  to none). `fitted_ops=()` restores the previous default. It is a list of
+  its own: restricting `unary_ops` leaves it on, so `log(x + a)` can appear
+  unless `fitted_ops=()` too. Measured at the new default against
+  `fitted_ops=()`: the physics panel solves the same 10/12 and gives the
+  exact form of the Gaussian, `exp(-0.5*(x0)^2)`, and of relativistic
+  velocity addition, `(x0 + x1)/((x0*x1) + 1)`, which it previously
+  approximated; the core suite recovers the same 10/10, Friedman #1 rises
+  from 0.745 to 0.766 and the other problems move by at most 0.0002; the
+  robustness suite recovers the same 5/5 with R² lower by at most 0.004; the
+  end-to-end calibration gives no false discovery in 200 replicates (power
+  1.000) and no selection in 60 global-null replicates, as before; the
+  pure-noise pipeline stress is unchanged (BH 6/100, BY 1/100). On five
+  high-dimensional sets (communities, superconductivity, tecator, eyedata,
+  riboflavin; 3 splits) the mean R² is 0.668 against 0.670, within noise.
+  Fits take about 1.9 times as long on small data and 1.3 times on
+  california housing. The benchmark scripts build their estimators at the
+  defaults; `benchmarks/search_stress/with_options.py` with
+  `BEAMFEAT_OPTIONS='{"fitted_ops": []}'` reproduces the archived results,
+  and the Benchmarks page says which results predate the change. The
+  tutorials are re-executed at the new default.
 - `fitted_ops` fits are about twice as fast, with the same results to the
   last bit (the formulas, the screened candidates and the predictions of 18
   fits, five distractor sets, the physics panel and diabetes, are identical

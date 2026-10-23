@@ -104,6 +104,9 @@ EXACT_COPY_TOL = 1e-9
 
 DEFAULT_UNARY = ("log", "sqrt", "reciprocal", "square", "abs")
 DEFAULT_BINARY = ("mul", "div", "add", "sub")
+# The estimators' default fitted_ops: every registered parametric operator.
+# BeamSearch itself defaults to none.
+DEFAULT_FITTED = ("exp_scaled", "pow", "inv_shift", "log_shift")
 
 # Candidate values held per chunk when ``chunk_size`` is not given. Peak memory
 # while a depth is scored is a few times this per worker, however many

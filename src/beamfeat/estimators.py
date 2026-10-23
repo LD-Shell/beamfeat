@@ -38,7 +38,7 @@ from sklearn.utils.validation import check_is_fitted
 from beamfeat._compat import logistic_regression
 from beamfeat.expression import OPERATORS, Evaluator, Node, _sympy_symbols
 from beamfeat.scoring import Scorer, is_constant
-from beamfeat.search import DEFAULT_BINARY, DEFAULT_UNARY, BeamSearch, report
+from beamfeat.search import DEFAULT_BINARY, DEFAULT_FITTED, DEFAULT_UNARY, BeamSearch, report
 from beamfeat.selection import (  # noqa: F401
     Selector,
     _ConditionalPermutationSelector,
@@ -498,7 +498,7 @@ class _BeamFeatBase(BaseEstimator):
         verbose: int = 0,
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
-        fitted_ops: tuple[str, ...] = (),
+        fitted_ops: tuple[str, ...] = DEFAULT_FITTED,
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
         input_test: bool = False,
@@ -1796,8 +1796,9 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         fitted_ops: Parametric operators whose one constant is fitted
             inside the expression: ``"exp_scaled"`` (``exp(a*x)``),
             ``"pow"`` (``x^a``), ``"inv_shift"`` (``1/(x + a)``) and
-            ``"log_shift"`` (``log(x + a)``). Empty by default, which keeps
-            every expression free of constants and the fit unchanged. The
+            ``"log_shift"`` (``log(x + a)``). All four by default; ``()``
+            keeps every expression free of constants, as the default did
+            before 0.6.0, and fits about twice as fast on small data. The
             constants are fitted during the search, on the search rows only
             (see :class:`~beamfeat.search.BeamSearch`), so the screen on the
             selection rows sees fixed expressions and its guarantee is
@@ -1948,7 +1949,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         verbose: int = 0,
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
-        fitted_ops: tuple[str, ...] = (),
+        fitted_ops: tuple[str, ...] = DEFAULT_FITTED,
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
         input_test: bool = False,
@@ -2074,7 +2075,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         verbose: int = 0,
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
-        fitted_ops: tuple[str, ...] = (),
+        fitted_ops: tuple[str, ...] = DEFAULT_FITTED,
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
         input_test: bool = False,
@@ -2328,7 +2329,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         verbose: int = 0,
         n_jobs: int | None = 1,
         max_inputs: int | None = None,
-        fitted_ops: tuple[str, ...] = (),
+        fitted_ops: tuple[str, ...] = DEFAULT_FITTED,
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
         input_test: bool = False,
