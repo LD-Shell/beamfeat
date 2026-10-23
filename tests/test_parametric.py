@@ -33,7 +33,7 @@ from beamfeat.expression import (
     pole_margins,
     transform,
 )
-from beamfeat.parametric import SNAP_VALUES, FittedConstant, _simplify, fit_constants
+from beamfeat.parametric import SNAP_VALUES, FittedConstant, _simplify, fit_constants, fit_constants_many
 from beamfeat.scoring import CorrelationScorer
 
 FITTED = ("exp_scaled", "pow", "inv_shift", "log_shift")
@@ -341,6 +341,27 @@ class TestFitConstants:
         partners = np.column_stack([total, product])
         found = fit_constants(OPERATORS["inv_shift"], product, _standardised(y), partners)
         assert FittedConstant(1.0, 0) in found
+
+    @pytest.mark.parametrize("op", FITTED)
+    def test_many_at_once_match_one_at_a_time(self, rng, op):
+        # Operands of different shapes and scales, with and without partners:
+        # fitting them together gives each exactly its own result.
+        X = rng.uniform(0.2, 3.0, (300, 4))
+        operands = np.column_stack([X[:, 0], X[:, 0] * X[:, 1], 5.0 * X[:, 2], X[:, 3] - 0.1, X[:, 1]])
+        signal = np.exp(-0.6 * X[:, 0]) * X[:, 1] + 1.0 / (X[:, 2] + 0.5) + 3.0 * np.log(X[:, 3] + 0.3)
+        y = _standardised(signal + rng.normal(0, 0.02, 300))
+        partners = X[:, :2]
+        with_partners = [True, False, True, True, False]
+        together = fit_constants_many(OPERATORS[op], operands, y, partners, with_partners)
+        alone = [
+            fit_constants(OPERATORS[op], operands[:, j], y, partners if with_partners[j] else None)
+            for j in range(operands.shape[1])
+        ]
+        assert together == alone
+        assert any(together)
+
+    def test_many_with_no_operands(self):
+        assert fit_constants_many(OPERATORS["pow"], np.empty((20, 0)), np.zeros(20)) == []
 
     def test_plain_operator_rejected(self, rng):
         with pytest.raises(ValueError, match="no constant"):
