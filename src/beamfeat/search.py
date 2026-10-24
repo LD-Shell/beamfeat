@@ -255,6 +255,34 @@ class SearchResult:
         return f"SearchResult(n_features={len(self.nodes)}, elapsed={self.elapsed:.2f}s)"
 
 
+@dataclass
+class _SearchState:
+    """What a search carries from one depth to the next.
+
+    ``beam`` is the current depth's kept candidates, with their values and,
+    at depth 0, their scores; ``pool`` everything a proposal may pair with;
+    ``selected`` every candidate kept at any depth, with its values and
+    scores; ``seen`` every candidate proposed so far; ``waiting`` the fitted
+    candidates held for the round of their depth; ``extra_parents`` the
+    parents beyond the beam that the next round fits on.
+    """
+
+    beam: list[Node]
+    beam_values: np.ndarray
+    beam_scores: np.ndarray
+    pool: list[Node]
+    selected: list[Node]
+    selected_values: np.ndarray
+    selected_scores: list[float]
+    seen: set[Node]
+    waiting: dict[int, list[Node]]
+    extra_parents: list[Node]
+    extra_values: np.ndarray
+    trace: list[SearchTrace]
+    n_proposed_total: int
+    n_evaluated_total: int
+
+
 class BeamSearch:
     """Guided beam search for feature construction.
 
@@ -1099,6 +1127,48 @@ class BeamSearch:
         # the scorer; see beamfeat.parametric.
         fit_target = CorrelationScorer(self.problem_type).prepare(target) if self.fitted_ops else None
 
+        state = self._depth_zero(evaluator, scorer, target, started)
+        for depth in range(1, self.max_depth + 1):
+            if not self._run_depth(depth, state, evaluator, scorer, target, absolute, fit_target):
+                break
+
+        # Final ranking across every depth, with one more redundancy pass so
+        # that features admitted at different depths are also deduplicated.
+        #
+        # Scores accumulated during the search are partly marginal: each was
+        # measured against whatever incumbent set existed when its depth was
+        # reached. They are therefore not comparable across depths, and using
+        # them here would let an early weak feature block a later stronger one
+        # that correlates with it. Rescore everything against the raw target on
+        # a common footing before deduplicating.
+        final_scores = (
+            scorer.score_batch(state.selected_values, target, None)
+            if state.selected_values.shape[1]
+            else np.asarray(state.selected_scores, dtype=np.float64)
+        )
+        result = self._finalise(
+            state.selected, state.selected_values, final_scores, evaluator, state.trace, started, fit_target
+        )
+        result.n_proposed_total = state.n_proposed_total
+        result.n_evaluated_total = state.n_evaluated_total
+        self.result_ = result
+        self._profiles.clear()
+        depth_reached = state.trace[-1].depth
+        report(
+            self.verbose,
+            1,
+            f"search: depth {depth_reached}"
+            + (f" of {self.max_depth}" if depth_reached < self.max_depth else "")
+            + f", beam {self.beam_width} -> "
+            f"{state.n_proposed_total} proposed, {len(result.nodes)} candidates "
+            f"({result.elapsed:.2f}s)",
+        )
+        return result
+
+    def _depth_zero(
+        self, evaluator: Evaluator, scorer: Scorer, target: np.ndarray, started: float
+    ) -> _SearchState:
+        """Score the input columns, the beam of depth 0, and start the search's state."""
         # Depth 0: the input columns themselves.
         leaf_nodes = evaluator.leaf_nodes()
         beam, beam_values = evaluator.evaluate_many(leaf_nodes)
@@ -1141,190 +1211,221 @@ class BeamSearch:
             f"  depth 0: {len(beam)} input columns, best score "
             f"{float(np.max(beam_scores)) if len(beam_scores) else 0.0:.4f}",
         )
-
-        for depth in range(1, self.max_depth + 1):
-            depth_started = time.perf_counter()
-
-            # Later beams come out of _prune_redundant in score order, but the
-            # leaves are in column order, so a ceiling that binds at depth 1
-            # would cut the last columns of the table rather than the weakest.
-            # Proposal order also decides between exact ties such as (a - b)
-            # and (b - a), so a round the ceiling does not reach keeps column
-            # order and only a truncated one is proposed in score order. Both
-            # orders propose the same set, so whether the ceiling binds does
-            # not depend on which is tried first; the score order is tried
-            # first when the ceiling can bind, which it usually then does.
-            if depth == 1 and self._can_reach_ceiling(beam):
-                ranked = [beam[i] for i in _rank(beam, beam_scores)]
-                if self.magnitude_slots:
-                    ranked = self._weave(ranked, beam, beam_values, beam_scores, target)
-                candidates, n_unit_rejected, n_constrained = self._propose(ranked, ranked, seen)
-                if len(candidates) < self.max_candidates_per_depth:
-                    seen.difference_update(candidates)
-                    candidates, n_unit_rejected, n_constrained = self._propose(beam, pool, seen)
-            else:
-                candidates, n_unit_rejected, n_constrained = self._propose(beam, pool, seen)
-            n_fitted = 0
-            if self.fitted_ops:
-                if depth == 1:
-                    order = _rank(beam, beam_scores)[: self.beam_width]
-                    parents, parent_values = [beam[i] for i in order], beam_values[:, order]
-                else:
-                    parents = beam + extra_parents
-                    parent_values = np.column_stack([beam_values, extra_values]) if extra_parents else beam_values
-                fitted, n_fit_unit_rejected = self._fit(
-                    parents, parent_values, fit_target, seen, n_partners=len(beam) if depth > 1 else None
-                )
-                n_unit_rejected += n_fit_unit_rejected
-                allowed = [node for node in fitted if self._allowed(node)]
-                n_constrained += len(fitted) - len(allowed)
-                fitted = allowed
-                # A fitted node joins the round of its own depth: a product
-                # with a partner is a level above this one, and waits for it.
-                for node in fitted:
-                    waiting.setdefault(max(node.depth, depth), []).append(node)
-                arrived = waiting.pop(depth, [])
-                candidates = candidates + arrived
-                n_fitted = len(arrived)
-            n_proposed_total += len(candidates)
-            if not candidates:
-                report(self.verbose, 2, f"  depth {depth}: no new candidates; stopping")
-                break
-
-            # Rank on the larger of the marginal and absolute scores.
-            #
-            # Marginal scoring alone is subtly wrong for survival decisions: a
-            # candidate that *refines* an incumbent scores near zero against
-            # the residual precisely because the incumbent is a crude version
-            # of it. With log(a) as the true signal and `a` already selected,
-            # log(a) scores ~0.22 marginally against ~1.00 absolutely, and
-            # would be pruned in favour of noise that happens to be orthogonal.
-            #
-            # Absolute scoring alone has the opposite failure: the beam fills
-            # with restatements of whatever dominates the target. Taking the
-            # larger keeps refinements alive while still rewarding novelty,
-            # and the redundancy pass below removes near-duplicates within
-            # this depth; restatements of earlier depths are left to the
-            # final ranking.
-            incumbent = selected_values if selected_values.shape[1] else None
-            # The slots keep parts for the next depth to build on; the last
-            # depth has none. A target whose magnitude does not vary, such as
-            # one of two values either side of its mean, gives them nothing.
-            magnitude = None
-            if self.magnitude_slots and depth < self.max_depth:
-                references = self._magnitude_references(target, incumbent, selected_scores)
-                if references:
-                    magnitude = (references, _magnitude_rows(evaluator.n_rows))
-            evaluated, scores, values, magnitudes = self._score_round(
-                evaluator, candidates, scorer, target, absolute, incumbent, magnitude
-            )
-            n_numeric_rejected = len(candidates) - len(evaluated)
-            n_evaluated_total += len(evaluated)
-            if not evaluated:
-                report(self.verbose, 2, f"  depth {depth}: nothing survived evaluation; stopping")
-                break
-
-            if values is None:
-                beam, beam_values, kept_scores, n_redundant = self._prune_evaluated(
-                    evaluated, scores, self.beam_width, evaluator, shield=bool(self.fitted_ops)
-                )
-            else:
-                beam, beam_values, kept_scores, n_redundant = self._prune_redundant(
-                    evaluated, values, scores, self.beam_width, shield=bool(self.fitted_ops)
-                )
-            del values
-            n_magnitude = 0
-            if magnitudes is not None and beam:
-                reserved, reserved_values, reserved_scores = self._reserve(
-                    evaluated, scores, magnitudes, beam, beam_values, evaluator
-                )
-                if reserved:
-                    n_magnitude = len(reserved)
-                    beam = beam + reserved
-                    beam_values = np.column_stack([beam_values, reserved_values])
-                    kept_scores = np.concatenate([kept_scores, reserved_scores])
-            if not beam:
-                report(self.verbose, 2, f"  depth {depth}: beam collapsed after redundancy pruning; stopping")
-                break
-            if self.fitted_ops and depth < self.max_depth:
-                extra_parents, extra_values = self._extra_parents(evaluated, scores, beam, evaluator)
-
-            selected.extend(beam)
-            selected_scores.extend(float(s) for s in kept_scores)
-            selected_values = (
-                beam_values if selected_values.shape[1] == 0 else np.column_stack([selected_values, beam_values])
-            )
-
-            pool = pool + beam
-
-            trace.append(
-                SearchTrace(
-                    depth=depth,
-                    n_proposed=len(candidates),
-                    n_evaluated=len(evaluated),
-                    n_rejected_units=n_unit_rejected,
-                    n_rejected_numeric=n_numeric_rejected,
-                    n_rejected_redundant=n_redundant,
-                    n_kept=len(beam),
-                    best_score=float(np.max(kept_scores)),
-                    elapsed=time.perf_counter() - depth_started,
-                    n_rejected_constraints=n_constrained,
-                    n_fitted=n_fitted,
-                    n_magnitude=n_magnitude,
-                )
-            )
-            dropped = []
-            if n_unit_rejected:
-                dropped.append(f"{n_unit_rejected} unit")
-            if n_constrained:
-                dropped.append(f"{n_constrained} constraint")
-            if n_numeric_rejected:
-                dropped.append(f"{n_numeric_rejected} numeric")
-            if n_redundant:
-                dropped.append(f"{n_redundant} near-duplicate")
-            report(
-                self.verbose,
-                2,
-                f"  depth {depth}: {len(candidates)} proposed"
-                + (f" ({n_fitted} with a fitted constant)" if n_fitted else "")
-                + f" -> {len(evaluated)} evaluated"
-                f" -> {len(beam)} kept by beam"
-                + (f" ({n_magnitude} by magnitude)" if n_magnitude else "")
-                + (f" ({', '.join(dropped)} rejected)" if dropped else "")
-                + f", best {float(np.max(kept_scores)):.4f}"
-                f", {time.perf_counter() - depth_started:.2f}s",
-            )
-
-        # Final ranking across every depth, with one more redundancy pass so
-        # that features admitted at different depths are also deduplicated.
-        #
-        # Scores accumulated during the search are partly marginal: each was
-        # measured against whatever incumbent set existed when its depth was
-        # reached. They are therefore not comparable across depths, and using
-        # them here would let an early weak feature block a later stronger one
-        # that correlates with it. Rescore everything against the raw target on
-        # a common footing before deduplicating.
-        final_scores = (
-            scorer.score_batch(selected_values, target, None)
-            if selected_values.shape[1]
-            else np.asarray(selected_scores, dtype=np.float64)
+        return _SearchState(
+            beam=beam,
+            beam_values=beam_values,
+            beam_scores=beam_scores,
+            pool=pool,
+            selected=selected,
+            selected_values=selected_values,
+            selected_scores=selected_scores,
+            seen=seen,
+            waiting=waiting,
+            extra_parents=extra_parents,
+            extra_values=extra_values,
+            trace=trace,
+            n_proposed_total=n_proposed_total,
+            n_evaluated_total=n_evaluated_total,
         )
-        result = self._finalise(selected, selected_values, final_scores, evaluator, trace, started, fit_target)
-        result.n_proposed_total = n_proposed_total
-        result.n_evaluated_total = n_evaluated_total
-        self.result_ = result
-        self._profiles.clear()
-        depth_reached = trace[-1].depth
+
+    def _run_depth(
+        self,
+        depth: int,
+        state: _SearchState,
+        evaluator: Evaluator,
+        scorer: Scorer,
+        target: np.ndarray,
+        absolute: np.ndarray | None,
+        fit_target: np.ndarray | None,
+    ) -> bool:
+        """One depth of the search: propose, score, keep a beam, and record it.
+
+        Updates ``state``; returns ``False`` when the search should stop
+        here: no new candidate, none that survives evaluation, or an empty
+        beam.
+        """
+        depth_started = time.perf_counter()
+
+        candidates, n_unit_rejected, n_constrained, n_fitted = self._depth_candidates(
+            depth, state, target, fit_target
+        )
+        state.n_proposed_total += len(candidates)
+        if not candidates:
+            report(self.verbose, 2, f"  depth {depth}: no new candidates; stopping")
+            return False
+
+        # Rank on the larger of the marginal and absolute scores.
+        #
+        # Marginal scoring alone is subtly wrong for survival decisions: a
+        # candidate that *refines* an incumbent scores near zero against
+        # the residual precisely because the incumbent is a crude version
+        # of it. With log(a) as the true signal and `a` already selected,
+        # log(a) scores ~0.22 marginally against ~1.00 absolutely, and
+        # would be pruned in favour of noise that happens to be orthogonal.
+        #
+        # Absolute scoring alone has the opposite failure: the beam fills
+        # with restatements of whatever dominates the target. Taking the
+        # larger keeps refinements alive while still rewarding novelty,
+        # and the redundancy pass below removes near-duplicates within
+        # this depth; restatements of earlier depths are left to the
+        # final ranking.
+        incumbent = state.selected_values if state.selected_values.shape[1] else None
+        # The slots keep parts for the next depth to build on; the last
+        # depth has none. A target whose magnitude does not vary, such as
+        # one of two values either side of its mean, gives them nothing.
+        magnitude = None
+        if self.magnitude_slots and depth < self.max_depth:
+            references = self._magnitude_references(target, incumbent, state.selected_scores)
+            if references:
+                magnitude = (references, _magnitude_rows(evaluator.n_rows))
+        evaluated, scores, values, magnitudes = self._score_round(
+            evaluator, candidates, scorer, target, absolute, incumbent, magnitude
+        )
+        n_numeric_rejected = len(candidates) - len(evaluated)
+        state.n_evaluated_total += len(evaluated)
+        if not evaluated:
+            report(self.verbose, 2, f"  depth {depth}: nothing survived evaluation; stopping")
+            return False
+
+        if values is None:
+            state.beam, state.beam_values, kept_scores, n_redundant = self._prune_evaluated(
+                evaluated, scores, self.beam_width, evaluator, shield=bool(self.fitted_ops)
+            )
+        else:
+            state.beam, state.beam_values, kept_scores, n_redundant = self._prune_redundant(
+                evaluated, values, scores, self.beam_width, shield=bool(self.fitted_ops)
+            )
+        del values
+        n_magnitude = 0
+        if magnitudes is not None and state.beam:
+            reserved, reserved_values, reserved_scores = self._reserve(
+                evaluated, scores, magnitudes, state.beam, state.beam_values, evaluator
+            )
+            if reserved:
+                n_magnitude = len(reserved)
+                state.beam = state.beam + reserved
+                state.beam_values = np.column_stack([state.beam_values, reserved_values])
+                kept_scores = np.concatenate([kept_scores, reserved_scores])
+        if not state.beam:
+            report(self.verbose, 2, f"  depth {depth}: beam collapsed after redundancy pruning; stopping")
+            return False
+        if self.fitted_ops and depth < self.max_depth:
+            state.extra_parents, state.extra_values = self._extra_parents(
+                evaluated, scores, state.beam, evaluator
+            )
+
+        state.selected.extend(state.beam)
+        state.selected_scores.extend(float(s) for s in kept_scores)
+        state.selected_values = (
+            state.beam_values
+            if state.selected_values.shape[1] == 0
+            else np.column_stack([state.selected_values, state.beam_values])
+        )
+
+        state.pool = state.pool + state.beam
+
+        state.trace.append(
+            SearchTrace(
+                depth=depth,
+                n_proposed=len(candidates),
+                n_evaluated=len(evaluated),
+                n_rejected_units=n_unit_rejected,
+                n_rejected_numeric=n_numeric_rejected,
+                n_rejected_redundant=n_redundant,
+                n_kept=len(state.beam),
+                best_score=float(np.max(kept_scores)),
+                elapsed=time.perf_counter() - depth_started,
+                n_rejected_constraints=n_constrained,
+                n_fitted=n_fitted,
+                n_magnitude=n_magnitude,
+            )
+        )
+        self._report_depth(state.trace[-1], depth_started)
+        return True
+
+    def _depth_candidates(
+        self, depth: int, state: _SearchState, target: np.ndarray, fit_target: np.ndarray | None
+    ) -> tuple[list[Node], int, int, int]:
+        """The candidates of one depth: proposed from the beam, and fitted when ``fitted_ops`` is set.
+
+        Returns them with the number rejected for their units, the number
+        rejected by ``max_inputs``, and the number carrying a constant
+        fitted at this depth.
+        """
+        # Later beams come out of _prune_redundant in score order, but the
+        # leaves are in column order, so a ceiling that binds at depth 1
+        # would cut the last columns of the table rather than the weakest.
+        # Proposal order also decides between exact ties such as (a - b)
+        # and (b - a), so a round the ceiling does not reach keeps column
+        # order and only a truncated one is proposed in score order. Both
+        # orders propose the same set, so whether the ceiling binds does
+        # not depend on which is tried first; the score order is tried
+        # first when the ceiling can bind, which it usually then does.
+        if depth == 1 and self._can_reach_ceiling(state.beam):
+            ranked = [state.beam[i] for i in _rank(state.beam, state.beam_scores)]
+            if self.magnitude_slots:
+                ranked = self._weave(ranked, state.beam, state.beam_values, state.beam_scores, target)
+            candidates, n_unit_rejected, n_constrained = self._propose(ranked, ranked, state.seen)
+            if len(candidates) < self.max_candidates_per_depth:
+                state.seen.difference_update(candidates)
+                candidates, n_unit_rejected, n_constrained = self._propose(state.beam, state.pool, state.seen)
+        else:
+            candidates, n_unit_rejected, n_constrained = self._propose(state.beam, state.pool, state.seen)
+        n_fitted = 0
+        if self.fitted_ops:
+            if depth == 1:
+                order = _rank(state.beam, state.beam_scores)[: self.beam_width]
+                parents, parent_values = [state.beam[i] for i in order], state.beam_values[:, order]
+            else:
+                parents = state.beam + state.extra_parents
+                parent_values = (
+                    np.column_stack([state.beam_values, state.extra_values])
+                    if state.extra_parents
+                    else state.beam_values
+                )
+            fitted, n_fit_unit_rejected = self._fit(
+                parents,
+                parent_values,
+                fit_target,
+                state.seen,
+                n_partners=len(state.beam) if depth > 1 else None,
+            )
+            n_unit_rejected += n_fit_unit_rejected
+            allowed = [node for node in fitted if self._allowed(node)]
+            n_constrained += len(fitted) - len(allowed)
+            fitted = allowed
+            # A fitted node joins the round of its own depth: a product
+            # with a partner is a level above this one, and waits for it.
+            for node in fitted:
+                state.waiting.setdefault(max(node.depth, depth), []).append(node)
+            arrived = state.waiting.pop(depth, [])
+            candidates = candidates + arrived
+            n_fitted = len(arrived)
+        return candidates, n_unit_rejected, n_constrained, n_fitted
+
+    def _report_depth(self, entry: SearchTrace, depth_started: float) -> None:
+        """The verbose report of one depth, from its trace record."""
+        dropped = []
+        if entry.n_rejected_units:
+            dropped.append(f"{entry.n_rejected_units} unit")
+        if entry.n_rejected_constraints:
+            dropped.append(f"{entry.n_rejected_constraints} constraint")
+        if entry.n_rejected_numeric:
+            dropped.append(f"{entry.n_rejected_numeric} numeric")
+        if entry.n_rejected_redundant:
+            dropped.append(f"{entry.n_rejected_redundant} near-duplicate")
         report(
             self.verbose,
-            1,
-            f"search: depth {depth_reached}"
-            + (f" of {self.max_depth}" if depth_reached < self.max_depth else "")
-            + f", beam {self.beam_width} -> "
-            f"{n_proposed_total} proposed, {len(result.nodes)} candidates "
-            f"({result.elapsed:.2f}s)",
+            2,
+            f"  depth {entry.depth}: {entry.n_proposed} proposed"
+            + (f" ({entry.n_fitted} with a fitted constant)" if entry.n_fitted else "")
+            + f" -> {entry.n_evaluated} evaluated"
+            f" -> {entry.n_kept} kept by beam"
+            + (f" ({entry.n_magnitude} by magnitude)" if entry.n_magnitude else "")
+            + (f" ({', '.join(dropped)} rejected)" if dropped else "")
+            + f", best {entry.best_score:.4f}"
+            f", {time.perf_counter() - depth_started:.2f}s",
         )
-        return result
 
     def _finalise(
         self,
