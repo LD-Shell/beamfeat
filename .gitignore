@@ -7,6 +7,9 @@ benchmarks/additional_experiments/data/ujiindoorloc.csv
 # Benchmark scratch and fetched data
 benchmarks/data/
 benchmarks/independent/results_fresh_run/
+benchmarks/release_comparison/venvs/
+benchmarks/release_comparison/logs/
+benchmarks/release_comparison/results/rescore/
 build/
 # Byte-compiled / cache
 .cache/

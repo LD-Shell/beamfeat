@@ -1,0 +1,352 @@
+[
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.4.2",
+  "config": "default",
+  "score": 0.6643750663717427,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.5.0",
+  "config": "default",
+  "score": 0.6643750663717427,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.6.0",
+  "config": "bh",
+  "score": 0.6676111333306614,
+  "own_undefined": 1,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.6.0",
+  "config": "conditional_retest",
+  "score": 0.6708728980619012,
+  "own_undefined": 1,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.6.0",
+  "config": "default",
+  "score": 0.6676111333306614,
+  "own_undefined": 1,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.6.0",
+  "config": "input_test",
+  "score": 0.6676111333306614,
+  "own_undefined": 1,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.6.0",
+  "config": "magnitude_slots",
+  "score": 0.661290372492596,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.6.0",
+  "config": "no_fitted_ops",
+  "score": 0.6643750663717427,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.6.1",
+  "config": "alpha_input_test",
+  "score": 0.6699133826941256,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.6.1",
+  "config": "default",
+  "score": 0.6676111333306614,
+  "own_undefined": 1,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.6.1",
+  "config": "input_test",
+  "score": 0.6676111333306614,
+  "own_undefined": 1,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.6.1",
+  "config": "parsimony_alpha",
+  "score": 0.6699133826941256,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.4.2",
+  "config": "default",
+  "score": 0.6655855959963353,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.5.0",
+  "config": "default",
+  "score": 0.6781960765070905,
+  "own_undefined": 2,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.6.0",
+  "config": "bh",
+  "score": 0.6826367769786809,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.6.0",
+  "config": "conditional_retest",
+  "score": 0.675560110972534,
+  "own_undefined": 2,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.6.0",
+  "config": "default",
+  "score": 0.6826367769786809,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.6.0",
+  "config": "input_test",
+  "score": 0.6823409559506788,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.6.0",
+  "config": "magnitude_slots",
+  "score": 0.6841108108622483,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.6.0",
+  "config": "no_fitted_ops",
+  "score": 0.6781960765070905,
+  "own_undefined": 2,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.6.1",
+  "config": "alpha_input_test",
+  "score": 0.6571343460655158,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.6.1",
+  "config": "default",
+  "score": 0.6826367769786809,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.6.1",
+  "config": "input_test",
+  "score": 0.6823409559506788,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.6.1",
+  "config": "parsimony_alpha",
+  "score": 0.6571343460655158,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.4.2",
+  "config": "default",
+  "score": 0.6513469846489025,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.5.0",
+  "config": "default",
+  "score": 0.6956170196784834,
+  "own_undefined": 1,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.6.0",
+  "config": "bh",
+  "score": 0.6922632910748368,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.6.0",
+  "config": "conditional_retest",
+  "score": 0.6875063890508181,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.6.0",
+  "config": "default",
+  "score": 0.6922632910748368,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.6.0",
+  "config": "magnitude_slots",
+  "score": 0.692879799451334,
+  "own_undefined": 1,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.6.0",
+  "config": "no_fitted_ops",
+  "score": 0.6956170196784834,
+  "own_undefined": 1,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.6.1",
+  "config": "alpha_input_test",
+  "score": 0.6929744602337602,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.6.1",
+  "config": "default",
+  "score": 0.6922632910748368,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.6.1",
+  "config": "input_test",
+  "score": 0.6929744602337602,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.6.1",
+  "config": "parsimony_alpha",
+  "score": 0.6922632910748368,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ }
+]
