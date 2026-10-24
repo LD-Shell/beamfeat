@@ -157,7 +157,7 @@ every release. [`CITATION.cff`](https://github.com/LD-Shell/beamfeat/blob/main/C
 has the same details in machine-readable form.
 
 Later releases correct two of the paper's results, detailed on the
-[Benchmarks](https://ld-shell.github.io/beamfeat/benchmarks/#corrections-since-the-paper)
+[Benchmarks](https://ld-shell.github.io/beamfeat/benchmarks/#reading-the-paper-today)
 page: a harness bug understated featuretools, and fixing a search bug takes
 the datasets where beamfeat leads both tree ensembles from five to four.
 

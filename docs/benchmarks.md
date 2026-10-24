@@ -4,9 +4,10 @@ The results on this page come from scripts in the repository and their
 archived runs, from the paper (TMLR 2026, which describes release 0.4.2), or
 from the [changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md).
 Results with a random component carry Monte Carlo error from a finite number
-of trials, so read them at the precision given. Two bugs fixed since the paper
-change some of its results; they are marked where they apply and described
-under [Corrections since the paper](#corrections-since-the-paper).
+of trials, so read them at the precision given. Some of the paper's results
+have moved since: two bugs fixed in 0.5.0 change a few, and some figures come
+from runs made under an earlier release. They are marked where they apply and
+described under [Reading the paper today](#reading-the-paper-today).
 [Installation](installation.md#reproduce-the-benchmarks) describes the
 environment the comparisons need.
 
@@ -219,7 +220,7 @@ beamfeat ran at about 60 times autofeat's speed, and `fdr_controlled_` was
 true on 45 of 45 fits. The featuretools figures come from a harness that
 filled its non-finite test cells with 0; with the training medians, as the
 harness now fills them, they read 0.461 and −12.882 (see
-[Corrections since the paper](#corrections-since-the-paper)).
+[Reading the paper today](#reading-the-paper-today)).
 
 [`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md)
 records what reproduces and what does not. beamfeat's selections reproduce
@@ -271,12 +272,17 @@ also measures each option against its release's default.
 965 tests at 97% statement coverage, with a 90% floor enforced in CI,
 including scikit-learn's full estimator-conformance checks.
 
-## Corrections since the paper
+<a id="corrections-since-the-paper"></a>
+
+## Reading the paper today
 
 The paper describes release 0.4.2, archived with its run records at
-[10.5281/zenodo.23417132](https://doi.org/10.5281/zenodo.23417132). Two bugs,
-fixed in 0.5.0, change results it reports. The archived records are kept as
-they were run.
+[10.5281/zenodo.23417132](https://doi.org/10.5281/zenodo.23417132). Some of
+its numbers differ from what current releases give, for three reasons: two
+bugs, figures from runs made under an earlier release, and speed. The
+archived records are kept as they were run.
+
+### Two bugs, fixed in 0.5.0
 
 - **Comparison harness.** The harness filled non-finite test cells of the
   constructed features with 0, while the training cells got the training
@@ -300,20 +306,38 @@ they were run.
   first in the file. beamfeat now leads both tree ensembles on four of the
   nine datasets rather than five.
 
-One more figure comes from an archive made with an earlier release, as the
-riboflavin one does. The paper quotes beamfeat's held-out R² on
-threshold_step as 0.808, from `run_benchmarks.py`'s robustness results,
-which were regenerated under 0.3.0. With the script's own settings, 0.4.2
-gives 0.843. It reproduces the script's other 19 datasets and the Feynman
-panel exactly, and the five other robustness datasets to within 0.003 with
-the same number of terms
-([release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/PROVENANCE.md#against-the-papers-numbers)).
-That check cannot tell whether the release or the software environment
-causes the difference.
+### Figures from runs made under an earlier release
 
-Later releases are also faster, so the paper's timings and memory figures
+These are not bugs. The method is the one the paper describes, but the
+release that produced the figure is not the one it names, and the figures
+move little:
+
+- **riboflavin**, in the high-dimensional study, as noted under the search
+  bug above.
+- **The independent comparison.** Its archived run predates 0.3.0, when the
+  internal ridge penalty was fixed at `alpha=1`. Rerun with 0.4.2,
+  `beamfeat_ridge` matches 37 of the 45 archived fits to four decimals, with a
+  mean of 0.8034 against 0.8033
+  ([`PROVENANCE.md`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md#what-reproduces)).
+- **threshold_step**, in `run_benchmarks.py`'s robustness results, which
+  were regenerated under 0.3.0. The paper quotes beamfeat's held-out R² there
+  as 0.808, and 0.4.2 with the script's own settings gives 0.843. It
+  reproduces the script's other 19 datasets and the Feynman panel exactly,
+  and the five other robustness datasets to within 0.003 with the same number
+  of terms
+  ([release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/PROVENANCE.md#against-the-papers-numbers)).
+  That check cannot tell whether the release or the software environment
+  causes the difference.
+
+### Speed and memory
+
+Later releases are faster, so the paper's timings and memory figures
 describe 0.4.2. 0.5.0 runs the high-dimensional study 2 to 28 times faster per
 dataset without changing any feature, p-value or prediction, and a default
 fit on 1000 columns and 600 rows that peaked at 2.6 GB of memory now peaks at
-0.35 GB. The [changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md)
+0.35 GB. Over the eight timing items of the
+[release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md),
+0.5.0 fits 3.2 times faster than 0.4.2 with a fifth of its memory, and 0.6.0
+and 0.6.1 take 1.5 times 0.5.0's time. The
+[changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md)
 lists every change.

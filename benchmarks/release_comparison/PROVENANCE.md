@@ -130,8 +130,8 @@ script's own settings:
   datasets. The 6 robustness datasets print the same number of terms. Five
   are within 0.003 of R², and threshold_step is 0.843 against the archived
   0.808, the figure the paper quotes. That archive was regenerated under
-  0.3.0, as the archived riboflavin run was (docs, Benchmarks, Corrections
-  since the paper). This run cannot tell whether the release or the software
+  0.3.0, as the archived riboflavin run was (docs, Benchmarks, Reading the
+  paper today). This run cannot tell whether the release or the software
   environment causes the difference.
 
 ## What a rerun reproduces
