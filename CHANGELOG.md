@@ -4,9 +4,8 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.6.0] - 2026-10-24
 
-Towards 0.6.0: `beamfeat.__version__` is `0.6.0.dev0` until the release.
 0.5.1 was prepared but not released; its options are part of this release
 and listed under "Added". One default changes: the estimators fit constants
 inside expressions, `fitted_ops` (under "Changed"). The other new options
