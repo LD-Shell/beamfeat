@@ -341,6 +341,66 @@ def _project_out(basis: np.ndarray, values: np.ndarray) -> np.ndarray:
     return values
 
 
+def _forward_basis(matrix: np.ndarray, chosen: list[int]) -> np.ndarray:
+    """Orthonormal basis of the intercept and the columns ``chosen``.
+
+    A column within rounding of the span of those before it adds no
+    direction.
+    """
+    n_rows = matrix.shape[0]
+    basis = np.full((n_rows, 1), 1.0 / np.sqrt(n_rows))
+    for index in chosen:
+        column = matrix[:, index]
+        reduced = _project_out(basis, column)
+        norm = float(np.linalg.norm(reduced))
+        if norm > 1e-10 * float(np.linalg.norm(column - column.mean())):
+            basis = np.column_stack([basis, reduced / norm])
+    return basis
+
+
+# Noise draws behind each forward step's chance check (``parsimony_alpha``).
+_CHANCE_DRAWS = 200
+
+
+def _chance_p_value(
+    matrix: np.ndarray,
+    numeric: np.ndarray,
+    chosen: list[int],
+    remaining: list[int],
+    rng: np.random.Generator,
+) -> float:
+    """P-value of the best gain the next forward step can add, against noise.
+
+    The R^2 a remaining column adds is the share of variance left times the
+    squared correlation of the current residual with the column net of the
+    columns ``chosen``; the statistic is the largest of those correlations.
+    Its null distribution is the same maximum over the same columns for
+    wild-bootstrap draws of the residual (each row's residual times an
+    independent standard normal), net of the chosen columns: the draws keep
+    the residual's scale row by row and the correlation among the columns,
+    and are associated with none of them. This is the best fit the remaining
+    columns reach against noise, the multiplier bootstrap of Fan & Zhou
+    (2016, *JMLR* 17). The p-value is the share of draws at least as large, counting
+    the observed one among them.
+    """
+    basis = _forward_basis(matrix, chosen)
+    residual = _project_out(basis, numeric)
+    columns = matrix[:, remaining]
+    reduced = _project_out(basis, columns)
+    norms = np.linalg.norm(reduced, axis=0)
+    live = norms > 1e-10 * np.linalg.norm(columns - columns.mean(axis=0), axis=0)
+    left = float(np.linalg.norm(residual))
+    if not live.any() or left <= 1e-12 * float(np.linalg.norm(numeric - numeric.mean())):
+        return 1.0
+    directions = reduced[:, live] / norms[live]
+    draws = residual[:, None] * rng.standard_normal((residual.size, _CHANCE_DRAWS))
+    draws = _project_out(basis, draws)
+    draws /= np.where(np.linalg.norm(draws, axis=0) > 0.0, np.linalg.norm(draws, axis=0), 1.0)
+    observed = float(np.max((directions.T @ residual / left) ** 2))
+    null = np.max((directions.T @ draws) ** 2, axis=0)
+    return float((1 + np.sum(null >= observed)) / (1 + _CHANCE_DRAWS))
+
+
 def _extend_forward_path(
     matrix: np.ndarray,
     numeric: np.ndarray,
@@ -365,14 +425,7 @@ def _extend_forward_path(
     Returns the order in which ``remaining`` is added and the R^2 after
     each addition.
     """
-    n_rows = matrix.shape[0]
-    basis = np.full((n_rows, 1), 1.0 / np.sqrt(n_rows))
-    for index in chosen:
-        column = matrix[:, index]
-        reduced = _project_out(basis, column)
-        norm = float(np.linalg.norm(reduced))
-        if norm > 1e-10 * float(np.linalg.norm(column - column.mean())):
-            basis = np.column_stack([basis, reduced / norm])
+    basis = _forward_basis(matrix, chosen)
     residual = _project_out(basis, numeric)
 
     remaining = list(remaining)
@@ -506,6 +559,7 @@ class _BeamFeatBase(BaseEstimator):
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
         input_test: bool = False,
+        parsimony_alpha: float | None = None,
     ) -> None:
         self.scorer = scorer
         self.selector = selector
@@ -532,6 +586,7 @@ class _BeamFeatBase(BaseEstimator):
         self.certify_test = certify_test
         self.magnitude_slots = magnitude_slots
         self.input_test = input_test
+        self.parsimony_alpha = parsimony_alpha
 
     # -- fitting ------------------------------------------------------------ #
 
@@ -571,7 +626,9 @@ class _BeamFeatBase(BaseEstimator):
 
         Features are added while the incremental in-sample R^2 (on integer-
         coded labels for classification, as a ranking heuristic) improves by
-        at least ``parsimony_tol``; at least one feature is always kept.
+        at least ``parsimony_tol`` and, with ``parsimony_alpha``, while the
+        gain rejects the null that it is chance (:func:`_chance_p_value`); at
+        least one feature is always kept.
 
         ``path`` is the result of :meth:`_forward_path` on the same
         arguments, when the caller has already computed it.
@@ -590,7 +647,8 @@ class _BeamFeatBase(BaseEstimator):
 
         Returns the screened indices in the order the forward step adds
         them, the in-sample R^2 after each addition, and the number of them
-        :meth:`_parsimonious_subset` keeps at ``parsimony_tol``. The path
+        :meth:`_parsimonious_subset` keeps at ``parsimony_tol`` (and
+        ``parsimony_alpha``). The path
         runs past that point to the full screened set, so the fit at every
         size is on record; the steps up to it are the forward step itself,
         computed exactly as it computes them, so the subset it keeps does not
@@ -607,6 +665,11 @@ class _BeamFeatBase(BaseEstimator):
         if total_variance < 1e-12:  # pragma: no cover - defensive
             return list(screened), [float("nan")] * len(screened), len(screened)
 
+        # The second stream of the seed: the first is the knockoff selector's.
+        rng = (
+            None if self.parsimony_alpha is None
+            else np.random.default_rng(np.random.SeedSequence(self.random_state).spawn(2)[1])
+        )
         chosen: list[int] = []
         scores_kept: list[float] = []
         remaining = list(screened)
@@ -620,7 +683,13 @@ class _BeamFeatBase(BaseEstimator):
                 residual = numeric - design @ coefficients
                 scores.append(1.0 - float(np.var(residual)) / total_variance)
             best_position = int(np.argmax(scores))
-            if scores[best_position] - best_r2 < self.parsimony_tol and chosen:
+            if chosen and (
+                scores[best_position] - best_r2 < self.parsimony_tol
+                or (
+                    rng is not None
+                    and _chance_p_value(matrix, numeric, chosen, remaining, rng) > self.parsimony_alpha
+                )
+            ):
                 break
             best_r2 = scores[best_position]
             chosen.append(remaining.pop(best_position))
@@ -663,6 +732,15 @@ class _BeamFeatBase(BaseEstimator):
             )
         if self.parsimony not in ("forward", None):
             raise ValueError(f"parsimony must be 'forward' or None, got {self.parsimony!r}")
+        if self.parsimony_alpha is not None and (
+            isinstance(self.parsimony_alpha, bool)
+            or not isinstance(self.parsimony_alpha, numbers.Real)
+            or not 0.0 < float(self.parsimony_alpha) < 1.0
+        ):
+            raise ValueError(
+                "parsimony_alpha must be None or a level strictly between 0 and 1, "
+                f"got {self.parsimony_alpha!r}"
+            )
         if not isinstance(self.certify_test, str) or self.certify_test not in ("marginal", "conditional"):
             raise ValueError(
                 f"certify_test must be 'marginal' or 'conditional', got {self.certify_test!r}"
@@ -1698,6 +1776,11 @@ class _BeamFeatBase(BaseEstimator):
                 "the forward step stops before the first gain below "
                 f"parsimony_tol={self.parsimony_tol:g}"
             )
+            if self.parsimony_alpha is not None:
+                how += (
+                    ", or the first that fails to reject the null of chance at "
+                    f"parsimony_alpha={self.parsimony_alpha:g}"
+                )
         else:
             how = "parsimony_holdout could not split the selection rows, so the screened set is kept"
         return f"* the {returned} ({how})."
@@ -1876,6 +1959,20 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             expression, so the time grows with the rows: a few seconds at a
             few hundred rows, minutes at ten thousand, which ``n_jobs``
             threads share.
+        parsimony_alpha: Level of a chance check on each term the forward
+            step of ``parsimony="forward"`` adds after the first, or ``None``
+            (default) for none, which leaves the fit unchanged. On a noisy
+            target the best of many remaining terms adds more than
+            ``parsimony_tol`` to R^2 by fitting noise alone, so the step keeps
+            riders. With a level, the step also stops at the first term
+            whose gain fails to reject the null that it is no larger than
+            the best gain the remaining terms reach against noise: 200
+            wild-bootstrap draws of the current residual (each row's
+            residual times an independent standard normal), net of the
+            terms already added. Like ``parsimony_tol`` it shapes the
+            returned subset, on the selection rows, and not the screen,
+            whose guarantee is unchanged; it is a stopping rule, not a
+            guarantee on the subset. Ignored when ``parsimony`` is ``None``.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
@@ -1970,6 +2067,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
         input_test: bool = False,
+        parsimony_alpha: float | None = None,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -1997,6 +2095,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             certify_test=certify_test,
             magnitude_slots=magnitude_slots,
             input_test=input_test,
+            parsimony_alpha=parsimony_alpha,
         )
         self.problem_type = problem_type
 
@@ -2096,6 +2195,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
         input_test: bool = False,
+        parsimony_alpha: float | None = None,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -2123,6 +2223,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             certify_test=certify_test,
             magnitude_slots=magnitude_slots,
             input_test=input_test,
+            parsimony_alpha=parsimony_alpha,
         )
         self.alpha = alpha
 
@@ -2350,6 +2451,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         certify_test: str = "marginal",
         magnitude_slots: int = 0,
         input_test: bool = False,
+        parsimony_alpha: float | None = None,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -2377,6 +2479,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             certify_test=certify_test,
             magnitude_slots=magnitude_slots,
             input_test=input_test,
+            parsimony_alpha=parsimony_alpha,
         )
         self.C = C
 

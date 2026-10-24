@@ -1611,6 +1611,10 @@ class TestParameterValidation:
             ("parsimony", "backward"),
             ("certify_test", "partial"),
             ("certify_test", None),
+            ("parsimony_alpha", 0.0),
+            ("parsimony_alpha", 1.0),
+            ("parsimony_alpha", True),
+            ("parsimony_alpha", "0.05"),
         ],
     )
     @pytest.mark.parametrize("cls", ESTIMATORS)
@@ -1937,6 +1941,67 @@ class TestEquationList:
 
         with pytest.raises(NotFittedError):
             BeamFeatRegressor().equations()
+
+
+class TestParsimonyAlpha:
+    """The forward step's chance check: on a noisy target the best of many
+    remaining terms clears ``parsimony_tol`` by fitting noise, and
+    ``parsimony_alpha`` stops the step there."""
+
+    @staticmethod
+    def _noisy(seed, n=600, k=10):
+        rng = np.random.default_rng(seed)
+        X = rng.uniform(1.0, 3.0, (n, 3 + k))
+        signal = X[:, 0] * X[:, 1] / X[:, 2]
+        return X, signal + signal.std() * rng.standard_normal(n)
+
+    def test_p_value_is_calibrated_under_the_null(self):
+        """Columns that add nothing beyond the chosen one, five of them
+        correlated with it: the check rejects at about its level."""
+        from beamfeat.estimators import _chance_p_value
+
+        rejected = []
+        for seed in range(200):
+            rng = np.random.default_rng(seed)
+            matrix = rng.standard_normal((150, 12))
+            matrix[:, 1:6] += matrix[:, [0]]
+            target = 2.0 * matrix[:, 0] + rng.standard_normal(150)
+            rejected.append(_chance_p_value(matrix, target, [0], list(range(1, 12)), rng) <= 0.1)
+        assert 0.05 <= np.mean(rejected) <= 0.16
+
+    def test_p_value_rejects_a_remaining_term(self):
+        from beamfeat.estimators import _CHANCE_DRAWS, _chance_p_value
+
+        rng = np.random.default_rng(1)
+        matrix = rng.standard_normal((150, 12))
+        target = 2.0 * matrix[:, 0] + 0.5 * matrix[:, 7] + rng.standard_normal(150)
+        p_value = _chance_p_value(matrix, target, [0], list(range(1, 12)), rng)
+        assert p_value == pytest.approx(1 / (1 + _CHANCE_DRAWS))
+
+    def test_default_leaves_the_fit_unchanged(self, regression_data):
+        X, y = regression_data
+        plain = _fast(BeamFeatRegressor, selector="permutation").fit(X, y)
+        explicit = _fast(BeamFeatRegressor, selector="permutation", parsimony_alpha=None).fit(X, y)
+        assert explicit.feature_formulas_ == plain.feature_formulas_
+        np.testing.assert_array_equal(explicit.coef_, plain.coef_)
+
+    @pytest.mark.parametrize("seed", [0, 1])
+    def test_stops_riders_on_a_noisy_target(self, seed):
+        """Same path, an earlier stop, and the text names the check."""
+        X, y = self._noisy(seed)
+        plain = _fast(BeamFeatRegressor, selector="permutation").fit(X, y)
+        checked = _fast(BeamFeatRegressor, selector="permutation", parsimony_alpha=0.05).fit(X, y)
+        assert len(plain.feature_formulas_) > 3
+        assert len(checked.feature_formulas_) < len(plain.feature_formulas_)
+        assert [r["formulas"] for r in checked.equations_] == [r["formulas"] for r in plain.equations_]
+        assert "parsimony_alpha=0.05" in checked.equations()
+        assert "parsimony_alpha" not in plain.equations()
+
+    def test_seeded(self):
+        X, y = self._noisy(0)
+        first = _fast(BeamFeatRegressor, selector="permutation", parsimony_alpha=0.5).fit(X, y)
+        second = _fast(BeamFeatRegressor, selector="permutation", parsimony_alpha=0.5).fit(X, y)
+        assert first.feature_formulas_ == second.feature_formulas_
 
 
 class TestLatex:
