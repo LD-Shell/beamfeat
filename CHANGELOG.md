@@ -34,7 +34,13 @@ Notable changes to `beamfeat`. Format follows
   rose by 0.007 on average at 1, though 9% of those fits lost more than
   0.01. With `parsimony_holdout` and `certify_test="conditional"` it ends the
   re-test's fallback to the screened set (92% of fits at signal to noise 1,
-  under 1% with the check).
+  under 1% with the check). On real data it costs accuracy: in
+  `benchmarks/release_comparison/` (5 splits each) held-out score fell on 8
+  of 12 real datasets (tips 0.461 to 0.397, diabetes 0.430 to 0.381,
+  riboflavin 0.506 to 0.306) and rose on one, eyedata, where the default's 32
+  terms overfit 84 training rows. Real targets carry many modest effects,
+  each adding little, so the step stops after one to four terms. It suits a
+  search for a short law, not prediction.
 
 ### Fixed
 

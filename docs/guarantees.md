@@ -389,6 +389,35 @@ short subset, so its fallback to the screened set went from 92% of fits at
 signal to noise 1 and 20 to 24% at 3 to under 1%, and the conditional rate was
 0.07 to 0.09 at 1 and 0.000 at 3; power at 1 fell to 0.82, from 0.88 to 0.90.
 
+On real data the check costs accuracy. These designs have one strong term
+and noise; real targets tend to carry many modest effects, each of which adds
+little on its own, often less than the best of the remaining terms reaches
+against noise, so the step stops after one to four terms. In
+`benchmarks/release_comparison/` (5 splits each, 70/30) held-out score fell by
+more than 0.005 on 8 of 12 real datasets, was within 0.005 on 3, and rose on
+one:
+
+| dataset | rows (train) | default | `parsimony_alpha=0.05` |
+| :-- | --: | --: | --: |
+| diabetes | 309 | 0.430 (5.0 terms) | 0.381 (1.4) |
+| tips | 170 | 0.461 (12.0) | 0.397 (1.0) |
+| penguins | 239 | 0.803 (7.8) | 0.768 (1.4) |
+| breast_cancer (accuracy) | 398 | 0.974 (20.8) | 0.961 (3.8) |
+| mpg | 274 | 0.868 (12.0) | 0.858 (1.6) |
+| communities | 1,395 | 0.648 (14.2) | 0.633 (2.8) |
+| superconduct | 3,500 | 0.746 (20.2) | 0.728 (12.6) |
+| riboflavin | 49 | 0.506 (17.4) | 0.306 (1.0) |
+| diamonds | 980 | 0.853 (3.8) | 0.851 (1.0) |
+| california_housing | 14,448 | 0.695 (12.2) | 0.693 (10.8) |
+| tecator | 168 | 0.991 (2.6) | 0.991 (2.6) |
+| eyedata | 84 | 0.110 (32.2) | 0.330 (1.0) |
+
+The one gain, eyedata, is a default that overfits: 32 terms on 84 training
+rows, with held-out R² of -1.0 on one split. Two synthetic targets built from
+many terms behaved like the real ones (friedman1 0.798 to 0.759,
+threshold_step 0.841 to 0.808). The check suits a search for a short law,
+where the target is a few strong terms; for prediction, leave it off.
+
 **The equation list.** `equations()` and `equations_` record the forward path
 through the whole screened set, one equation per number of terms, at every
 setting above. Each line is a subset of the screened set chosen on the rows

@@ -1980,7 +1980,11 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             terms already added. Like ``parsimony_tol`` it shapes the
             returned subset, on the selection rows, and not the screen,
             whose guarantee is unchanged; it is a stopping rule, not a
-            guarantee on the subset. Ignored when ``parsimony`` is ``None``.
+            guarantee on the subset. It suits a target of a few strong
+            terms: on real data, whose many modest effects each add little,
+            it stopped after one to four terms and lowered held-out score
+            on 8 of 12 datasets in ``benchmarks/release_comparison/``.
+            Ignored when ``parsimony`` is ``None``.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.

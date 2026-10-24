@@ -229,7 +229,11 @@ signal-to-noise ratio of 1 the step kept 18 terms on average where one was
 true. `parsimony_alpha=0.05` (off by default) also stops the step at the
 first term whose gain fails to reject the null that chance reaches it. In the
 same study it printed 1.1 terms on average, held-out R² rose slightly on
-average, and a few fits lost a little; the
+average, and a few fits lost a little. On real data it costs accuracy: real
+targets carry many modest effects, each adding little, so the step stops
+after one to four terms, and held-out score fell on 8 of 12 real datasets
+(tips 0.461 to 0.397, diabetes 0.430 to 0.381). Use it to look for a short
+law, not for prediction; the
 [guarantees page](guarantees.md#parsimony-within-the-screened-set) has the
 figures. The path in `equations()` is the same either way; only the marked
 line moves.
