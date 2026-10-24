@@ -707,10 +707,6 @@ def _normalise_unit(unit: Any) -> Any:
 # --------------------------------------------------------------------------- #
 
 
-def _unit_preserving(unit: Any) -> Any:
-    return unit
-
-
 OPERATORS: dict[str, OperatorSpec] = {}
 
 
@@ -726,198 +722,14 @@ def register_operator(spec: OperatorSpec) -> OperatorSpec:
     return spec
 
 
-def _reciprocal_unit(unit: Any) -> Any:
-    return None if unit is None else 1 / unit
-
-
-def _square_unit(unit: Any) -> Any:
-    return None if unit is None else unit**2
-
-
-def _cube_unit(unit: Any) -> Any:
-    return None if unit is None else unit**3
-
-
-def _sqrt_unit(unit: Any) -> Any:
-    return None if unit is None else unit**0.5
-
-
-def _log_unit(unit: Any) -> Any:
-    _dimensionless_required(unit, "log")
-    return unit
-
-
-def _exp_unit(unit: Any) -> Any:
-    _dimensionless_required(unit, "exp")
-    return unit
-
-
-def _dimensionless_unit(op_name: str) -> Callable[[Any], Any]:
-    """Unit function of an operator that needs, and returns, a dimensionless value."""
-
-    def unit_fn(unit: Any) -> Any:
-        _dimensionless_required(unit, op_name)
-        return unit
-
-    return unit_fn
-
-
 def _add_unit(left: Any, right: Any) -> Any:
     _same_dimension_required(left, right, "addition")
     return left if left is not None else right
 
 
-def _sub_unit(left: Any, right: Any) -> Any:
-    _same_dimension_required(left, right, "subtraction")
-    return left if left is not None else right
-
-
-def _same_registry_required(left: Any, right: Any, op_name: str) -> None:
-    """Raise if ``left`` and ``right`` come from different pint registries."""
-    if getattr(left, "_REGISTRY", None) is not getattr(right, "_REGISTRY", None):
-        raise UnitRegistryError(
-            f"{op_name} of units from different pint registries ({left.units} and {right.units}); "
-            "build every unit from one UnitRegistry"
-        )
-
-
-def _mul_unit(left: Any, right: Any) -> Any:
-    if left is None or right is None:
-        return None
-    _same_registry_required(left, right, "multiplication")
-    return left * right
-
-
-def _div_unit(left: Any, right: Any) -> Any:
-    if left is None or right is None:
-        return None
-    _same_registry_required(left, right, "division")
-    return left / right
-
-
-# Unary operators ----------------------------------------------------------- #
-
-register_operator(
-    OperatorSpec(
-        name="reciprocal",
-        arity=1,
-        fn=lambda x: np.reciprocal(x),
-        formula=lambda x: f"1/({x})",
-        unit_fn=_reciprocal_unit,
-        domain=lambda x: bool(np.all(x != 0)),
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="log",
-        arity=1,
-        fn=lambda x: np.log(x),
-        formula=lambda x: f"log({x})",
-        unit_fn=_log_unit,
-        domain=lambda x: bool(np.all(x > 0)),
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="sqrt",
-        arity=1,
-        fn=lambda x: np.sqrt(x),
-        formula=lambda x: f"sqrt({x})",
-        unit_fn=_sqrt_unit,
-        domain=lambda x: bool(np.all(x >= 0)),
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="abs",
-        arity=1,
-        fn=lambda x: np.abs(x),
-        formula=lambda x: f"abs({x})",
-        unit_fn=_unit_preserving,
-        redundant=lambda x: bool(np.all(x >= 0)),
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="square",
-        arity=1,
-        fn=lambda x: np.square(x),
-        formula=lambda x: f"({x})^2",
-        unit_fn=_square_unit,
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="cube",
-        arity=1,
-        fn=lambda x: x**3,
-        formula=lambda x: f"({x})^3",
-        unit_fn=_cube_unit,
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="exp",
-        arity=1,
-        fn=lambda x: np.exp(x),
-        formula=lambda x: f"exp({x})",
-        unit_fn=_exp_unit,
-        domain=lambda x: bool(np.all(x < 50.0)),
-    )
-)
-
-# Parametric unary operators ------------------------------------------------ #
-#
-# Each carries one constant, fitted to the data by beamfeat.parametric when
-# the operator is listed in a search's ``fitted_ops``. The grids are the
-# coarse search over the constant, scaled to the operand so that the same
-# grid serves a column in metres and one in kilometres:
-#
-# - exp(a*x): |a| from 1e-3 to 10 over max|x|, each sign, so that |a*x| stays
-#   at most 10. Small |a| makes exp(a*x) a linear function of x, and large
-#   |a| a step; a fit that runs to either end has found neither shape.
-# - x^a: a from -4 to 4 in steps of 0.1, on positive operands. A negative
-#   power has its pole at 0, so the negative half is used only when the
-#   smallest operand lies more than the margin (below) above 0; otherwise a
-#   runs from 0.1 to 4.
-# - 1/(x + a) and log(x + a): the shift places the pole a distance d below
-#   the smallest operand (or, for 1/(x + a), above the largest), log-spaced
-#   at ten points a decade from a margin (below) up to 100 times the
-#   operand's range. Far from the pole, the function is linear in x.
-#
-# The margin keeps a fitted pole away from the data. Close to the pole the
-# function is dominated by the few rows next to it, and new rows reach past
-# the training extremes: a pole fitted just below the smallest value is
-# crossed by the first new row a little further out, which then evaluates to
-# NaN (the logarithm) or to a value of the wrong sign and any size (the
-# reciprocal). The margin is the larger of POLE_MARGIN_SPREADS times
-# the spread of the POLE_MARGIN_ROWS most extreme operand values at that end
-# and POLE_MARGIN_FLOOR times the range, so it widens where the data thin
-# out towards the edge (a long tail, or few rows) and narrows where they are
-# dense. It was chosen on the solo fits to every column of 18 real datasets,
-# on five train/test splits each with half the training rows searched. Of
-# the 1,556 fits whose pole was at least 0.01 ranges out, the 343 inside
-# this margin were crossed by a row the fit had not seen in 14% of cases,
-# and lost their gain over the bare column on those rows in 42%; the 1,213
-# outside it in 0.3% and 3%. A margin of a fixed fraction of the range does
-# worse: 0.1 left 1.3% crossed and 9% losing, and 0.2 left 0.3% crossed and
-# 6% losing while keeping 1,086 fits instead of 1,213.
-# A fit that wants its pole inside the margin runs into the grid's bound and
-# is discarded.
-#
-# The same margin decides whether x^a may have a negative power, whose pole
-# is fixed at 0: a new row at 0 evaluates to an infinity, and to NaN where it
-# is multiplied by a zero. Where it may not, a fit that runs down to the
-# smallest positive power, 0.1, is discarded as well: as a approaches 0, x^a
-# takes the shape of log(x), which has the same pole.
-
-_SCALE_MAGNITUDES = np.logspace(-3.0, 1.0, 41)
+# The fitted operators keep their poles at least these margins from the data.
+# The grids that use them, and how the margins were chosen, are in
+# beamfeat._operators.
 
 #: Fitted poles stay at least this many times the spread of the
 #: :data:`POLE_MARGIN_ROWS` most extreme operand values away from the data.
@@ -931,30 +743,12 @@ POLE_MARGIN_ROWS = 10
 #: the data, however dense the data are at the edge.
 POLE_MARGIN_FLOOR = 1e-2
 
-# Upper end of the shift grids, in operand ranges, and their density.
-_SHIFT_REACH = 100.0
-_SHIFT_POINTS_PER_DECADE = 10
-
 
 def _span(x: np.ndarray) -> float:
     """The operand's range, or its magnitude when it is (nearly) constant."""
     low, high = float(np.min(x)), float(np.max(x))
     span = high - low
     return span if span > 0.0 else max(abs(high), 1.0)
-
-
-def _scale_grid(x: np.ndarray) -> list[np.ndarray]:
-    largest = float(np.max(np.abs(x)))
-    if not math.isfinite(largest) or largest == 0.0:
-        return []
-    magnitudes = _SCALE_MAGNITUDES / largest
-    return [-magnitudes[::-1], magnitudes]
-
-
-def _power_grid(x: np.ndarray) -> list[np.ndarray]:
-    below, _ = pole_margins(x)
-    steps = np.arange(-40, 41) if float(np.min(x)) > below else np.arange(1, 41)
-    return [np.round(steps * 0.1, 10)]
 
 
 def pole_margins(x: np.ndarray) -> tuple[float, float]:
@@ -982,133 +776,7 @@ def pole_margins(x: np.ndarray) -> tuple[float, float]:
     return max(floor, below), max(floor, above)
 
 
-def _shift_distances(margin: float, span: float) -> np.ndarray:
-    """Pole distances from ``margin`` to the grid's reach, log-spaced."""
-    reach = _SHIFT_REACH * span
-    count = max(3, int(math.ceil(_SHIFT_POINTS_PER_DECADE * math.log10(reach / margin))) + 1)
-    return np.geomspace(margin, reach, count)
-
-
-def _pole_grid(x: np.ndarray) -> list[np.ndarray]:
-    span = _span(x)
-    below, above = pole_margins(x)
-    return [
-        -float(np.max(x)) - _shift_distances(above, span)[::-1],
-        _shift_distances(below, span) - float(np.min(x)),
-    ]
-
-
-def _log_shift_grid(x: np.ndarray) -> list[np.ndarray]:
-    below, _ = pole_margins(x)
-    return [_shift_distances(below, _span(x)) - float(np.min(x))]
-
-
-def _scaled_formula(x: str, a: float) -> str:
-    return f"exp(-{x})" if a == -1.0 else f"exp({_const_factor(a)}*{x})"
-
-
-def _power_formula(x: str, a: float) -> str:
-    text = _const_text(a)
-    return f"({x})^({text})" if a < 0 or "/" in text else f"({x})^{text}"
-
-
-def _shift_text(x: str, a: float) -> str:
-    return f"{x} - {_const_text(-a)}" if a < 0 else f"{x} + {_const_text(a)}"
-
-
-register_operator(
-    OperatorSpec(
-        name="exp_scaled",
-        arity=1,
-        fn=lambda x, a: np.exp(a * x),
-        formula=_scaled_formula,
-        unit_fn=_dimensionless_unit("exp_scaled"),
-        domain=lambda x, a: bool(np.all(a * x < 50.0)),
-        constant_grid=_scale_grid,
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="pow",
-        arity=1,
-        fn=lambda x, a: np.power(x, a),
-        formula=_power_formula,
-        unit_fn=_dimensionless_unit("pow"),
-        domain=lambda x, a: bool(np.all(x > 0)),
-        constant_grid=_power_grid,
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="inv_shift",
-        arity=1,
-        fn=lambda x, a: np.reciprocal(x + a),
-        formula=lambda x, a: f"1/({_shift_text(x, a)})",
-        unit_fn=_reciprocal_unit,
-        domain=lambda x, a: bool(np.all(x + a != 0)),
-        constant_grid=_pole_grid,
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="log_shift",
-        arity=1,
-        fn=lambda x, a: np.log(x + a),
-        formula=lambda x, a: f"log({_shift_text(x, a)})",
-        unit_fn=_dimensionless_unit("log_shift"),
-        domain=lambda x, a: bool(np.all(x + a > 0)),
-        constant_grid=_log_shift_grid,
-    )
-)
-
 # Binary operators ---------------------------------------------------------- #
-
-register_operator(
-    OperatorSpec(
-        name="add",
-        arity=2,
-        fn=lambda x, y: x + y,
-        formula=lambda x, y: f"({x} + {y})",
-        unit_fn=_add_unit,
-        commutative=True,
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="sub",
-        arity=2,
-        fn=lambda x, y: x - y,
-        formula=lambda x, y: f"({x} - {y})",
-        unit_fn=_sub_unit,
-        commutative=False,
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="mul",
-        arity=2,
-        fn=lambda x, y: x * y,
-        formula=lambda x, y: f"({x} * {y})",
-        unit_fn=_mul_unit,
-        commutative=True,
-    )
-)
-
-register_operator(
-    OperatorSpec(
-        name="div",
-        arity=2,
-        fn=lambda x, y: x / y,
-        formula=lambda x, y: f"({x} / {y})",
-        unit_fn=_div_unit,
-        commutative=False,
-    )
-)
 
 
 def _read_only(values: np.ndarray) -> np.ndarray:
@@ -1933,3 +1601,9 @@ class EvaluationBatch:
             stats = stats.take(survivors)
         rejections.sort(key=lambda rejection: rejection[0])
         return BatchOutcome([positions[column] for column in survivors], matrix, stats, rejections)
+
+
+# The built-in operators are defined in beamfeat._operators, which registers
+# them in OPERATORS when imported: here, once everything they are built from
+# is defined.
+from beamfeat import _operators  # noqa: E402, F401
