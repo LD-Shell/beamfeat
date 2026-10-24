@@ -17,12 +17,14 @@ Towards 0.7.0: `beamfeat.__version__` is `0.7.0.dev0` until the release.
   target, such as `x0*x1*x2` with centred inputs. In
   `benchmarks/release_comparison/` they recovered every such stress law
   (exact recovery 0.40 and 0.55 without them, 1.00 with), left the held-out
-  score of 10 of 11 real datasets within 0.005 (superconduct 0.746 to
-  0.740), and cost 1.2 times the fit time and 1.1 times the memory. The
+  score of 11 of 12 real datasets within 0.005 (superconduct 0.746 to
+  0.740), added a junk column to a few more equations (26 of 40 against 23),
+  and cost 1.19 times 0.6.1's fit time and 1.06 times its memory. The
   end-to-end calibration and the pure-noise pipeline stress give the results
   they gave without them. For regression, a fit at the 0.7.0 defaults is the
-  0.6.1 fit with `magnitude_slots=10`, field for field; `magnitude_slots=0`
-  gives the 0.6.1 fit.
+  0.6.1 fit with `magnitude_slots=10`, field for field (all 1,425 regression
+  items of the comparison); `magnitude_slots=0` gives the 0.6.1 fit (all
+  1,430).
 - The largest modules are split into smaller private ones, so that each
   stage of a fit can be read on its own. `estimators.py` keeps the three
   public classes; the fitting machinery they share is in `_base.py`, with
@@ -41,6 +43,12 @@ Towards 0.7.0: `beamfeat.__version__` is `0.7.0.dev0` until the release.
   those modules. `ARCHITECTURE.md` maps the modules and a fit's stages.
 - ruff checks function size in `src/`: complexity 18 and 60 statements, the
   largest after the split, so that new code is split rather than grown.
+
+### Benchmarks
+
+- `release_comparison/` includes 0.7.0: its default, with the magnitude
+  slots off, with `parsimony_alpha`, and with the conditional re-test alone
+  and with `parsimony_alpha`, timed in a pass of its own beside 0.6.1.
 
 ### Deprecated
 

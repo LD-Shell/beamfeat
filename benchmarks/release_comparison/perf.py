@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-VERSIONS = ("0.4.2", "0.5.0", "0.6.0", "0.6.1")
+VERSIONS = ("0.4.2", "0.5.0", "0.6.0", "0.6.1", "0.7.0")
 PY = {v: HERE / "venvs" / v / "bin" / "python" for v in VERSIONS}
 SETTINGS = [("0.5.0", "default"), ("0.6.0", "default"), ("0.6.0", "no_fitted_ops"), ("0.6.0", "magnitude_slots"),
             ("0.6.0", "input_test"), ("0.6.0", "conditional_retest"), ("0.6.0", "bh"),

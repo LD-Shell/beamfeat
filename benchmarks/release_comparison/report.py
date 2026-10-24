@@ -11,10 +11,11 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 R = HERE / "results"
-RELEASES = [("0.4.2", "default"), ("0.5.0", "default"), ("0.6.0", "default"), ("0.6.1", "default")]
+RELEASES = [("0.4.2", "default"), ("0.5.0", "default"), ("0.6.0", "default"), ("0.6.1", "default"),
+            ("0.7.0", "default")]
 OPTIONS = [("0.6.0", "no_fitted_ops"), ("0.6.0", "magnitude_slots"), ("0.6.0", "input_test"),
            ("0.6.0", "conditional_retest"), ("0.6.0", "bh"), ("0.6.1", "parsimony_alpha"),
-           ("0.6.1", "alpha_input_test")]
+           ("0.6.1", "alpha_input_test"), ("0.7.0", "conditional_retest"), ("0.7.0", "alpha_conditional")]
 GROUPS = ["null", "planted_snr1", "planted_snr3", "proxy_snr1", "proxy_snr3"]
 SYNTHETIC = {"product", "ratio", "three_way", "log_linear", "sqrt_ratio", "quadratic", "inverse_square",
              "physics_kinetic", "sparse_10col", "purely_linear", "friedman1", "heavy_tail_t2",
@@ -59,8 +60,18 @@ def perf_rows(name):
 
 
 def perf_ratio(a, b, metric):
-    """Geometric mean over items of median(b) / median(a); the 0.4.2 pass for comparisons with 0.4.2."""
-    rows = perf_rows("perf_042.jsonl" if "0.4.2" in (a[0], b[0]) else "perf.jsonl")
+    """Geometric mean over items of median(b) / median(a), within the pass that timed both.
+
+    0.4.2 was timed in a pass of its own beside 0.5.0, and 0.7.0 in one beside
+    0.6.1. A ratio between 0.7.0 and 0.5.0 is chained through 0.6.1, which the
+    0.7.0 pass and the main pass share.
+    """
+    if "0.7.0" in (a[0], b[0]) and "0.5.0" in (a[0], b[0]):
+        bridge = ("0.6.1", "default")
+        first, second = (a, bridge), (bridge, b)
+        return perf_ratio(*first, metric) * perf_ratio(*second, metric)
+    name = "perf_042.jsonl" if "0.4.2" in (a[0], b[0]) else "perf_070.jsonl" if "0.7.0" in (a[0], b[0]) else "perf.jsonl"
+    rows = perf_rows(name)
     ratios = []
     for item in dict.fromkeys(r["item"] for r in rows):
         sa = [r[metric] for r in rows if "error" not in r and r["item"] == item and (r["version"], r["config"]) == a]
@@ -69,6 +80,10 @@ def perf_ratio(a, b, metric):
             ratios.append(max(np.median(sb), 1e-3) / max(np.median(sa), 1e-3) if metric == "seconds"
                           else max(np.median(sb), 1) / max(np.median(sa), 1))
     return math.exp(np.mean(np.log(ratios))) if ratios else float("nan")
+
+
+def ratio_text(value):
+    return "—" if not math.isfinite(value) else f"{value:.2f}"
 
 
 def same_score(a, b):
@@ -376,7 +391,7 @@ def option_summary(study_rows):
     out = ["## 8. Paired effects (same items; mean difference ± SE)", "",
            "Releases are compared with the previous release's default; options with their own release's default.", ""]
     comparisons = [(("0.4.2", "default"), ("0.5.0", "default")), (("0.5.0", "default"), ("0.6.0", "default")),
-                   (("0.6.0", "default"), ("0.6.1", "default"))] + \
+                   (("0.6.0", "default"), ("0.6.1", "default")), (("0.6.1", "default"), ("0.7.0", "default"))] + \
         [((v, "default"), (v, c)) for v, c in OPTIONS]
     d = study_rows
     g = lambda r: r["item"].split("_n")[0]  # noqa: E731
@@ -413,6 +428,17 @@ def option_summary(study_rows):
         s, n = identical(rows, ("0.5.0", "default"), ("0.6.0", "no_fitted_ops"))
         same.append(f"{study} {s}/{n}")
     out += ["0.6.0 with `fitted_ops=()` identical to 0.5.0 default: " + ", ".join(same), ""]
+    same = []
+    for study, rows in d.items():
+        s, n = identical(rows, ("0.6.1", "default"), ("0.7.0", "no_magnitude_slots"))
+        same.append(f"{study} {s}/{n}")
+    out += ["0.7.0 with `magnitude_slots=0` identical to 0.6.1 default: " + ", ".join(same), ""]
+    same = []
+    for study, rows in d.items():
+        s, n = identical(rows, ("0.6.0", "magnitude_slots"), ("0.7.0", "default"))
+        same.append(f"{study} {s}/{n}")
+    out += ["0.7.0 default identical to 0.6.0 with `magnitude_slots=10` (regression; classification has no "
+            "such setting): " + ", ".join(same), ""]
     errs = [r for rows in d.values() for r in errors(rows)]
     out += [f"Fits that raised: {len(errs)}" + ("" if not errs else " — " + "; ".join(
         sorted({f"{r['version']} {r['config']} {r['study']}: {r['error'][:80]}" for r in errs})[:8])), ""]
@@ -437,7 +463,8 @@ def scorecard(d):
            "| option | real: better / same / worse | real: median Δ | real: worst Δ | synthetic: better / same / worse | "
            "mean terms (real) | designs Δ cond. FDR, snr 1 | time (× default) | memory (× default) |",
            "| :-- | --: | --: | :-- | --: | --: | --: | --: | --: |"]
-    for v, c in [(("0.4.2", "default"), ("0.5.0", "default")), (("0.5.0", "default"), ("0.6.0", "default"))] + \
+    for v, c in [(("0.4.2", "default"), ("0.5.0", "default")), (("0.5.0", "default"), ("0.6.0", "default")),
+                 (("0.6.1", "default"), ("0.7.0", "default"))] + \
             [((v, "default"), (v, c)) for v, c in OPTIONS]:
         a, b = v, c
         real = {**per_dataset(d["suite"], a, b, REAL), **per_dataset(d["highdim"], a, b, ["communities", "superconduct", "tecator", "eyedata", "riboflavin"])}
@@ -450,7 +477,7 @@ def scorecard(d):
         cf = paired(d["designs"], a, b, lambda r: r["conditional_false"] / max(r["printed"], 1), lambda r: "snr1" in g(r))
         out.append(f"| {label(*b)} vs {label(*a)} | {tally(real)} | {np.median(list(real.values())):+.4f} | "
                    f"{worst[0]} {worst[1]:+.3f} | {tally(synth)} | {terms(a):.1f} → {terms(b):.1f} | {f(cf)} | "
-                   f"{perf_ratio(a, b, 'seconds'):.2f} | {perf_ratio(a, b, 'fit_mb'):.2f} |")
+                   f"{ratio_text(perf_ratio(a, b, 'seconds'))} | {ratio_text(perf_ratio(a, b, 'fit_mb'))} |")
     out.append("")
     return "\n".join(out)
 
@@ -511,6 +538,24 @@ def perf():
                        f"{med(rows, '0.5.0', 'seconds'):.2f} |")
         out += ["", f"0.4.2 against 0.5.0: time × {perf_ratio(('0.5.0', 'default'), ('0.4.2', 'default'), 'seconds'):.2f}, "
                 f"memory × {perf_ratio(('0.5.0', 'default'), ('0.4.2', 'default'), 'fit_mb'):.2f}.", ""]
+    third = perf_rows("perf_070.jsonl")
+    if third:
+        out += ["### 0.7.0 (a third pass, interleaved with 0.6.1 as a control)", "",
+                "0.7.0 was timed in a pass of its own, alternating with 0.6.1 by the same protocol, at its default and "
+                "with the magnitude slots off. Its ratio to 0.5.0 elsewhere on this page is chained through 0.6.1; the "
+                "last column checks this pass's 0.6.1 against the main one.", "",
+                "| item | 0.7.0 (s) | 0.7.0, slots off (s) | 0.6.1 (s) | 0.7.0 (MB) | 0.6.1 (MB) | 0.6.1, main pass (s) |",
+                "| :-- | --: | --: | --: | --: | --: | --: |"]
+        for item in dict.fromkeys(r["item"] for r in third):
+            med = lambda src, v, c, m: np.median([r[m] for r in src if r["item"] == item and r["version"] == v  # noqa: E731
+                                                  and r["config"] == c and "error" not in r])
+            out.append(f"| {item} | {med(third, '0.7.0', 'default', 'seconds'):.2f} | "
+                       f"{med(third, '0.7.0', 'no_magnitude_slots', 'seconds'):.2f} | "
+                       f"{med(third, '0.6.1', 'default', 'seconds'):.2f} | {med(third, '0.7.0', 'default', 'fit_mb'):.0f} | "
+                       f"{med(third, '0.6.1', 'default', 'fit_mb'):.0f} | {med(rows, '0.6.1', 'default', 'seconds'):.2f} |")
+        out += ["", f"0.7.0 against 0.6.1: time × {perf_ratio(('0.6.1', 'default'), ('0.7.0', 'default'), 'seconds'):.2f}, "
+                f"memory × {perf_ratio(('0.6.1', 'default'), ('0.7.0', 'default'), 'fit_mb'):.2f}; with the slots off, "
+                f"time × {perf_ratio(('0.6.1', 'default'), ('0.7.0', 'no_magnitude_slots'), 'seconds'):.2f}.", ""]
     return "\n".join(out)
 
 

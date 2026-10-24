@@ -253,21 +253,23 @@ other.
 
 [`benchmarks/release_comparison/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/release_comparison)
 runs the same benchmarks, data, splits and seeds through 0.4.2 (the paper's
-release), 0.5.0, 0.6.0 and 0.6.1 on one software stack, at their defaults
-and with the options 0.6.0 and 0.6.1 add: about 16,000 fits. At the
-defaults:
+release), 0.5.0, 0.6.0, 0.6.1 and 0.7.0 on one software stack, at their
+defaults and with the options the later releases add: about 23,000 fits. At
+the defaults:
 
-| measure | 0.4.2 | 0.5.0 | 0.6.0 | 0.6.1 |
-| :-- | --: | --: | --: | --: |
-| Feynman panel, solved of 60 | 47 | 47 | 50 | 50 |
-| Riders at signal to noise 1 (conditional FDR) | 0.736 | 0.736 | 0.720 | 0.720 |
-| 7 real datasets, mean held-out score | 0.725 | 0.726 | 0.726 | 0.726 |
-| Fit time (× 0.5.0) | 3.18 | 1.00 | 1.53 | 1.54 |
-| Peak fit memory (× 0.5.0) | 5.27 | 1.00 | 1.08 | 1.10 |
+| measure | 0.4.2 | 0.5.0 | 0.6.0 | 0.6.1 | 0.7.0 |
+| :-- | --: | --: | --: | --: | --: |
+| Feynman panel, solved of 60 | 47 | 47 | 50 | 50 | 50 |
+| Search stress laws, exact | 0.883 | 0.883 | 0.883 | 0.883 | 1.000 |
+| Riders at signal to noise 1 (conditional FDR) | 0.736 | 0.736 | 0.720 | 0.720 | 0.722 |
+| 7 real datasets, mean held-out score | 0.725 | 0.726 | 0.726 | 0.726 | 0.727 |
+| Fit time (× 0.5.0) | 3.18 | 1.00 | 1.53 | 1.54 | 1.83 |
+| Peak fit memory (× 0.5.0) | 5.27 | 1.00 | 1.08 | 1.10 | 1.17 |
 
 0.5.0 gives 0.4.2's fits on 1,415 of 1,430 items in a third of the time.
 0.6.0's changes to the fits all come from `fitted_ops`, and 0.6.1's default
-fits are 0.6.0's. The
+fits are 0.6.0's. 0.7.0's come from the magnitude slots alone: with
+`magnitude_slots=0` it gives 0.6.1's fit on all 1,430 items. The
 [report](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md)
 also measures each option against its release's default.
 
@@ -341,7 +343,8 @@ dataset without changing any feature, p-value or prediction, and a default
 fit on 1000 columns and 600 rows that peaked at 2.6 GB of memory now peaks at
 0.35 GB. Over the eight timing items of the
 [release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md),
-0.5.0 fits 3.2 times faster than 0.4.2 with a fifth of its memory, and 0.6.0
-and 0.6.1 take 1.5 times 0.5.0's time. The
+0.5.0 fits 3.2 times faster than 0.4.2 with a fifth of its memory; 0.6.0 and
+0.6.1 take 1.5 times 0.5.0's time, and 0.7.0, with its magnitude slots, 1.8
+times. The
 [changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md)
 lists every change.

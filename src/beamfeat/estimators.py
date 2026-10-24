@@ -246,7 +246,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             the selection rows sees fixed expressions and its guarantee is
             unchanged. In ``benchmarks/release_comparison/`` the slots
             recovered every ``x0*x1*x2`` stress law (exact recovery 0.40 and
-            0.55 without them, 1.00 with), left the held-out score of 10 of 11
+            0.55 without them, 1.00 with), left the held-out score of 11 of 12
             real datasets within 0.005, and cost a fifth more fit time. A
             positive value is for regression only.
         input_test: Whether to test, on the selection rows, each column

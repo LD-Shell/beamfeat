@@ -66,8 +66,16 @@ CONFIGS = {
         # on California housing, where 0.6.0 passed 7 GB.
         "input_test": {"input_test": True},
     },
+    "0.7.0": {
+        "default": {},
+        # 0.6.1's default, which 0.7.0 gives with the magnitude slots off.
+        "no_magnitude_slots": {"magnitude_slots": 0},
+        "parsimony_alpha": {"parsimony_alpha": 0.05},
+        "conditional_retest": {"parsimony_holdout": 0.3, "certify_test": "conditional"},
+        "alpha_conditional": {"parsimony_alpha": 0.05, "parsimony_holdout": 0.3, "certify_test": "conditional"},
+    },
 }
-REGRESSION_ONLY = {"magnitude_slots", "conditional_retest"}
+REGRESSION_ONLY = {"magnitude_slots", "conditional_retest", "alpha_conditional"}
 COLUMN = re.compile(r"x(\d+)")
 
 
