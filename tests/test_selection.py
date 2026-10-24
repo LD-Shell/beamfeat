@@ -14,7 +14,7 @@ import gc
 import numpy as np
 import pytest
 
-from beamfeat.estimators import _undefined_rows
+from beamfeat._prediction import _undefined_rows
 from beamfeat.expression import combine, leaf, transform
 from beamfeat.selection import (
     KnockoffSelector,

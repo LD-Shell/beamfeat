@@ -510,7 +510,7 @@ class TestTransformSemantics:
         """Underflow fails an evaluation but leaves finite values behind, so it
         is found by splitting the rows rather than by the non-finite mask."""
         from beamfeat import leaf, transform
-        from beamfeat.estimators import _evaluate_by_row
+        from beamfeat._prediction import _evaluate_by_row
 
         node = transform("exp", leaf("x0"))
         column = np.array([1.0, -800.0, 2.0, 0.5])
