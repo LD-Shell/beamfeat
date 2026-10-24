@@ -1,0 +1,43 @@
+parsimony_alpha: 50 seeds per cell, settings ['forward', 'forward_alpha', 'conditional_0.3', 'conditional_0.3_alpha']
+{"commit": "aa9ea25f3556b6c30da097a70eff9d0a5fc591d5", "tracked_changes": false, "beamfeat": "0.6.0", "beamfeat_path": "src/beamfeat", "python": "3.12.3", "numpy": "2.5.4", "scipy": "1.18.1", "scikit-learn": "1.9.1", "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39"}
+  null_n300_p5: seed 50/50, 11 s
+null_n300_p5: done in 11 s, 4 fits matched without the memo
+  null_n300_p20: seed 50/50, 18 s
+null_n300_p20: done in 18 s, 4 fits matched without the memo
+  null_n1000_p5: seed 50/50, 20 s
+null_n1000_p5: done in 20 s, 4 fits matched without the memo
+  null_n1000_p20: seed 50/50, 31 s
+null_n1000_p20: done in 31 s, 4 fits matched without the memo
+  planted_snr1_n300_k5: seed 50/50, 29 s
+planted_snr1_n300_k5: done in 29 s, 4 fits matched without the memo
+  planted_snr1_n300_k20: seed 50/50, 33 s
+planted_snr1_n300_k20: done in 33 s, 4 fits matched without the memo
+  planted_snr1_n1000_k5: seed 50/50, 36 s
+planted_snr1_n1000_k5: done in 36 s, 4 fits matched without the memo
+  planted_snr1_n1000_k20: seed 50/50, 44 s
+planted_snr1_n1000_k20: done in 44 s, 4 fits matched without the memo
+  planted_snr3_n300_k5: seed 50/50, 19 s
+planted_snr3_n300_k5: done in 19 s, 4 fits matched without the memo
+  planted_snr3_n300_k20: seed 50/50, 24 s
+planted_snr3_n300_k20: done in 24 s, 4 fits matched without the memo
+  planted_snr3_n1000_k5: seed 50/50, 31 s
+planted_snr3_n1000_k5: done in 31 s, 4 fits matched without the memo
+  planted_snr3_n1000_k20: seed 50/50, 38 s
+planted_snr3_n1000_k20: done in 38 s, 4 fits matched without the memo
+  proxy_snr1_n300_k5: seed 50/50, 28 s
+proxy_snr1_n300_k5: done in 28 s, 4 fits matched without the memo
+  proxy_snr1_n300_k20: seed 50/50, 33 s
+proxy_snr1_n300_k20: done in 33 s, 4 fits matched without the memo
+  proxy_snr1_n1000_k5: seed 50/50, 36 s
+proxy_snr1_n1000_k5: done in 36 s, 4 fits matched without the memo
+  proxy_snr1_n1000_k20: seed 50/50, 44 s
+proxy_snr1_n1000_k20: done in 44 s, 4 fits matched without the memo
+  proxy_snr3_n300_k5: seed 50/50, 19 s
+proxy_snr3_n300_k5: done in 19 s, 4 fits matched without the memo
+  proxy_snr3_n300_k20: seed 50/50, 24 s
+proxy_snr3_n300_k20: done in 24 s, 4 fits matched without the memo
+  proxy_snr3_n1000_k5: seed 50/50, 31 s
+proxy_snr3_n1000_k5: done in 31 s, 4 fits matched without the memo
+  proxy_snr3_n1000_k20: seed 50/50, 38 s
+proxy_snr3_n1000_k20: done in 38 s, 4 fits matched without the memo
+4000 records -> benchmarks/parsimony_holdout/results_alpha/summary.json, benchmarks/parsimony_holdout/results_alpha/tables.md

@@ -348,6 +348,47 @@ happened in 87 to 92% of fits at a ratio of 1 and in 18 to 26% at 3 (37 to
 52% with 300 rows, under 1% with 1,000). `certification_result_.n_selected`
 is 0 on such a fit.
 
+**The forward step's chance check, `parsimony_alpha`.** The riders above
+are a property of the forward step's stopping rule. The best of the many
+remaining terms adds more than `parsimony_tol` to R² by fitting noise alone:
+on `n` rows its chance gain is about the largest of `m` χ²₁ draws over `n`,
+times the share of variance left, so around 0.01 to 0.03 at signal to noise 1
+on 500 to 150 selection rows, against a tolerance of 0.001. `parsimony_alpha` (off by default) also stops the step
+at the first term whose gain fails to reject the null that it is no larger
+than the best gain the remaining terms reach against noise. The null
+distribution is that best gain for 200 wild-bootstrap draws of the current
+residual, each row's residual times an independent standard normal, net of
+the terms already added: the multiplier bootstrap of Fan & Zhou (2016) for
+the best spurious fit. On columns that add nothing beyond the chosen one, five
+of them correlated with it, it rejected in 4% of 400 trials at level 0.05 and
+10% at 0.10. It shapes the returned subset, as `parsimony_tol` does, and
+leaves the screen and its guarantee alone; it is a stopping rule, not a
+guarantee on the subset. `benchmarks/parsimony_holdout/parsimony_alpha.py`
+reran the designs above at q = 0.1, 50 replicates per cell, with
+`parsimony_alpha=0.05`:
+
+| design | setting | terms | FDR, conditional | power | held-out R² |
+| :-- | :-- | --: | --: | --: | --: |
+| planted, snr 1 | default | 18.4 | 0.703 | 0.890 | 0.482 |
+| planted, snr 1 | `parsimony_alpha=0.05` | 1.1 | 0.048 | 0.875 | 0.489 |
+| planted, snr 3 | default | 3.8 | 0.420 | 1.000 | 0.897 |
+| planted, snr 3 | `parsimony_alpha=0.05` | 1.1 | 0.022 | 1.000 | 0.899 |
+| proxy, snr 1 | default | 18.1 | 0.738 | 0.895 | 0.481 |
+| proxy, snr 1 | `parsimony_alpha=0.05` | 1.1 | 0.080 | 0.865 | 0.489 |
+| proxy, snr 3 | default | 4.0 | 0.429 | 1.000 | 0.897 |
+| proxy, snr 3 | `parsimony_alpha=0.05` | 1.1 | 0.020 | 1.000 | 0.899 |
+
+Held-out R² rose by 0.007 to 0.008 on average at signal to noise 1, paired,
+and by 0.002 at 3, but 9% of the fits at 1 lost more than 0.01 and the worst
+lost 0.10. Those were fits on 300 rows whose first term only approximates
+`a*b/c` with a distractor inside, such as `(x1 + x10) * (x0 / x2)`: the check
+stops after it, where the default's further terms made up part of the
+difference. Under the global null nothing changed. Combined with
+`parsimony_holdout=0.3, certify_test="conditional"`, the re-test receives a
+short subset, so its fallback to the screened set went from 92% of fits at
+signal to noise 1 and 20 to 24% at 3 to under 1%, and the conditional rate was
+0.07 to 0.09 at 1 and 0.000 at 3; power at 1 fell to 0.82, from 0.88 to 0.90.
+
 **The equation list.** `equations()` and `equations_` record the forward path
 through the whole screened set, one equation per number of terms, at every
 setting above. Each line is a subset of the screened set chosen on the rows

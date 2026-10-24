@@ -17,6 +17,24 @@ Notable changes to `beamfeat`. Format follows
   knockoff+ (realised FDR 0.000 and 0.038) and from 0.073 to 0.596 with
   `offset=0` (0.096 and 0.112); on Gaussian block and factor designs the two
   were within a few points.
+- `parsimony_alpha` on `BeamFeatTransformer`, `BeamFeatRegressor` and
+  `BeamFeatClassifier`, a chance check on the forward step (default `None`,
+  which leaves every fit unchanged). On a noisy target the best of many
+  remaining terms adds more than `parsimony_tol` to R² by fitting noise, so
+  the step kept riders, 18 terms on average at signal to noise 1 in
+  `benchmarks/parsimony_holdout/`. With a level, the step also stops at the
+  first term whose gain fails to reject the null that it is no larger than
+  the best gain the remaining terms reach against noise (200 wild-bootstrap
+  draws of the residual, net of the terms already added; Fan & Zhou, 2016).
+  In `benchmarks/parsimony_holdout/parsimony_alpha.py` (its designs at
+  q = 0.1, 50 replicates per cell), `parsimony_alpha=0.05` printed 1.1 terms
+  instead of 18.4 at signal to noise 1 and 3.8 at 3; the conditional false
+  rate fell from 0.70 to 0.05 and from 0.42 to 0.02, power to print the
+  generating term went from 0.89 to 0.88 at 1 (1.00 at 3), and held-out R²
+  rose by 0.007 on average at 1, though 9% of those fits lost more than
+  0.01. With `parsimony_holdout` and `certify_test="conditional"` it ends the
+  re-test's fallback to the screened set (92% of fits at signal to noise 1,
+  under 1% with the check).
 
 ## [0.6.0] - 2026-10-24
 

@@ -223,6 +223,17 @@ Forward path through the 25 screened terms. R^2 is in-sample, on the rows screen
 The FDR guarantee covers the screened set of 25 terms (line 25), not an equation chosen from this list.
 ```
 
+On a noisy target that rule keeps riders: the best of many remaining terms
+adds more than `parsimony_tol` by fitting noise alone, and at a
+signal-to-noise ratio of 1 the step kept 18 terms on average where one was
+true. `parsimony_alpha=0.05` (off by default) also stops the step at the
+first term whose gain fails to reject the null that chance reaches it. In the
+same study it printed 1.1 terms on average, held-out R² rose slightly on
+average, and a few fits lost a little; the
+[guarantees page](guarantees.md#parsimony-within-the-screened-set) has the
+figures. The path in `equations()` is the same either way; only the marked
+line moves.
+
 Complexity counts the nodes in each term's expression tree — operators and
 input columns, `(x0 * x1)` being 3 — plus one per term for its coefficient
 and one per [fitted constant](#constants-inside-expressions).

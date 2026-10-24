@@ -136,3 +136,19 @@ The run checkpoints per replicate and resumes where it stopped. It writes
 aggregate), `tables.md` and `examples.json` (the printed formulas of the two
 replicates per cell that were checked against the unmemoised search);
 `calibration.log` is its output.
+
+## `parsimony_alpha.py` (added for 0.6.1)
+
+Reuses this study's designs, records and tables, at q = 0.1 only, with four
+settings: the default forward step and `parsimony_holdout=0.3,
+certify_test="conditional"`, each with and without `parsimony_alpha=0.05`.
+Fifty replicates per cell, one per cell checked against the unmemoised
+search. The level 0.05 and the settings were fixed before the run, with no
+smoke run on these designs; a first run from the uncommitted code was
+repeated from commit `aa9ea25` and matched it record for record. That run
+is in `results_alpha/` (588 seconds on one core here):
+
+```bash
+python benchmarks/parsimony_holdout/parsimony_alpha.py --out <dir>
+python benchmarks/parsimony_holdout/parsimony_alpha.py --tabulate   # tables from results_alpha/
+```
