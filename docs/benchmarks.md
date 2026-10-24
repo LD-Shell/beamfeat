@@ -300,6 +300,17 @@ they were run.
   first in the file. beamfeat now leads both tree ensembles on four of the
   nine datasets rather than five.
 
+One more figure comes from an archive made with an earlier release, as the
+riboflavin one does. The paper quotes beamfeat's held-out R² on
+threshold_step as 0.808, from `run_benchmarks.py`'s robustness results,
+which were regenerated under 0.3.0. With the script's own settings, 0.4.2
+gives 0.843. It reproduces the script's other 19 datasets and the Feynman
+panel exactly, and the five other robustness datasets to within 0.003 with
+the same number of terms
+([release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/PROVENANCE.md#against-the-papers-numbers)).
+That check cannot tell whether the release or the software environment
+causes the difference.
+
 Later releases are also faster, so the paper's timings and memory figures
 describe 0.4.2. 0.5.0 runs the high-dimensional study 2 to 28 times faster per
 dataset without changing any feature, p-value or prediction, and a default
