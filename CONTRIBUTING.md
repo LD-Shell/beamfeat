@@ -22,6 +22,10 @@ pytest -q          # full suite
 ruff check src tests benchmarks
 ```
 
+[`ARCHITECTURE.md`](ARCHITECTURE.md) maps the code: the stages of a fit and
+of the search, what each module holds, and where a new operator, scorer,
+selector or estimator parameter goes.
+
 ## Standards for changes
 
 - **Statistical claims must be measured, not asserted.** Any change to
