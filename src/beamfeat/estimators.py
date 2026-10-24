@@ -230,14 +230,19 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             candidates ranked by how well their magnitude tracks the
             target's, for laws whose parts do not correlate with the target,
             such as ``x0*x1*x2`` with centred inputs, whose pairwise products
-            the default ranking leaves among noise. ``0`` (default) adds none
-            and leaves the fit unchanged. On wide tables, where the first
-            depth cannot propose every pair of inputs, the inputs are also
-            proposed in an order that interleaves the two rankings. The
-            ranking is part of the search, on the search rows only (see
-            :class:`~beamfeat.search.BeamSearch`), so the screen on the
-            selection rows sees fixed expressions and its guarantee is
-            unchanged. Regression only.
+            the score's ranking leaves among noise. ``"auto"`` (default) adds
+            10 for regression and none for classification, whose labels carry
+            no magnitude; ``0`` adds none, the default before 0.7.0. On wide
+            tables, where the first depth cannot propose every pair of inputs,
+            the inputs are also proposed in an order that interleaves the two
+            rankings. The ranking is part of the search, on the search rows
+            only (see :class:`~beamfeat.search.BeamSearch`), so the screen on
+            the selection rows sees fixed expressions and its guarantee is
+            unchanged. In ``benchmarks/release_comparison/`` the slots
+            recovered every ``x0*x1*x2`` stress law (exact recovery 0.40 and
+            0.55 without them, 1.00 with), left the held-out score of 10 of 11
+            real datasets within 0.005, and cost a fifth more fit time. A
+            positive value is for regression only.
         input_test: Whether to test, on the selection rows, each column
             inside each candidate that reads more than one, and drop a
             screened term before ``parsimony`` runs when the test fails to
@@ -368,7 +373,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = DEFAULT_FITTED,
         certify_test: str = "marginal",
-        magnitude_slots: int = 0,
+        magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
     ) -> None:
@@ -496,7 +501,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = DEFAULT_FITTED,
         certify_test: str = "marginal",
-        magnitude_slots: int = 0,
+        magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
     ) -> None:
@@ -752,7 +757,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = DEFAULT_FITTED,
         certify_test: str = "marginal",
-        magnitude_slots: int = 0,
+        magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
     ) -> None:

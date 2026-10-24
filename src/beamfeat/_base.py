@@ -35,6 +35,10 @@ from beamfeat.selection import (
 # configured for beamfeat.estimators covers the fit.
 logger = logging.getLogger("beamfeat.estimators")
 
+# Magnitude slots under magnitude_slots="auto" for regression: the setting of
+# benchmarks/search_stress/ and benchmarks/release_comparison/.
+_AUTO_MAGNITUDE_SLOTS = 10
+
 
 class NoDiscoveriesError(RuntimeError):
     """Raised in ``on_no_discoveries="raise"`` mode when the screen rejects no null."""
@@ -117,7 +121,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         max_inputs: int | None = None,
         fitted_ops: tuple[str, ...] = DEFAULT_FITTED,
         certify_test: str = "marginal",
-        magnitude_slots: int = 0,
+        magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
     ) -> None:
@@ -235,6 +239,10 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
             raise ValueError(
                 "on_no_discoveries must be 'empty', 'fallback' or 'raise', "
                 f"got {self.on_no_discoveries!r}"
+            )
+        if isinstance(self.magnitude_slots, str) and self.magnitude_slots != "auto":
+            raise ValueError(
+                f"magnitude_slots must be 'auto' or a non-negative integer, got {self.magnitude_slots!r}"
             )
         for name in ("selection_holdout", "parsimony_holdout"):
             value = getattr(self, name)
@@ -420,6 +428,12 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
             )
             return list(screened)
         return eligible
+
+    def _magnitude_slots(self) -> int:
+        """``magnitude_slots``, with ``"auto"`` resolved: 10 for regression, none for classification."""
+        if isinstance(self.magnitude_slots, str):
+            return 0 if self._problem_type == "classification" else _AUTO_MAGNITUDE_SLOTS
+        return self.magnitude_slots
 
     def _setting(self, name: str) -> Any:
         """The estimator's value for a selector setting it shares."""
@@ -759,7 +773,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
             n_jobs=self.n_jobs,
             max_inputs=self.max_inputs,
             fitted_ops=self.fitted_ops,
-            magnitude_slots=self.magnitude_slots,
+            magnitude_slots=self._magnitude_slots(),
         )
         search_result = search.run(search_data, y[rows.search], units=units)
         self.search_result_ = search_result

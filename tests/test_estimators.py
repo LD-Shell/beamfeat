@@ -95,7 +95,7 @@ class TestApiConventions:
         assert cls(max_inputs=0).max_inputs == 0
 
     def test_magnitude_slots_is_a_parameter(self, cls):
-        assert cls().get_params()["magnitude_slots"] == 0
+        assert cls().get_params()["magnitude_slots"] == "auto"
         assert clone(cls(magnitude_slots=5)).magnitude_slots == 5
 
     def test_clone(self, cls):
@@ -681,14 +681,36 @@ class TestConfiguration:
         law = X[:, 0] * X[:, 1] * X[:, 2]
         y = law + rng.normal(0, 0.05 * law.std(), 400)
         with warnings.catch_warnings():
-            # The default finds nothing here, and says so.
+            # Without the slots the search finds nothing here, and says so.
             warnings.simplefilter("ignore", NoDiscoveriesWarning)
-            plain = BeamFeatRegressor(max_depth=2, beam_width=10).fit(X, y)
+            plain = BeamFeatRegressor(max_depth=2, beam_width=10, magnitude_slots=0).fit(X, y)
         assert not any(set(node.columns()) == {"x0", "x1", "x2"} for node in plain.features_)
         model = BeamFeatRegressor(max_depth=2, beam_width=10, magnitude_slots=3).fit(X, y)
         assert [set(node.columns()) for node in model.features_] == [{"x0", "x1", "x2"}]
         assert model.fdr_controlled_
         assert model.search_result_.trace[1].n_magnitude == 3
+        default = BeamFeatRegressor(max_depth=2, beam_width=10).fit(X, y)
+        assert [set(node.columns()) for node in default.features_] == [{"x0", "x1", "x2"}]
+        assert default.search_result_.trace[1].n_magnitude == 10
+
+    def test_magnitude_slots_auto_is_ten_for_regression_and_none_for_classification(self):
+        assert BeamFeatRegressor()._magnitude_slots() == 10
+        assert BeamFeatTransformer()._magnitude_slots() == 10
+        assert BeamFeatClassifier()._magnitude_slots() == 0
+        classifying = BeamFeatTransformer(problem_type="classification")
+        classifying._problem_type = classifying.problem_type  # as fit sets it
+        assert classifying._magnitude_slots() == 0
+        assert BeamFeatRegressor(magnitude_slots=4)._magnitude_slots() == 4
+
+    def test_magnitude_slots_auto_runs_for_classification(self, classification_data):
+        X, y = classification_data
+        model = _fast(BeamFeatClassifier).fit(X, y)
+        assert all(entry.n_magnitude == 0 for entry in model.search_result_.trace)
+
+    def test_magnitude_slots_rejects_other_strings(self, regression_data):
+        X, y = regression_data
+        with pytest.raises(ValueError, match="magnitude_slots must be 'auto'"):
+            _fast(BeamFeatRegressor, magnitude_slots="many").fit(X, y)
 
     def test_magnitude_slots_raise_for_classification(self, classification_data):
         X, y = classification_data

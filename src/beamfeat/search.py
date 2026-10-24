@@ -24,12 +24,13 @@ The check is within a depth: a candidate that restates a feature from an
 earlier depth can occupy a beam slot. Such restatements are removed in the
 final ranking, which applies the same check across all depths.
 
-**Magnitude slots**, off by default (``magnitude_slots``). A part of a law
-can be uncorrelated with the target, as ``x0*x1`` is with ``x0*x1*x2`` when
-the inputs are centred, and the score then ranks it among noise. With the
-option, each depth but the last keeps a few more candidates, those whose
-magnitude best tracks the target's (see :func:`magnitude_scores`), and a
-first depth too wide to propose every pair proposes those inputs early.
+**Magnitude slots** (``magnitude_slots``), off by default here and on by
+default in the estimators for regression. A part of a law can be uncorrelated
+with the target, as ``x0*x1`` is with ``x0*x1*x2`` when the inputs are
+centred, and the score then ranks it among noise. With the option, each depth
+but the last keeps a few more candidates, those whose magnitude best tracks
+the target's (see :func:`magnitude_scores`), and a first depth too wide to
+propose every pair proposes those inputs early.
 
 Memory stays bounded as well. On a wide table one depth can propose
 hundreds of thousands of candidates. They are evaluated and scored a chunk at a time

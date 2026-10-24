@@ -319,8 +319,12 @@ class TestParsimonyAlpha:
     def test_stops_riders_on_a_noisy_target(self, seed):
         """Same path, an earlier stop, and the text names the check."""
         X, y = self._noisy(seed)
-        plain = _fast(BeamFeatRegressor, selector="permutation").fit(X, y)
-        checked = _fast(BeamFeatRegressor, selector="permutation", parsimony_alpha=0.05).fit(X, y)
+        # The search without magnitude slots, whose path keeps riders here, so
+        # the test is of the forward step alone.
+        plain = _fast(BeamFeatRegressor, selector="permutation", magnitude_slots=0).fit(X, y)
+        checked = _fast(
+            BeamFeatRegressor, selector="permutation", magnitude_slots=0, parsimony_alpha=0.05
+        ).fit(X, y)
         assert len(plain.feature_formulas_) > 3
         assert len(checked.feature_formulas_) < len(plain.feature_formulas_)
         assert [r["formulas"] for r in checked.equations_] == [r["formulas"] for r in plain.equations_]
