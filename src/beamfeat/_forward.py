@@ -132,3 +132,72 @@ def _extend_forward_path(
         floor = np.delete(floor, position)
         scores.append(1.0 - float(np.var(residual)) / total_variance)
     return order, scores
+
+
+def forward_path(
+    matrix: np.ndarray,
+    target: np.ndarray,
+    screened: list[int],
+    *,
+    classification: bool,
+    parsimony_tol: float,
+    parsimony_alpha: float | None,
+    random_state: int | None,
+) -> tuple[list[int], list[float], int]:
+    """The greedy forward path through the whole screened set.
+
+    Returns the screened indices in the order the forward step adds them,
+    the in-sample R^2 after each addition, and the number of them the step
+    keeps at ``parsimony_tol`` (and ``parsimony_alpha``). The path runs past
+    that point to the full screened set, so the fit at every size is on
+    record; the steps up to it are the forward step itself, computed exactly
+    as it computes them, so the subset it keeps does not depend on how far
+    the path is followed.
+    """
+    # Labels are encoded before any numeric cast: the transformer passes
+    # its target through unencoded, and string labels cannot be cast.
+    if classification:
+        _, numeric = np.unique(target, return_inverse=True)
+        numeric = numeric.astype(np.float64)
+    else:
+        numeric = np.asarray(target, dtype=np.float64)
+    total_variance = float(np.var(numeric))
+    if total_variance < 1e-12:  # pragma: no cover - defensive
+        return list(screened), [float("nan")] * len(screened), len(screened)
+
+    # The second stream of the seed: the first is the knockoff selector's.
+    rng = (
+        None if parsimony_alpha is None
+        else np.random.default_rng(np.random.SeedSequence(random_state).spawn(2)[1])
+    )
+    chosen: list[int] = []
+    scores_kept: list[float] = []
+    remaining = list(screened)
+    best_r2 = 0.0
+    intercept = np.ones((matrix.shape[0], 1))
+    while remaining:
+        scores = []
+        for index in remaining:
+            design = np.column_stack([intercept] + [matrix[:, j].reshape(-1, 1) for j in chosen + [index]])
+            coefficients, *_ = np.linalg.lstsq(design, numeric, rcond=None)
+            residual = numeric - design @ coefficients
+            scores.append(1.0 - float(np.var(residual)) / total_variance)
+        best_position = int(np.argmax(scores))
+        if chosen and (
+            scores[best_position] - best_r2 < parsimony_tol
+            or (
+                rng is not None
+                and _chance_p_value(matrix, numeric, chosen, remaining, rng) > parsimony_alpha
+            )
+        ):
+            break
+        best_r2 = scores[best_position]
+        chosen.append(remaining.pop(best_position))
+        scores_kept.append(best_r2)
+    stop = len(chosen)
+    if remaining:
+        rest, rest_scores = _extend_forward_path(
+            matrix, numeric, chosen, remaining, total_variance
+        )
+        chosen, scores_kept = chosen + rest, scores_kept + rest_scores
+    return chosen, scores_kept, stop

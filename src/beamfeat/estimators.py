@@ -36,7 +36,7 @@ from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_is_fitted
 
 from beamfeat._compat import logistic_regression
-from beamfeat._forward import _chance_p_value, _extend_forward_path
+from beamfeat._forward import forward_path
 from beamfeat._prediction import _evaluate_by_row
 from beamfeat._rendering import (
     _check_equation_format,
@@ -269,53 +269,15 @@ class _BeamFeatBase(BaseEstimator):
         computed exactly as it computes them, so the subset it keeps does not
         depend on how far the path is followed.
         """
-        # Labels are encoded before any numeric cast: the transformer passes
-        # its target through unencoded, and string labels cannot be cast.
-        if self._problem_type == "classification":
-            _, numeric = np.unique(target, return_inverse=True)
-            numeric = numeric.astype(np.float64)
-        else:
-            numeric = np.asarray(target, dtype=np.float64)
-        total_variance = float(np.var(numeric))
-        if total_variance < 1e-12:  # pragma: no cover - defensive
-            return list(screened), [float("nan")] * len(screened), len(screened)
-
-        # The second stream of the seed: the first is the knockoff selector's.
-        rng = (
-            None if self.parsimony_alpha is None
-            else np.random.default_rng(np.random.SeedSequence(self.random_state).spawn(2)[1])
+        return forward_path(
+            matrix,
+            target,
+            screened,
+            classification=self._problem_type == "classification",
+            parsimony_tol=self.parsimony_tol,
+            parsimony_alpha=self.parsimony_alpha,
+            random_state=self.random_state,
         )
-        chosen: list[int] = []
-        scores_kept: list[float] = []
-        remaining = list(screened)
-        best_r2 = 0.0
-        intercept = np.ones((matrix.shape[0], 1))
-        while remaining:
-            scores = []
-            for index in remaining:
-                design = np.column_stack([intercept] + [matrix[:, j].reshape(-1, 1) for j in chosen + [index]])
-                coefficients, *_ = np.linalg.lstsq(design, numeric, rcond=None)
-                residual = numeric - design @ coefficients
-                scores.append(1.0 - float(np.var(residual)) / total_variance)
-            best_position = int(np.argmax(scores))
-            if chosen and (
-                scores[best_position] - best_r2 < self.parsimony_tol
-                or (
-                    rng is not None
-                    and _chance_p_value(matrix, numeric, chosen, remaining, rng) > self.parsimony_alpha
-                )
-            ):
-                break
-            best_r2 = scores[best_position]
-            chosen.append(remaining.pop(best_position))
-            scores_kept.append(best_r2)
-        stop = len(chosen)
-        if remaining:
-            rest, rest_scores = _extend_forward_path(
-                matrix, numeric, chosen, remaining, total_variance
-            )
-            chosen, scores_kept = chosen + rest, scores_kept + rest_scores
-        return chosen, scores_kept, stop
 
     def _validate_params(self) -> None:
         """Reject option values that would otherwise be ignored or misread.
