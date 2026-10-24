@@ -316,6 +316,62 @@ class TestFixedXKnockoffs:
         n = standardised.shape[0]
         assert np.abs(centred.T @ centred / n - standardised.T @ standardised / n).max() < 1e-4
 
+    def test_ci_identities_hold_with_a_diagonal_s(self):
+        """With s_method='ci', S is diagonal but not a multiple of I; the
+        identities hold with that S."""
+        from beamfeat.selection import _standardise
+
+        rng = np.random.default_rng(0)
+        z = rng.standard_normal((400, 20))
+        z[:, 1::2] = 0.8 * z[:, 0::2] + 0.6 * z[:, 1::2]
+        standardised = _standardise(z)
+        selector = KnockoffSelector(random_state=0, s_method="ci")
+        knockoffs = selector._fixed_x_knockoffs(standardised)
+        n = standardised.shape[0]
+        gram = standardised.T @ standardised / n
+        s_diag = selector._s_diagonal(*selector._covariance(standardised))
+        assert np.ptp(s_diag) > 0.01
+        assert np.abs(knockoffs.T @ knockoffs / n - gram).max() < 1e-4
+        assert np.abs(standardised.T @ knockoffs / n - (gram - np.diag(s_diag))).max() < 1e-4
+
+    def test_ci_s_on_population_designs(self):
+        """Orthogonal: both give s = 1. Two-by-two blocks with correlation rho:
+        equicorrelated gives 2 (1 - rho), CI gives 1 - rho^2 (Ke et al., 2024,
+        eq. 5.3). One tight pair among independent columns shrinks every
+        equicorrelated s, but only that pair's CI s."""
+        selector = KnockoffSelector(shrinkage=0.0)
+
+        def s_of(method, covariance):
+            selector.s_method = method
+            smallest = float(np.linalg.eigvalsh(covariance)[0])
+            return selector._s_diagonal(covariance, smallest, np.linalg.inv(covariance))
+
+        identity = np.eye(4)
+        np.testing.assert_allclose(s_of("equicorrelated", identity), 1.0)
+        np.testing.assert_allclose(s_of("ci", identity), 1.0)
+        rho = 0.7
+        blocks = np.kron(np.eye(3), np.array([[1.0, rho], [rho, 1.0]]))
+        np.testing.assert_allclose(s_of("equicorrelated", blocks), 2 * (1 - rho))
+        np.testing.assert_allclose(s_of("ci", blocks), 1 - rho**2)
+        one_pair = np.eye(6)
+        one_pair[0, 1] = one_pair[1, 0] = 0.95
+        assert np.all(s_of("equicorrelated", one_pair) < 0.11)
+        assert np.all(s_of("ci", one_pair)[2:] > 0.5)
+
+    def test_ci_fdr_calibrated_on_a_block_design(self):
+        target_fdr = 0.2
+        fdps = []
+        for trial in range(20):
+            rng = np.random.default_rng(7000 + trial)
+            features, target, truth = _gaussian_design(rng, n_noise=25)
+            features[:, 1::2] = 0.8 * features[:, 0::2] + 0.6 * features[:, 1::2]
+            target = features[:, truth] @ np.full(int(truth.sum()), 3.0) + rng.standard_normal(target.size)
+            result = KnockoffSelector(
+                target_fdr=target_fdr, random_state=trial, s_method="ci", warn_on_violation=False
+            ).select(features, target)
+            fdps.append(_fdp(result.selected, truth))
+        assert float(np.mean(fdps)) <= target_fdr + 0.1
+
     def test_basis_robust_to_seed_collision_with_data(self):
         """A Gaussian draw that coincides with the data matrix must not
         produce a basis inside col(X): QR of the resulting rank-deficient
@@ -574,6 +630,10 @@ class TestValidation:
     def test_bad_construction_rejected(self):
         with pytest.raises(ValueError, match="construction"):
             KnockoffSelector(construction="quantum")
+
+    def test_bad_s_method_rejected(self):
+        with pytest.raises(ValueError, match="s_method"):
+            KnockoffSelector(s_method="sdp")
 
     def test_too_few_permutations_rejected(self):
         with pytest.raises(ValueError, match="n_permutations"):

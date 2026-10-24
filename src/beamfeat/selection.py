@@ -75,6 +75,13 @@ References:
     Candès, E., Fan, Y., Janson, L. & Lv, J. (2018). Panning for gold:
     model-X knockoffs. *JRSS-B*, 80(3), 551-577.
 
+    Ke, Z. T., Liu, J. S. & Ma, Y. (2024). Power of knockoff: the impact of
+    ranking algorithm, augmented design, and symmetric statistic. *JMLR*,
+    25, 1-67.
+
+    Liu, J. & Rigollet, P. (2019). Power analysis of knockoff filters for
+    correlated designs. *NeurIPS 32*, 15420-15429.
+
     Phipson, B. & Smyth, G. K. (2010). Permutation p-values should never be
     zero. *Stat. Appl. Genet. Mol. Biol.*, 9(1), Article 39.
 """
@@ -1016,6 +1023,23 @@ class KnockoffSelector(Selector):
     the fixed-X path too, where cross-validation looks at individual rows
     and the guarantee did not strictly cover it.
 
+    **How far each knockoff is from its original.** Both constructions set
+    the correlation of column ``j`` with its knockoff to ``1 - s_j``; the
+    larger ``s_j``, the easier the lasso tells them apart. ``s_method``
+    chooses ``s``. ``"equicorrelated"`` (default) uses one value,
+    ``s_j = min(1, 2 lambda_min)``, so a single tight pair of columns
+    shrinks ``s`` for every column. ``"ci"`` (conditional independence;
+    Liu & Rigollet, 2019) uses ``s_j = c / (Sigma^-1)_jj``, i.e. ``c``
+    times the share of column ``j`` that the other columns do not explain,
+    with the largest ``c <= 1`` the construction allows. Constructed
+    candidates come in groups of near-copies (``x``, ``x^2``, ``log x``),
+    and there ``"ci"`` keeps ``s`` large for the columns outside the
+    tightest group. Ke et al. (2024) found it more powerful than
+    equicorrelated knockoffs on block and factor designs; in
+    ``benchmarks/knockoff_s_method.py`` the gain was on constructed columns,
+    while Gaussian block and factor designs came out about equal. Both
+    satisfy the exchangeability identities, so the guarantee is the same.
+
     **Rank-deficient designs.** When the design covariance has an eigenvalue
     below 1e-6 — a constant column, a duplicate, or a column that is a linear
     combination of others, all common among constructed candidates — every
@@ -1055,6 +1079,7 @@ class KnockoffSelector(Selector):
         shrinkage: Ridge term added to the covariance diagonal for numerical
             stability.
         construction: ``"auto"`` (default), ``"fixed"``, or ``"gaussian"``.
+        s_method: ``"equicorrelated"`` (default) or ``"ci"``; see above.
         warn_on_violation: Whether to check assumptions and record findings.
     """
 
@@ -1068,6 +1093,7 @@ class KnockoffSelector(Selector):
         offset: Offset = 1,
         shrinkage: float = 1e-6,
         construction: Literal["auto", "fixed", "gaussian"] = "auto",
+        s_method: Literal["equicorrelated", "ci"] = "equicorrelated",
         warn_on_violation: bool = True,
     ) -> None:
         super().__init__(target_fdr=target_fdr, problem_type=problem_type, random_state=random_state)
@@ -1077,9 +1103,12 @@ class KnockoffSelector(Selector):
             raise ValueError(f"shrinkage must be non-negative, got {shrinkage}")
         if construction not in ("auto", "fixed", "gaussian"):
             raise ValueError(f"construction must be 'auto', 'fixed', or 'gaussian', got {construction!r}")
+        if s_method not in ("equicorrelated", "ci"):
+            raise ValueError(f"s_method must be 'equicorrelated' or 'ci', got {s_method!r}")
         self.offset = offset
         self.shrinkage = shrinkage
         self.construction = construction
+        self.s_method = s_method
         self.warn_on_violation = warn_on_violation
 
     # -- shared pieces ------------------------------------------------------ #
@@ -1099,6 +1128,27 @@ class KnockoffSelector(Selector):
         except np.linalg.LinAlgError:  # pragma: no cover - defensive
             precision = np.linalg.pinv(covariance)
         return covariance, smallest, precision
+
+    def _s_diagonal(
+        self, covariance: np.ndarray, smallest: float, precision: np.ndarray, floor: float = 0.0
+    ) -> np.ndarray:
+        """Diagonal of ``S``: the largest multiple ``c <= 1`` of a base with ``S <= 2 Sigma``.
+
+        The base ``d`` is all ones (equicorrelated) or ``1 / (Sigma^-1)_jj``
+        (CI), and the bound is ``c <= 2 lambda_min(D^-1/2 Sigma D^-1/2)``. The
+        eigenvalue is the raw covariance's, as ``smallest`` is, and ``floor``
+        bounds it from below.
+        """
+        n_features = covariance.shape[0]
+        if self.s_method == "equicorrelated":
+            base = np.ones(n_features)
+            eigenvalue = smallest
+        else:
+            base = 1.0 / np.diag(precision)
+            raw = covariance - self.shrinkage * np.eye(n_features)
+            scaled = raw / np.sqrt(np.outer(base, base))
+            eigenvalue = max(float(np.min(np.linalg.eigvalsh(scaled))), 0.0)
+        return min(2.0 * max(eigenvalue, floor), 1.0) * base
 
     @staticmethod
     def _matrix_sqrt(matrix: np.ndarray) -> np.ndarray:
@@ -1150,10 +1200,10 @@ class KnockoffSelector(Selector):
     # -- constructions ------------------------------------------------------ #
 
     def _fixed_x_knockoffs(self, standardised: np.ndarray) -> np.ndarray:
-        """Fixed-X equicorrelated knockoffs (Barber & Candès, 2015).
+        """Fixed-X knockoffs (Barber & Candès, 2015).
 
         Requires ``n >= 2p + 1``. Constructs ``X~ = X (I - Sigma^-1 S) + U C``
-        where ``S = s I`` with ``s = min(2 lambda_min, 1)``, ``U`` is an
+        where ``S = diag(s)`` from :meth:`_s_diagonal`, ``U`` is an
         orthonormal basis of a p-dimensional subspace orthogonal to the
         column span of ``X`` and to the constant vector, and
         ``C' C = 2 S - S Sigma^-1 S``. The result satisfies ``X~' X~ = X' X``
@@ -1169,8 +1219,7 @@ class KnockoffSelector(Selector):
         """
         n_samples, n_features = standardised.shape
         covariance, smallest, precision = self._covariance(standardised)
-        s_value = min(2.0 * smallest, 1.0)
-        s_matrix = s_value * np.eye(n_features)
+        s_matrix = np.diag(self._s_diagonal(covariance, smallest, precision))
 
         part_parallel = standardised - standardised @ precision @ s_matrix
 
@@ -1215,8 +1264,7 @@ class KnockoffSelector(Selector):
         """Gaussian model-X knockoffs by conditional sampling."""
         n_samples, n_features = standardised.shape
         covariance, smallest, precision = self._covariance(standardised)
-        s_value = min(2.0 * max(smallest, 1e-10), 1.0)
-        s_diag = np.full(n_features, s_value)
+        s_diag = self._s_diagonal(covariance, smallest, precision, floor=1e-10)
 
         conditional_mean = standardised - standardised @ precision @ np.diag(s_diag)
         conditional_cov = 2.0 * np.diag(s_diag) - np.diag(s_diag) @ precision @ np.diag(s_diag)

@@ -99,7 +99,7 @@ such features but certifies nothing; that trade is the design.
 assumption on the features — deterministic engineered columns are fine. The
 guarantee requires the linear model with Gaussian, homoskedastic noise. The
 construction's exchangeability identities `X̃'X̃ = X'X` and
-`X'X̃ = X'X − sI` are verified to numerical precision by the tests, also
+`X'X̃ = X'X − S` are verified to numerical precision by the tests, also
 after the centring the lasso statistic applies (the knockoffs are built
 orthogonal to the intercept as well, which takes one row more than `2p`). On
 a near-singular design (smallest covariance eigenvalue below 1e-6) valid
@@ -108,6 +108,21 @@ tie-breaking would then favour the originals; constant and linearly dependent
 columns are therefore left out of the construction, get `W = 0`, and are
 named in a runtime warning. Routing and the `n > 2p` requirement count the
 retained columns.
+
+**How far knockoffs are from the originals.** `S = diag(s)`, and the
+correlation of column `j` with its knockoff is `1 − s_j`. The default,
+`s_method="equicorrelated"`, uses one value for every column,
+`min(1, 2λ_min)`, so one tight group of near copies, common among
+constructed candidates, makes every knockoff nearly equal its original.
+`s_method="ci"` (Liu & Rigollet, 2019) sets `s_j = c/(Σ⁻¹)_jj`, the share
+of column `j` the other columns leave unexplained, times the largest
+`c ≤ 1` that keeps `S ≤ 2Σ`; the guarantee is the same. In
+`benchmarks/knockoff_s_method.py` (nominal 0.1, 50 trials) on 76
+constructed columns, six transforms per input and the pairwise products,
+knockoff+ power rose from 0.000 to 0.217 (realised FDR 0.000 and 0.038),
+and `offset=0` power from 0.073 to 0.596 (0.096 and 0.112). On Gaussian
+designs with correlated pairs or shared factors the two were within a few
+points of each other.
 
 **Statistic.** The fixed-X guarantee holds for a statistic that sees the
 data only through `[X X̃]'[X X̃]` and `[X X̃]'y`. On the fixed-X path for

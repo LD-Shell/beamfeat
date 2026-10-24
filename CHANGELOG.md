@@ -4,6 +4,20 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `s_method` on `KnockoffSelector`: `"equicorrelated"` (the default, as
+  before) or `"ci"`, the conditional-independence knockoffs of Liu &
+  Rigollet (2019), which give each column its own `s_j = c/(Σ⁻¹)_jj`
+  instead of one value set by the smallest eigenvalue. The guarantee is the
+  same. In `benchmarks/knockoff_s_method.py` (fixed-X, nominal FDR 0.1, 50
+  trials) on 76 constructed columns, power rose from 0.000 to 0.217 with
+  knockoff+ (realised FDR 0.000 and 0.038) and from 0.073 to 0.596 with
+  `offset=0` (0.096 and 0.112); on Gaussian block and factor designs the two
+  were within a few points.
+
 ## [0.6.0] - 2026-10-24
 
 0.5.1 was prepared but not released; its options are part of this release
