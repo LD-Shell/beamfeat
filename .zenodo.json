@@ -9,7 +9,20 @@
     }
   ],
   "license": "MIT",
-  "keywords": ["feature engineering", "feature selection", "false discovery rate", "knockoffs"],
+  "keywords": [
+    "feature engineering",
+    "feature construction",
+    "feature selection",
+    "false discovery rate",
+    "multiple testing",
+    "permutation test",
+    "knockoffs",
+    "symbolic features",
+    "equation discovery",
+    "interpretable machine learning",
+    "scikit-learn",
+    "automl"
+  ],
   "related_identifiers": [
     {
       "identifier": "https://openreview.net/forum?id=UibXoy4h3u",

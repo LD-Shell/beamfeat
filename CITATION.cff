@@ -14,9 +14,17 @@ authors:
 repository-code: "https://github.com/LD-Shell/beamfeat"
 keywords:
   - feature engineering
+  - feature construction
   - feature selection
   - false discovery rate
+  - multiple testing
+  - permutation test
   - knockoffs
+  - symbolic features
+  - equation discovery
+  - interpretable machine learning
+  - scikit-learn
+  - automl
 preferred-citation:
   type: article
   title: "Symbolic feature construction with false discovery rate control"

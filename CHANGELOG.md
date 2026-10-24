@@ -47,6 +47,10 @@ forward step without `parsimony_alpha` is deprecated.
   those modules. `ARCHITECTURE.md` maps the modules and a fit's stages.
 - ruff checks function size in `src/`: complexity 18 and 60 statements, the
   largest after the split, so that new code is split rather than grown.
+- The package's keywords, in `pyproject.toml`, `CITATION.cff` and
+  `.zenodo.json`, name what it does (feature construction, multiple testing,
+  equation discovery, among others), and its classifiers add the operating
+  system, the topics and `Typing :: Typed`. It stays in beta until 1.0.
 
 ### Benchmarks
 

@@ -12,16 +12,24 @@ requires-python = ">=3.10"
 authors = [{ name = "Olanrewaju M. Daramola" }]
 keywords = [
   "feature-engineering",
+  "feature-construction",
   "feature-selection",
   "false-discovery-rate",
+  "multiple-testing",
+  "permutation-test",
   "knockoffs",
   "symbolic-features",
+  "equation-discovery",
+  "interpretable-machine-learning",
+  "scikit-learn",
   "automl",
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -29,6 +37,9 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: 3.15",
   "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Mathematics",
+  "Typing :: Typed",
 ]
 # Floors are the oldest versions the test suite is actually run against
 # (see the `floor-versions` CI job). No upper pins: pinning `<2.0` style
