@@ -1958,7 +1958,7 @@ class TestParsimonyAlpha:
     def test_p_value_is_calibrated_under_the_null(self):
         """Columns that add nothing beyond the chosen one, five of them
         correlated with it: the check rejects at about its level."""
-        from beamfeat.estimators import _chance_p_value
+        from beamfeat._forward import _chance_p_value
 
         rejected = []
         for seed in range(200):
@@ -1970,7 +1970,7 @@ class TestParsimonyAlpha:
         assert 0.05 <= np.mean(rejected) <= 0.16
 
     def test_p_value_rejects_a_remaining_term(self):
-        from beamfeat.estimators import _CHANCE_DRAWS, _chance_p_value
+        from beamfeat._forward import _CHANCE_DRAWS, _chance_p_value
 
         rng = np.random.default_rng(1)
         matrix = rng.standard_normal((150, 12))
