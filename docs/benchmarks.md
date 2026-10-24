@@ -275,7 +275,7 @@ also measures each option against its release's default.
 
 ## Test suite
 
-988 tests at 97% statement coverage, with a 90% floor enforced in CI,
+995 tests at 97% statement coverage, with a 90% floor enforced in CI,
 including scikit-learn's full estimator-conformance checks.
 
 <a id="corrections-since-the-paper"></a>

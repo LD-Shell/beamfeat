@@ -1,7 +1,7 @@
 # beamfeat
 
 [![CI](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml/badge.svg)](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-988%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-995%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
 [![PyPI](https://img.shields.io/pypi/v/beamfeat)](https://pypi.org/project/beamfeat/)
 [![Python](https://img.shields.io/badge/python-3.10%E2%80%933.15-blue)](https://github.com/LD-Shell/beamfeat)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE)
@@ -17,13 +17,16 @@ a short equation in your own column names, from a scikit-learn estimator you
 can fit, inspect and predict with. The method is described in a
 [TMLR 2026 paper](https://openreview.net/forum?id=UibXoy4h3u).
 
-**New in 0.6.1.** `input_test` no longer runs out of memory on large data:
-on California housing it needed over 7 GB and now needs 0.55 GB, with the
-same results. Two options are new and off by default: `parsimony_alpha`, a
-chance check that keeps the equation short when the target is a few strong
-terms, and `KnockoffSelector(s_method="ci")` for columns that are near-copies
-of each other. Default fits are those of 0.6.0. How 0.4.2 (the paper's
-release), 0.5.0, 0.6.0 and 0.6.1 compare on accuracy, speed and memory:
+**New in 0.7.0.** The search now keeps a few beam places for building
+blocks whose size tracks the target's even when they do not correlate with it
+(`magnitude_slots`, on by default for regression): every `x0*x1*x2` stress law
+is recovered, the held-out score of 11 of 12 real datasets stays within 0.005
+of 0.6.1's, and fits take a fifth longer. The conditional re-test after the
+forward step now asks for `parsimony_alpha`, and the code is split into
+smaller modules, mapped in
+[`ARCHITECTURE.md`](https://github.com/LD-Shell/beamfeat/blob/main/ARCHITECTURE.md).
+How 0.4.2 (the paper's release) through 0.7.0 compare on accuracy, speed and
+memory:
 [release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md).
 
 ## An example: fat content from a spectrum
@@ -61,7 +64,7 @@ pip install "beamfeat[display]"   # + sympy, for to_sympy() and latex()
 pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
-Python 3.10 or newer, with no upper version pins: the 988 tests pass on
+Python 3.10 or newer, with no upper version pins: the 995 tests pass on
 Python 3.10 to 3.15 with the newest releases each supports, and the suite runs
 on the oldest supported stack too.
 [Installation](https://ld-shell.github.io/beamfeat/installation/) lists the

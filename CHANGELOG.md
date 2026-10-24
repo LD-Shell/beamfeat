@@ -4,9 +4,13 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.7.0] - 2026-10-24
 
-Towards 0.7.0: `beamfeat.__version__` is `0.7.0.dev0` until the release.
+One default changes: `magnitude_slots="auto"`, 10 beam slots for regression
+(under "Changed"). With `magnitude_slots=0` a fit gives the features,
+p-values and predictions of 0.6.1. The code is split into smaller modules,
+with every fit of 0.6.1 reproduced, and the conditional re-test after the
+forward step without `parsimony_alpha` is deprecated.
 
 ### Changed
 
