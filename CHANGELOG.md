@@ -8,6 +8,33 @@ Notable changes to `beamfeat`. Format follows
 
 Towards 0.7.0: `beamfeat.__version__` is `0.7.0.dev0` until the release.
 
+### Changed
+
+- The largest modules are split into smaller private ones, so that each
+  stage of a fit can be read on its own. `estimators.py` keeps the three
+  public classes; the fitting machinery they share is in `_base.py`, with
+  `_run_pipeline` in named stages (rows, search, screen, choice of terms,
+  final record) instead of one method of 378 lines; the forward step and its
+  chance check are in `_forward.py`, the equation and LaTeX renderings and
+  the equation list in `_rendering.py`, and the evaluation of new rows in
+  `_prediction.py`. The built-in operators are defined in `_operators.py`,
+  the place to add one. `BeamSearch.run` runs one method per depth instead
+  of a loop of 264 lines. The public API, its import paths and its
+  documentation are unchanged. Fits, predictions, p-values, equations, LaTeX,
+  the verbose output and the warnings are those of 0.6.1, compared field by
+  field on 327 fits across the benchmark datasets and options, and models
+  saved with 0.6.1 load and predict identically. Private helpers imported
+  from `beamfeat.estimators` by name, such as `_chance_p_value`, now live in
+  those modules. `ARCHITECTURE.md` maps the modules and a fit's stages.
+- ruff checks function size in `src/`: complexity 18 and 60 statements, the
+  largest after the split, so that new code is split rather than grown.
+
+### Fixed
+
+- The `parsimony_holdout` re-test's warnings name the line of `fit` that
+  raised them, as every other fit-time warning does, rather than a line
+  inside the fit's internals.
+
 ## [0.6.1] - 2026-10-24
 
 Default fits are those of 0.6.0, feature for feature. This release fixes the

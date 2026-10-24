@@ -487,7 +487,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         result = selector.select(np.column_stack(columns), y[rows])
         self.certification_result_ = result
         for diagnostic in result.warnings_raised:
-            warnings.warn(f"beamfeat certification: {diagnostic}", UserWarning, stacklevel=4)
+            warnings.warn(f"beamfeat certification: {diagnostic}", UserWarning, stacklevel=5)
         if result.n_selected == 0:
             carries = (
                 "it carries the screen's marginal guarantee, not a conditional one, and it "
@@ -501,7 +501,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                 "compact certified equation is available on this sample. The whole screened "
                 f"set is returned instead: {carries}",
                 NoDiscoveriesWarning,
-                stacklevel=4,
+                stacklevel=5,
             )
         return [order[int(i)] for i in result.selected]
 
