@@ -42,6 +42,18 @@ Towards 0.7.0: `beamfeat.__version__` is `0.7.0.dev0` until the release.
 - ruff checks function size in `src/`: complexity 18 and 60 statements, the
   largest after the split, so that new code is split rather than grown.
 
+### Deprecated
+
+- `certify_test="conditional"` after the forward step without
+  `parsimony_alpha`. On a noisy target the forward step passes the re-test
+  riders it cannot certify, the re-test rejects no null, and the whole
+  screened set is returned: in `benchmarks/release_comparison/` 40 terms on
+  diabetes and mpg, and 46 on the calibration designs at signal to noise 1,
+  where the default prints 18 and the same re-test with
+  `parsimony_alpha=0.05` 1.0 to 1.3. It warns with a `FutureWarning` and will
+  raise from 0.8. With `parsimony_alpha`, or with `parsimony=None`, which
+  re-tests the whole screened set, the conditional re-test is unchanged.
+
 ### Fixed
 
 - The `parsimony_holdout` re-test's warnings name the line of `fit` that

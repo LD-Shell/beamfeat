@@ -281,6 +281,23 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                 "the target on a linear model of the other terms, which a class label does "
                 "not support. Use certify_test='marginal' for classification."
             )
+        if (
+            self.certify_test == "conditional"
+            and self.parsimony_holdout is not None
+            and self.parsimony is not None
+            and self.parsimony_alpha is None
+        ):
+            warnings.warn(
+                "beamfeat: certify_test='conditional' after the forward step without "
+                "parsimony_alpha is deprecated and will raise from 0.8. On a noisy target the "
+                "forward step passes the re-test riders it cannot certify, and the whole "
+                "screened set is then returned: 40 terms on diabetes and mpg in "
+                "benchmarks/release_comparison. Pass parsimony_alpha=0.05, which stops the step "
+                "at the first gain chance can reach, or parsimony=None to re-test the whole "
+                "screened set.",
+                FutureWarning,
+                stacklevel=3,
+            )
         if not isinstance(self.input_test, (bool, np.bool_)):
             raise ValueError(f"input_test must be True or False, got {self.input_test!r}")
         if self.input_test and self.selector is None:

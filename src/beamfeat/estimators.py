@@ -224,8 +224,14 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             then, except for a single term, where the test is the marginal
             one. If the re-test rejects no null, the screened set is
             returned, which carries the screen's marginal guarantee only.
-            Regression only; ignored when ``parsimony_holdout`` is ``None``.
-            See the guarantees page for its measured calibration.
+            After the forward step ``"conditional"`` needs ``parsimony_alpha``:
+            without it the step hands the re-test riders it cannot certify,
+            and on noisy data the screened set comes back in most fits, so
+            that combination is deprecated, warns, and will raise from 0.8.
+            With ``parsimony=None`` the re-test sees the whole screened set
+            and needs no ``parsimony_alpha``. Regression only; ignored when
+            ``parsimony_holdout`` is ``None``. See the guarantees page for its
+            measured calibration.
         magnitude_slots: Beam slots added at each search depth for
             candidates ranked by how well their magnitude tracks the
             target's, for laws whose parts do not correlate with the target,
