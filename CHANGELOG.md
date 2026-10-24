@@ -4,6 +4,10 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Towards 0.7.0: `beamfeat.__version__` is `0.7.0.dev0` until the release.
+
 ## [0.6.1] - 2026-10-24
 
 Default fits are those of 0.6.0, feature for feature. This release fixes the
