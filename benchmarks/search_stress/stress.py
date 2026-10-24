@@ -52,9 +52,9 @@ Per fit it records:
   not modified. A miss is put down to the first stage that lost the law:
   ``unproposed`` (the product the law needs at depth 1 was never proposed),
   ``pruned`` (proposed, not kept in the depth-1 beam), ``search`` (kept, yet
-  the law is not among the search's output), ``screen`` (in the output, not
-  passed by the screen), ``printed`` (passed, but the printed equation is not
-  exact: riders, or a missing term);
+  the law is not among the search's output), ``screen`` (in the output, but
+  the screen did not reject its null), ``printed`` (the screen rejected its
+  null, but the printed equation is not exact: riders, or a missing term);
 - the printed terms built only from distractors, the false discoveries in the
   marginal sense of ``benchmarks/parsimony_holdout/``.
 
@@ -383,7 +383,7 @@ def measure(model, law: str, pieces: dict, search, X_test: np.ndarray, law_test:
     else:
         law_proposed = int(d1_proposed > 0)
     in_output = has_law(output)
-    passed = has_law(screened_nodes)
+    rejected = has_law(screened_nodes)
     exact = bool(_exact_form(model, pieces["terms"]))
 
     if exact:
@@ -394,7 +394,7 @@ def measure(model, law: str, pieces: dict, search, X_test: np.ndarray, law_test:
         stage = "pruned"
     elif not in_output:
         stage = "search"
-    elif not passed:
+    elif not rejected:
         stage = "screen"
     else:
         stage = "printed"
@@ -425,7 +425,7 @@ def measure(model, law: str, pieces: dict, search, X_test: np.ndarray, law_test:
         "d1_in_beam": d1_in_beam,
         "law_proposed": law_proposed,
         "law_in_output": int(in_output),
-        "law_screened": int(passed),
+        "law_screened": int(rejected),
         "printed": len(used),
         "screened": 0 if model.selection_result_ is None else int(model.selection_result_.n_selected),
         "marginal_false": sum(1 for cols in used if not cols & truth),

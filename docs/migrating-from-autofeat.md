@@ -100,13 +100,14 @@ a lower ceiling as the price of a guarantee and a floor. Quantified in
 
 ## Behavioural differences to expect
 
-- **Fewer features.** Selection is a hypothesis test rather than a
-  noise-threshold heuristic, and a parsimony step keeps a compact subset of
-  what passes. Expect single-digit feature counts where autofeat returns
-  tens. `equation()` records how many of the certified terms it printed, and
+- **Fewer features.** Selection is a multiple hypothesis test rather than a
+  noise-threshold heuristic: a feature is selected when the test rejects its
+  null, and a parsimony step then retains a compact subset of the selected
+  features. Expect single-digit feature counts where autofeat returns tens.
+  `equation()` records how many of the certified terms it printed, and
   `parsimony=None` returns the whole certified set if you want it.
-- **A guarantee, and an honest failure.** If nothing passes selection,
-  `beamfeat` returns *no* constructed features, warns, and sets
+- **A guarantee, and an honest empty result.** If the screen rejects no
+  null, `beamfeat` returns *no* constructed features, warns, and sets
   `fdr_controlled_ = False` rather than returning unvetted candidates. Check
   that flag.
 - **Determinism.** `random_state` makes the whole pipeline reproducible,
@@ -115,5 +116,8 @@ a lower ceiling as the price of a guarantee and a floor. Quantified in
   before its own internal seeding applies, so each process starts from
   different entropy. Six runs of one identical split returned R² from +0.952
   to −109.8.
-- **No constants inside expressions.** Neither tool fits them; if you need
-  `exp(-3.2 x)`, a symbolic regressor such as PySR is the right instrument.
+- **Constants inside expressions.** autofeat fits none. Since 0.6.0
+  `beamfeat` fits one constant inside an expression by default, such as
+  `exp(-3.2 x)` or `1/(x + a)` (`fitted_ops`; `fitted_ops=()` turns it off).
+  If a law needs several constants fitted jointly, a symbolic regressor such
+  as PySR is the right instrument.

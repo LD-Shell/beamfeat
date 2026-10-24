@@ -56,7 +56,8 @@ columns, as on tecator, where ratios of absorbance channels are features that
 threshold splits cannot build. It trails where the signal is spread thinly
 over hundreds of columns, as on ct_slices, ujiindoorloc and blogfeedback:
 ridge keeps every column and shrinks it, while a screen with an error-rate
-guarantee drops the columns that each carry a small fraction of the signal.
+guarantee has little power to reject the null for features that each carry
+a small fraction of the signal, and leaves them out.
 With the corrections, it is ahead of both tree ensembles on four of the nine
 datasets: tecator, geomusic, communities and eyedata. `fdr_controlled_` was
 true on all 90 beamfeat fits of the archived run (the estimator and the
@@ -86,8 +87,8 @@ check on other data.
   against its ceiling of `q·m₀/m` = 0.040/0.080/0.160; Benjamini–Yekutieli,
   stricter by a harmonic factor, realised 0.013 ± 0.005, 0.018 ± 0.005 and
   0.046 ± 0.008. Power was 1.00 throughout. The bounds are computed from the
-  design, and the script fails if a bound falls below a realised rate's whole
-  95% interval.
+  design, and the script stops with an error if a bound falls below a
+  realised rate's whole 95% interval.
 - **End to end**
   ([`benchmarks/calibration_study.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/calibration_study.py)).
   Search plus holdout selection at nominal FDR 0.10, on 500 rows and 6 input
@@ -97,12 +98,12 @@ check on other data.
   global-null replicates, nothing was selected.
 - **Pure noise**
   ([`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py)).
-  Over 100 global-null pipelines, where every selection is false by
-  construction, BH returned features in 6 trials and BY in 1, false discovery
-  proportions of 0.06 and 0.01, both under the nominal 0.10. The difference is
-  not significant at this trial count: both corrections saw the same 100
-  datasets, the one trial on which BY selected is among BH's six, and the
-  exact paired test gives p = 0.06. BY is the estimator default because it is
+  Over 100 global-null pipelines, where every rejection is a false rejection
+  by construction, BH returned features in 6 trials and BY in 1, false
+  discovery proportions of 0.06 and 0.01, both under the nominal 0.10. At
+  this trial count the exact paired test does not reject equal rates
+  (p = 0.06): both corrections saw the same 100 datasets, and the one trial
+  on which BY selected is among BH's six. BY is the estimator default because it is
   valid under arbitrary dependence, and this result is consistent with that
   choice.
 
@@ -200,7 +201,8 @@ beamfeat adds none.
   screening-admissible ceiling 0.874 ± 0.006, and the pipeline 0.780 ± 0.013.
   About 0.086 is lost to what marginal screening cannot see: the centred
   quadratic term is nearly uncorrelated with the target on its own, so a
-  marginal screen does not admit it. The other 0.094 is lost in the search. The
+  marginal screen has almost no power to reject its null. The other 0.094 is
+  lost in the search. The
   [guarantees page](guarantees.md#permutation-selector-default) explains the
   marginal null.
 
@@ -244,7 +246,7 @@ other.
 
 ## Test suite
 
-686 tests at 97% statement coverage, with a 90% floor enforced in CI,
+955 tests at 97% statement coverage, with a 90% floor enforced in CI,
 including scikit-learn's full estimator-conformance checks.
 
 ## Corrections since the paper

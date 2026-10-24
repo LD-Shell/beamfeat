@@ -6,17 +6,29 @@ Notable changes to `beamfeat`. Format follows
 
 ## [Unreleased]
 
-Towards 0.5.1, and on branch `feature/0.6.0` towards 0.6.0, which builds on
-it: `beamfeat.__version__` is `0.5.1.dev0` or `0.6.0.dev0` until the release.
-The new options are off by default except `fitted_ops`, which 0.6.0 turns
-on (below). A fit with `fitted_ops=()` and the others left off gives the
-features, p-values and predictions of 0.5.0, to the last bit, except with
-`selector="knockoff"`.
+Towards 0.6.0: `beamfeat.__version__` is `0.6.0.dev0` until the release.
+0.5.1 was prepared but not released; its options are part of this release
+and listed under "Added". One default changes: the estimators fit constants
+inside expressions, `fitted_ops` (under "Changed"). The other new options
+are off by default (`max_inputs=None`, `certify_test="marginal"`,
+`magnitude_slots=0`, `input_test=False`), and a fit that leaves them there
+and passes `fitted_ops=()` gives the features, p-values and predictions of
+0.5.0, to the last bit, except with `selector="knockoff"`, whose fixed-X
+statistic is fixed (under "Fixed").
+
+The re-test's figures below are from `benchmarks/parsimony_holdout/`:
+48,000 fits of a global null and of
+`y = a*b/c` plus noise among 5 or 20 distractors, with and without a column
+correlated 0.9 with `a`, at signal-to-noise ratios 1 and 3, 300 and 1,000
+rows, 200 replicates per cell, q = 0.1 and 0.2. A printed term counts as
+false in the conditional sense when it uses any column outside the formula,
+as a rider such as `(a*b/c) * x7` does.
 
 ### Added
 
 - `fitted_ops` on `BeamSearch`, `BeamFeatTransformer`, `BeamFeatRegressor`
-  and `BeamFeatClassifier` (default `()`, which leaves every result
+  and `BeamFeatClassifier` (on by default in the three estimators, under
+  "Changed"; `BeamSearch` defaults to `()`, which leaves every result
   unchanged): operators with one constant fitted inside the expression,
   `exp_scaled` (`exp(a*x)`), `pow` (`x^a`), `inv_shift` (`1/(x + a)`) and
   `log_shift` (`log(x + a)`). At each depth each is fitted to each member of
@@ -29,52 +41,39 @@ features, p-values and predictions of 0.5.0, to the last bit, except with
   the shifts' grids start at it, and `pow` fits a negative power, whose pole
   is at 0, only where the operand stays more than the margin above 0. The
   constant snaps to a simple value (0, ±1, ±2, ±3, ±1/2, ±3/2, ±1/3, ±1/4)
-  when a likelihood-ratio test cannot tell it from the optimum, never past
-  the margin, and is exact in `to_sympy()` and `latex()`. The screen sees
+  when a likelihood-ratio test at level 0.001 fails to reject the null that
+  it takes that value, never past the margin, and is exact in `to_sympy()`
+  and `latex()`. The screen sees
   fixed expressions, so its guarantee is unchanged. `Node.const`,
   `Node.n_constants`, `transform(..., const=...)`,
   `OperatorSpec.constant_grid`, `pole_margins`, `SearchTrace.n_fitted` and
   `beamfeat.parametric` support it.
+
 - `max_inputs` on the same four classes (default `None`): the most distinct
   input columns one feature may use, checked before evaluation. An
   expression of depth d uses at most 2^d columns, so at the default depth a
-  value of 4 or more changes nothing. Measured at `max_inputs=3` on the
-  development branch, against 0.5.0, mean held-out R² over 5 splits:
+  value of 4 or more changes nothing. Measured at `max_inputs=3` against
+  0.5.0, mean held-out R² over 5 splits:
   - gains on wide data with diffuse signal: eyedata 0.416 to 0.488,
     ct_slices 0.664 to 0.684, riboflavin 0.340 to 0.378;
   - losses: the twelve-law panel loses the gravitational law, which needs
     four inputs, and diabetes falls from 0.382 to 0.360;
   - one blogfeedback split falls from 0.533 to −2.14, where a three-input
     product extrapolates far past its training range on one test row.
-- `SearchTrace.n_rejected_constraints`, the candidates `max_inputs` rejected
-  at each depth (0 when it is off).
+
+- `SearchTrace.n_rejected_constraints`, the candidates `max_inputs` ruled
+  out at each depth (0 when it is off).
+
 - `.zenodo.json`, so that the Zenodo record of each release links the TMLR
   paper as the work the software supplements. Zenodo read the title, author
   and keywords from `CITATION.cff` but not its `preferred-citation`, so the
   records up to 0.5.0 do not mention the paper.
 
-### Towards 0.6.0
-
-On branch `feature/0.6.0` only. One default changes: the estimators fit
-constants inside expressions, `fitted_ops` (below). `certify_test` defaults
-to `"marginal"`, `magnitude_slots` to 0 and `input_test` to `False`, and a
-fit that leaves them there and passes `fitted_ops=()` gives the results of
-0.5.1 to the last bit, except with `selector="knockoff"`, whose fixed-X
-statistic is fixed (below).
-The re-test's figures below are from `benchmarks/parsimony_holdout/`:
-48,000 fits of a global null and of
-`y = a*b/c` plus noise among 5 or 20 distractors, with and without a column
-correlated 0.9 with `a`, at signal-to-noise ratios 1 and 3, 300 and 1,000
-rows, 200 replicates per cell, q = 0.1 and 0.2. A printed term counts as
-false in the conditional sense when it uses any column outside the formula,
-as a rider such as `(a*b/c) * x7` does.
-
-#### Added
-
 - `certify_test` on `BeamFeatTransformer`, `BeamFeatRegressor` and
   `BeamFeatClassifier`: the test the `parsimony_holdout` re-test applies.
-  `"marginal"` re-runs the screen, as before, and so keeps a term that only
-  rides on a true one, `x0*x7` when the target depends on `x0` alone.
+  `"marginal"` re-runs the screen, as before, and so rejects the null of a
+  term that only rides on a true one, `x0*x7` when the target depends on
+  `x0` alone.
   `"conditional"` tests each re-tested term given the others with a
   Freedman-Lane permutation test: the target and the term are residualised
   on the other terms and an intercept, the target's residuals are permuted,
@@ -86,12 +85,13 @@ as a rider such as `(a*b/c) * x7` does.
   Regression only; classification raises. At a signal-to-noise ratio of 3 it
   brought the conditional rate of the printed equation to 0.18 to 0.22,
   against 0.42 to 0.44 at the defaults and 0.53 to 0.62 with the marginal
-  re-test, and in the fits where it certified something it printed 1.1 to
-  1.2 terms at a rate of 0.026 to 0.040 (q = 0.1), with power 0.98 to 0.99.
-  When the re-tested subset is long and its terms nearly reproduce one
-  another nothing passes, and the screened set, which carries the marginal
-  guarantee only, is returned: in 87 to 92% of fits at a ratio of 1, where
-  the forward step keeps 18 terms on average, and in 18 to 26% at 3.
+  re-test, and in the fits where it rejected at least one null it printed
+  1.1 to 1.2 terms at a rate of 0.026 to 0.040 (q = 0.1), with power 0.98 to
+  0.99. When the re-tested subset is long and its terms nearly reproduce one
+  another the test rejects no null, and the screened set, which carries the
+  marginal guarantee only, is returned: in 87 to 92% of fits at a ratio of
+  1, where the forward step retains 18 terms on average, and in 18 to 26%
+  at 3.
 
 - `beamfeat.stability`: `stability_report(estimator, X, y)`, also exported
   from `beamfeat`, makes the paper's stability study (Appendix E) a package
@@ -152,8 +152,10 @@ as a rider such as `(a*b/c) * x7` does.
   the high-dimensional study's from 0.647 to 0.649. The ranking uses the
   search rows only, so the screen sees fixed expressions and its guarantee
   is unchanged; on four null and two planted designs, 200 paired replicates
-  each, the share of fits with a false feature moved by at most one in 200.
+  each, the share of fits with a false discovery moved by at most one in
+  200.
   `magnitude_scores` and `SearchTrace.n_magnitude` support it.
+
 - `benchmarks/search_stress/`: a stress test of the search on `x0*x1`,
   `x0*x1*x2` and `x0*x1 + x2` among distractors, on centred and on positive
   inputs, with 5 to 1,000 columns, 500 and 2,000 rows, 1% and 10% noise and
@@ -173,23 +175,25 @@ as a rider such as `(a*b/c) * x7` does.
   inside each candidate that reads more than one is tested by permuting
   that column alone and recomputing the screen's statistic, with the
   screen's step-up correction across every (candidate, column) pair, and a
-  screened term with a column it does not need is dropped before
-  parsimony. It removes riders such as `(x0*x1)/(x1 + x8)`, which pass the
-  screen because `x0*x1` carries them. The null for a column is that it is
-  independent of the target and of the candidate's other columns, under
-  which the p-values are exact; a junk column correlated with a real one is
-  not null in that sense and can stay. A pair stops at its tenth
+  screened term is dropped before parsimony when the test fails to reject
+  the null for one of its columns. It removes riders such as
+  `(x0*x1)/(x1 + x8)`, whose null the screen rejects because `x0*x1`
+  carries them. The null for a column is that it is independent of the
+  target and of the candidate's other columns, under which the p-values are
+  exact; a junk column correlated with a real one is not null in that sense,
+  so its null can be rejected and the term kept. A pair stops at its tenth
   exceedance (Besag & Clifford, 1991). `input_report_` lists every pair
-  with its p- and q-value, and `equation()` counts the terms it dropped. If
-  no screened term passes, the screened set is used with a warning. Measured
+  with its p- and q-value and `null_rejected`, and `equation()` counts the
+  terms it dropped. If the test would drop every screened term, the screened
+  set is used with a warning. Measured
   against the default, 20 seeds of `y = x0*x1` plus 25% noise among 10
   junk columns, 500 training and 500 test rows: printed equations with a
   junk column 14 → 1, printed terms with one 23/45 → 1/28, held-out R²
   0.9413 → 0.9416 (true formula 0.9425), 0.25 → 2.6 s a fit. With the junk
   `x8` correlated 0.82 with `x1`: 10 → 3. The physics panel is unchanged at
   10/12 solved, 8 exact; with five junk columns appended, equations with
-  one 2 → 0, solved and exact unchanged. On pure-noise targets nothing
-  passes either way. Real data, mean over 5 splits: diabetes R² 0.429 →
+  one 2 → 0, solved and exact unchanged. On pure-noise targets the screen
+  rejects no null either way. Real data, mean over 5 splits: diabetes R² 0.429 →
   0.415 (6.2 → 5.0 terms), breast cancer accuracy 0.969 → 0.969 (24.2 →
   13.4 terms). The cost grows with the rows: california housing (15,480
   training rows) took 135 s against 2.6 s, R² 0.655 → 0.664 on one split.
@@ -197,7 +201,7 @@ as a rider such as `(a*b/c) * x7` does.
   on california housing, 77 s with 8 threads against 202 s with one, in a
   later run on the same machine.
 
-#### Changed
+### Changed
 
 - **`fitted_ops` is on by default** in `BeamFeatTransformer`,
   `BeamFeatRegressor` and `BeamFeatClassifier`: all four operators,
@@ -222,30 +226,30 @@ as a rider such as `(a*b/c) * x7` does.
   `BEAMFEAT_OPTIONS='{"fitted_ops": []}'` reproduces the archived results,
   and the Benchmarks page says which results predate the change. The
   tutorials are re-executed at the new default.
-- `fitted_ops` fits are about twice as fast, with the same results to the
-  last bit (the formulas, the screened candidates and the predictions of 18
-  fits, five distractor sets, the physics panel and diabetes, are identical
-  to those before): each operator is fitted to all of a depth's parents at
-  once, with the golden-section refinements, the snapping and the rounding
-  run side by side as array operations (`fit_constants_many`, which
-  `fit_constants` now calls), the coarse grid is applied to every constant
-  at once, and the search counts each subexpression's operators and
-  constants once per ranking instead of once per candidate, which speeds up
-  fits without `fitted_ops` slightly too. On those 18 fits `fitted_ops` cost
-  3.4 times the plain fit's time and now costs 1.9 times.
+- `fitted_ops` fits run in batches: each operator is fitted to all of a
+  depth's parents at once, with the golden-section refinements, the
+  snapping and the rounding run side by side as array operations
+  (`fit_constants_many`, which `fit_constants` calls), and the coarse grid
+  is applied to every constant at once. Against the first implementation,
+  prepared for 0.5.1, this halves their cost, from 3.4 to 1.9 times a plain
+  fit's time on 18 fits (five distractor sets, the physics panel and
+  diabetes), whose formulas, screened candidates and predictions are the
+  same to the last bit. The search also counts each subexpression's
+  operators and constants once per ranking instead of once per candidate,
+  which speeds up fits without `fitted_ops` slightly too.
 - `parsimony_holdout` is calibrated, and the guarantees page reports the
   figures in place of the sentence saying it had not been. In the marginal
   sense, the guarantee's, the printed equation's realised FDR stays far
   below q under every setting: 0.009 to 0.018 at q = 0.1 and 0.021 to 0.029
   at q = 0.2 on the null, and no term built only from distractors printed in
   the 3,200 planted and proxy fits per setting and level. The re-test adds
-  nothing measurable there: on null data it rejected the screen's false
-  picks in 20 of 22 fits at q = 0.1, and the fallback to the screened set
-  printed them anyway. In the conditional sense no setting controls the
-  rate: 0.67 to 0.77 under every setting at a signal-to-noise ratio of 1,
-  and at 3, 0.42 to 0.44 at the defaults and 0.53 to 0.62 with the marginal
-  re-test. Power and held-out R² hardly move (R² within 0.0033 of the
-  default, paired).
+  nothing measurable there: on null data it failed to reject the null for
+  the screen's false discoveries in 20 of 22 fits at q = 0.1, and the
+  fallback to the screened set printed them anyway. In the conditional
+  sense no setting controls the rate: 0.67 to 0.77 under every setting at a
+  signal-to-noise ratio of 1, and at 3, 0.42 to 0.44 at the defaults and
+  0.53 to 0.62 with the marginal re-test. Power and held-out R² hardly move
+  (R² within 0.0033 of the default, paired).
 - The guide has a section on laws whose parts the score cannot see, with
   `magnitude_slots`, and the guarantees page says why the option leaves the
   guarantee unchanged.
@@ -260,8 +264,19 @@ as a rider such as `(a*b/c) * x7` does.
   units, LaTeX and export included, and the first notes which scikit-learn
   versions show the parameters and fitted attributes in the estimator's
   summary box.
+- Hypothesis-testing wording throughout the documentation, docstrings and
+  messages. Each candidate has its own null hypothesis, and a test rejects
+  it or fails to reject it, where the text used to say that a feature
+  passes, fails, survives or is kept. The guarantees page opens with these
+  definitions, and the guide has a section on `input_test`. Messages change
+  with the wording: an empty model's `equation()` and `latex()` end in
+  `(no feature selected)` rather than `(no feature passed selection)`,
+  `equations()` on it says that the screen rejected no null, and
+  `NoDiscoveriesWarning`, `NoDiscoveriesError` and `DegenerateFitWarning`
+  say what the screen rejected. The migration guide no longer says that
+  beamfeat fits no constants inside expressions.
 
-#### Fixed
+### Fixed
 
 - The fixed-X knockoff statistic. The fixed-X guarantee (Barber & Candès,
   2015) needs a statistic that sees the data only through the Gram matrix
@@ -279,6 +294,15 @@ as a rider such as `(a*b/c) * x7` does.
   columns: the guarantee now covers the statistic, at a cost in power on
   correlated designs, and a fit is 2–4 times faster. The permutation
   selector, the default, is unaffected.
+- The `verbose` summary of a fit with `parsimony_holdout` said that the
+  returned terms were "re-certified on held-back rows" even when the
+  re-test rejected no null and the screened set was returned. It now says
+  which happened, and for how many of the re-tested terms the re-test
+  rejected the null. It also no longer calls the fitted terms a subset of
+  the certified set when they are the whole of it.
+- The permutation selector's warning for a permutation budget too small to
+  reject any null suggested `correction='bh'` to a selector already using
+  it; the suggestion is now made under Benjamini-Yekutieli only.
 
 ## [0.5.0] - 2026-10-20
 

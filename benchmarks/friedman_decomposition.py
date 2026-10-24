@@ -3,16 +3,16 @@
 Splits the shortfall on Friedman #1 into two parts. A least-squares oracle on
 the depth-2 basis {ab, (ab)^2, c, c^2, d, e} bounds what any model using that
 representation could reach. The screening-admissible ceiling refits on only
-the terms the marginal null admits, bounding what a marginal screen could
-reach. The pipeline is then run on the same draw.
+the terms whose marginal null the screen rejects, bounding what a marginal
+screen could reach. The pipeline is then run on the same draw.
 
 Reported over several independent draws with a standard deviation, because the
 oracle and ceiling are least-squares fits on a fixed basis and barely move,
 while the pipeline's score shifts by an order of magnitude more as the search
-makes discrete choices. Which terms the screen admits is itself draw-dependent,
-so the ceiling is computed on the set actually admitted rather than an assumed
-one. The script checks the ordering that the argument rests on, achieved below
-ceiling below oracle, and fails if it does not hold.
+makes discrete choices. Which nulls the screen rejects is itself
+draw-dependent, so the ceiling is computed on the terms actually selected
+rather than an assumed set. The script checks the ordering that the argument
+rests on, achieved below ceiling below oracle, and fails if it does not hold.
 """
 from __future__ import annotations
 

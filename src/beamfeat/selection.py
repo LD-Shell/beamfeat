@@ -1,9 +1,10 @@
 """False-discovery-rate controlled feature selection.
 
 Feature construction proposes far more candidates than any dataset can
-support, so selection is where spurious features are either excluded or
-silently admitted. This module provides selectors that control the false
-discovery rate — the expected proportion of selected features that are
+support. Each candidate carries its own null hypothesis, and the selected
+features are those whose nulls a selector rejects. This module provides
+selectors that control the false discovery rate — the expected proportion
+of rejected nulls that are true, that is, of selected features that are
 spurious — and is explicit about the assumptions under which each guarantee
 holds.
 
@@ -47,9 +48,10 @@ The estimators' ``certify_test="conditional"`` re-tests the terms they
 return with a Freedman-Lane permutation test of each term given the others.
 It is not a screen and is not exported; its null and the assumptions behind
 it are stated with that parameter and on the guarantees page. The
-estimators' ``input_test=True`` tests, inside each candidate, whether the
-candidate needs each column it reads, by permuting that column alone; it is
-not exported either.
+estimators' ``input_test=True`` tests, for each column a candidate reads,
+the null that the column is independent of the target and of the
+candidate's other columns, by permuting that column alone; it is not
+exported either.
 
 **Selective inference caveat.** Every guarantee above is for testing a
 candidate set that is *fixed before seeing the data used for testing*. If
@@ -294,7 +296,7 @@ def _standardise(features: np.ndarray) -> np.ndarray:
 
 
 def _benjamini_hochberg(p_values: np.ndarray, target_fdr: float) -> np.ndarray:
-    """Indices surviving the Benjamini-Hochberg (1995) step-up procedure.
+    """Indices of the nulls the Benjamini-Hochberg (1995) step-up procedure rejects.
 
     Controls the FDR at ``target_fdr`` when the p-values are independent or
     positively regression dependent (PRDS; Benjamini & Yekutieli, 2001).
@@ -382,8 +384,8 @@ class PermutationSelector(Selector):
     ``target_fdr / (m c(m))`` under Benjamini-Yekutieli, where
     ``c(m) = sum_{j<=m} 1/j``. ``B`` therefore must be at least
     ``m / target_fdr - 1`` in the first case and ``c(m)`` times that in the
-    second for selection to be possible at all, and one further null
-    exceedance doubles the requirement. When ``auto_permutations`` is on
+    second for the null of a lone leading feature to be rejectable at all,
+    and one further null exceedance doubles the requirement. When ``auto_permutations`` is on
     (default), B is raised to twice the bound belonging to the configured
     correction — satisfiable with headroom for a single exceedance — capped
     at ``max_permutations``. The requirement binds hardest when few
@@ -474,8 +476,8 @@ class PermutationSelector(Selector):
         whenever few candidates reach the floor together.
 
         At either exact bound a single null draw exceeding the top feature
-        makes its p-value ``2/(B+1)`` and selection impossible again, so
-        twice the bound is used: enough for one exceedance.
+        makes its p-value ``2/(B+1)`` and its null impossible to reject
+        again, so twice the bound is used: enough for one exceedance.
         """
         scale = 1.0
         if self.correction == "by":
@@ -497,21 +499,26 @@ class PermutationSelector(Selector):
                 n_permutations = required
             else:
                 n_permutations = self.max_permutations
+                remedies = "Reduce the candidate count, raise target_fdr, raise max_permutations"
+                if self.correction == "by":
+                    remedies += (
+                        ", or select with correction='bh', whose bound is smaller by the "
+                        "harmonic factor at the cost of assuming positive dependence"
+                    )
                 messages.append(
                     f"{n_features} features at target FDR {self.target_fdr} need "
                     f"~{required} permutations for {self.correction.upper()} to be satisfiable, above "
-                    f"max_permutations={self.max_permutations}; selection may be impossible. "
-                    "Reduce the candidate count, raise target_fdr, raise max_permutations, "
-                    "or select with correction='bh', whose bound is smaller by the "
-                    "harmonic factor at the cost of assuming positive dependence"
+                    f"max_permutations={self.max_permutations}; the correction may be unable to "
+                    f"reject any null. {remedies}"
                 )
                 logger.warning("[beamfeat.selection] %s", messages[-1])
         elif not self.auto_permutations and n_permutations < required:
             messages.append(
                 f"n_permutations={n_permutations} with auto_permutations=False is below the "
                 f"~{required} that {self.correction.upper()} needs for {n_features} features at "
-                f"target FDR {self.target_fdr}; selection may be impossible, and an empty "
-                "selection would reflect the budget rather than an absent signal. Raise "
+                f"target FDR {self.target_fdr}; the correction may be unable to reject any "
+                "null, and an empty selection would reflect the budget rather than an absent "
+                "signal. Raise "
                 "n_permutations or set auto_permutations=True"
             )
             logger.warning("[beamfeat.selection] %s", messages[-1])
@@ -654,7 +661,8 @@ class _ConditionalPermutationSelector(PermutationSelector):
     coefficient is zero in the linear model of the target on all the
     features and an intercept: given the others, it adds nothing linear. A
     feature that stands in for a signal the others leave out is not null in
-    this sense, and is kept. The p-values are approximate. Permuting
+    this sense, so rejecting its null is not a false rejection. The p-values
+    are approximate. Permuting
     residuals treats them as exchangeable, which rests on the errors of the
     linear model of the target on the other features being exchangeable
     (independent and identically distributed, so of constant variance), and
@@ -753,7 +761,8 @@ class _ConditionalPermutationSelector(PermutationSelector):
 
 # Exceedances at which the input test stops drawing for a pair (Besag &
 # Clifford, 1991). Ten keeps the stopped p-value, 10/L, at least 10/B, and
-# so out of reach of the correction's threshold except where many pairs pass.
+# so out of reach of the correction's threshold except where the nulls of many
+# pairs are rejected.
 _STOP_EXCEEDANCES = 10
 
 
@@ -817,10 +826,10 @@ class _InputPermutationTest(PermutationSelector):
     column's rows leaves the distribution of the data unchanged, so the
     p-values are exact in finite samples, whatever the expression. A column
     correlated with another input or with the target is not null in this
-    sense even where the candidate would do as well without it, and can
-    pass. Candidates that read a single column are not tested: permuting
-    their only column is the same test as permuting the target, which the
-    screen has run.
+    sense even where the candidate would do as well without it, so its null
+    can be rejected. Candidates that read a single column are not tested:
+    permuting their only column is the same test as permuting the target,
+    which the screen has run.
 
     **Cost.** Each draw re-evaluates the expression, so the time grows with
     the number of pairs, the number of draws the needed columns take and

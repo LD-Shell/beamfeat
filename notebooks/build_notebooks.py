@@ -79,15 +79,17 @@ getting_started = [
 
 beamfeat constructs interpretable features from tabular data. Given columns
 `a`, `b`, and `c`, it searches expressions like `log(a)`, `a * b`, and
-`(a * b) / c`, keeps the ones that predict the target, and reports them as
-readable formulas.
+`(a * b) / c`, tests each against the null hypothesis that it is independent
+of the target, and reports the ones whose null is rejected as readable
+formulas.
 
 Two things distinguish it from exhaustive feature engineering:
 
 1. **The search is guided.** Candidates are scored against the target and only
    the best are extended, so cost does not compound with expression depth.
-2. **Selection is calibrated.** The retained features carry a false discovery
-   rate guarantee rather than surviving a heuristic threshold.
+2. **Selection is calibrated.** A feature is retained only when a test rejects
+   its null under false-discovery-rate control, not when it clears a heuristic
+   threshold.
 
 This notebook covers the basic workflow. Later notebooks cover the search and
 selection machinery in detail.
@@ -160,7 +162,7 @@ print(f"features constructed: {model.n_features_out_}")
 `verbose` is a level. `0` is silent, `1` prints a line per stage, and `2` adds
 per-depth search detail and the strongest certified candidates with their
 p- and q-values. It is the quickest way to see where a fit spent its effort,
-and to tell a search that found nothing from a screen that certified nothing.
+and to tell a search that found nothing from a screen that rejected no null.
         """
     ),
     code(
@@ -289,8 +291,8 @@ for formula in classifier.formulas():
 - **03: Selection and units** — how false discovery rate control works, why the
   default is not knockoffs, and how dimensional analysis constrains the search.
 - **04: Reading a fit** — what to do when the equation contains columns you did
-  not expect, how to tell a search failure from a selection failure, and how to
-  list, typeset and export the equation.
+  not expect, how to read a fit in which no null was rejected, and how to list,
+  typeset and export the equation.
         """
     ),
 ]
@@ -553,9 +555,9 @@ print(f"correlation on the squared column:   {CorrelationScorer().score(squared,
 ## Redundancy control
 
 A beam scored purely on individual merit fills with variants of the same
-signal. beamfeat scores each candidate against the residual left by what is
-already selected as well as against the target, and ranks it on the larger of
-the two, so a refinement of a selected feature survives while novelty is still
+signal. beamfeat scores each candidate against the residual left by what the
+beam already holds as well as against the target, and ranks it on the larger
+of the two, so a refinement of a beam member survives while novelty is still
 rewarded. It also drops a candidate too correlated with one already admitted at
 the same depth; the final ranking applies the same check across depths.
         """
@@ -582,7 +584,7 @@ for threshold in (0.5, 0.9, 0.999):
     ),
     markdown(
         """
-## Auditing what was rejected
+## Auditing what the search ruled out
 
 Candidates excluded during evaluation are recorded rather than silently
 dropped. This matters when a search returns less than expected: the log tells
@@ -598,7 +600,7 @@ signed_data["e"] = rng.normal(0, 2, n)  # negative values break log and sqrt
 
 outcome = BeamSearch(max_depth=1, beam_width=20, random_state=0).run(signed_data, target)
 
-print("rejections by reason:")
+print("ruled out, by reason:")
 for reason, count in outcome.evaluation_log.counts().items():
     print(f"  {reason.value:>15}: {count}")
 
@@ -620,14 +622,16 @@ selection_and_units = [
 # Selection and units
 
 Feature construction proposes far more candidates than any dataset can support.
-Selection is where spurious features are either excluded or silently admitted,
-and it is where most automated feature engineering tools are weakest: an
-importance threshold gives no guarantee about how many reported features are
-noise, and the expected number of false positives grows with the size of the
-candidate pool.
+Selection decides which of them are reported, and it is where most automated
+feature engineering tools are weakest: an importance threshold gives no
+guarantee about how many reported features are noise, and the expected number
+of false discoveries grows with the size of the candidate pool.
 
-beamfeat controls the **false discovery rate** — the expected proportion of
-selected features that are spurious.
+beamfeat tests each candidate against its own null hypothesis, that the
+candidate is independent of the target, and selects the candidates whose nulls
+it rejects. It controls the **false discovery rate** — the expected proportion
+of rejected nulls that are true, that is, of selected features that are
+spurious.
         """
     ),
     code(
@@ -652,8 +656,8 @@ rng = np.random.default_rng(0)
         """
 ## The problem, demonstrated
 
-With a pure-noise target, every selected feature is by definition a false
-positive. A well-calibrated selector should return almost nothing.
+With a pure-noise target every null is true, so every rejection is a false
+rejection. A well-calibrated selector should reject almost nothing.
         """
     ),
     code(
@@ -680,8 +684,8 @@ print(f"trials selecting nothing: {sum(s == 0 for s in selections)}/{n_trials}")
         """
 ## Measured calibration
 
-More usefully: with real signal present, what fraction of selections are false?
-This is the quantity the library claims to control.
+More usefully: with real signal present, what fraction of the rejections are
+false? This is the quantity the library claims to control.
         """
     ),
     code(
@@ -759,9 +763,10 @@ are under strain, rather than pretending otherwise.
 One thing knockoffs will *not* do, since the conditional null invites the
 inference: they cannot prune a term out of an expression. Selection operates
 on whole candidate columns, so a candidate like `noise + (a * b) / c` is one
-column and is accepted or rejected entire — switching the selector does not
-reach inside it. Constraining what gets *built* is the lever there, and
-notebook 04 uses units for exactly that.
+column with one null, rejected or not as a whole — switching the selector does
+not reach inside it. Two levers do: constraining what gets *built*, which
+notebook 04 does with units, and testing each column inside a candidate, which
+the estimators' `input_test=True` does.
         """
     ),
     code(
@@ -822,7 +827,7 @@ for offset in (0, 1):
 ## End to end
 
 Putting search and selection together: construct candidates, then keep only
-those that survive FDR control.
+those whose nulls the FDR-controlled test rejects.
         """
     ),
     code(
@@ -841,7 +846,7 @@ selection = PermutationSelector(target_fdr=0.1, n_permutations=30).select(matrix
 
 print(f"proposed: {search_result.n_proposed_total}")
 print(f"kept by search: {len(search_result)}")
-print(f"kept by selection: {selection.n_selected}")
+print(f"nulls rejected by selection: {selection.n_selected}")
 print("\\nselected features:")
 for index in selection.selected:
     print(f"  {nodes[index].name}")
@@ -852,7 +857,7 @@ for index in selection.selected:
 ## Dimensional analysis
 
 If your columns carry physical units, supplying them restricts the search to
-dimensionally valid expressions. Adding a mass to a length is rejected at
+dimensionally valid expressions. Adding a mass to a length is ruled out at
 construction time, before any numerical work happens.
 
 This is both a correctness feature and a performance one: it prunes large parts
@@ -1054,7 +1059,7 @@ certified fifty formulas, most of them pairing the physics core with a noise
 column, and the parsimony step kept the one that carries the model. Those
 fifty are the set the guarantee covers. `parsimony=None` prints them all, and
 the section below on the marginal null explains why the noisy ones are there
-and why certifying them is not an error.
+and why rejecting their nulls is not an error.
 
 ### Where did gravity go?
 
@@ -1111,9 +1116,10 @@ it is not a defect.
 The null being tested is **marginal**: is this expression, *as a whole*,
 independent of the target? An expression that combines the true core with a
 noise column is emphatically not independent of the target — the core sees to
-that — so its null is false and selecting it is not an error under the
-criterion. The guarantee certifies that a selected formula is not pure noise.
-It does not certify that every column inside it earns its place.
+that — so its null is false and rejecting it is not an error under the
+criterion. The guarantee bounds the expected share of selected formulas that
+are pure noise. It says nothing about whether every column inside a formula
+earns its place.
 
 So `fdr_controlled_ = True` means what it says, and it is not the property you
 wanted here. Noise hitchhikes on a strong signal.
@@ -1145,10 +1151,12 @@ extra candidate costs power on the ones that matter.
         """
 ## Units are the fix
 
-Statistics cannot tell that `noise_0` does not belong — as we just saw, it is
-genuinely associated with the target once attached to the core. Physics can.
-You cannot add a dimensionless number to a quantity in kg·m/s, and beamfeat
-rejects such expressions at construction, before they are ever scored.
+The screen cannot tell that `noise_0` does not belong — as we just saw, the
+expression is genuinely associated with the target once `noise_0` is attached
+to the core. Physics can. You cannot add a dimensionless number to a quantity
+in kg·m/s, and beamfeat rules out such expressions at construction, before they
+are ever scored. (There is a statistical route too: `input_test=True` tests
+each column inside each term, as the guide describes.)
         """
     ),
     code(
@@ -1195,8 +1203,8 @@ Two cautions about what units check.
 
 They enforce that an expression is internally coherent, not that it matches the
 target's dimension. `rho * Q * H / eta` is kg·m/s while power is watts, and
-nothing objects, because `g` was absorbed. Units reject nonsense; they will not
-tell you a factor is missing.
+nothing objects, because `g` was absorbed. Units rule out nonsense; they will
+not tell you a factor is missing.
 
 And a *dimensionless* column is legal almost everywhere. `Q / noise_7` is still
 m³/s, so noise can ride in multiplicatively even under a full labelling, and
@@ -1275,7 +1283,7 @@ for row in sorted(screened, key=lambda r: r["p_value"])[:3]:
         """
 The gap matters. Parsimony picks a subset by greedy forward selection on the
 same rows, and a data-dependent subset of an FDR-controlled set does not
-inherit the guarantee: pruning cannot add false selections, but it can raise
+inherit the guarantee: pruning cannot add false discoveries, but it can raise
 the false discovery *proportion*, because the denominator shrinks faster than
 the numerator, and `fdp_inflation_` reports by how much. This is why
 `fdr_controlled_` and `fdr_scope_` are two attributes rather than one: the
@@ -1353,7 +1361,8 @@ p-value the permutation budget can produce, the correction cannot reject
 *anything*, whatever the data say. The selector detects this and says so in its
 warning, naming the correction and what to change. So read the warning before
 concluding there is no signal: an empty selection with a budget warning means
-the test could not fire, not that the data are silent.
+that no null could have been rejected at that budget, not that the data are
+silent.
         """
     ),
     markdown(
@@ -1434,8 +1443,9 @@ and a warning.
   composition levels, not variables.
 - An equation that grew noise terms is a sign you searched too deep, not that
   you need to search deeper.
-- `fdr_controlled_ = True` says the formula is not noise. It does not say every
-  column in it belongs.
+- `fdr_controlled_ = True` says the guarantee holds: on average at most
+  `target_fdr` of the certified formulas are noise. It does not say every
+  column in a formula belongs; `input_test=True` tests that.
 - Supply units when you have them, for every column.
 - A missing constant is usually in the coefficient.
 - Quote `selection_report_` when you need the guarantee; quote `equation()`

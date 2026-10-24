@@ -9,10 +9,20 @@ precision rather than at the last digit.
 
 ## What "FDR control at level q" means
 
-The false discovery rate is the **expectation**, over repetitions of the
-experiment, of the false discovery proportion (FDP) among selected features.
-A single run with FDP above q is consistent with control; a mean over trials
-above q is not. All documentation and tests in beamfeat use this definition.
+Each candidate `j` carries its own null hypothesis H₀ⱼ. For the default
+screen, H₀ⱼ is that candidate `j` is independent of the target. A selection
+procedure rejects some of these nulls, and the candidates whose nulls it
+rejects are its discoveries: the selected features, which beamfeat also calls
+the screened or certified set. Rejecting a true null is a false discovery, a
+Type I error. With R rejections of which V are false, the false discovery
+proportion is FDP = V / max(R, 1), and the false discovery rate is its
+**expectation** over repetitions of the experiment, FDR = E[FDP]. A single
+run with FDP above q is consistent with control; a mean over trials above q
+is not. All documentation and tests in beamfeat use this definition.
+
+Under the global null, where every H₀ⱼ is true, V = R, so the FDR is the
+probability of rejecting any null at all. Controlling it at q then means that
+at most a fraction q of pure-noise fits select anything.
 
 ## Permutation selector (default)
 
@@ -35,9 +45,11 @@ a lone one carries it alone. If the pool is large enough that even the cap
 cannot meet it, the selector says so in `warnings_raised` and an empty
 selection should be read as an exhausted budget rather than an absent signal.
 
-**Null semantics.** Marginal independence. A near-duplicate of a genuine
-signal is a *true* discovery under this null; de-duplication is performed by
-the search's redundancy threshold, not the error-control procedure.
+**Null semantics.** Marginal independence: H₀ⱼ is that candidate `j` is
+independent of the target. A near-duplicate of a genuine signal is not
+independent of the target, so rejecting its null is a *true* discovery;
+de-duplication is performed by the search's redundancy threshold, not the
+error-control procedure.
 
 **Multiplicity.** The estimators (`BeamFeatRegressor`,
 `BeamFeatClassifier`, `BeamFeatTransformer`) default to Benjamini–Yekutieli,
@@ -47,11 +59,11 @@ Engineered candidates share parents and are mutually correlated by
 construction, so PRDS cannot be taken for granted and the estimators take the
 conservative option. Over 100 pure-noise pipelines BH returned features in 6
 trials against BY's 1 (FDP 0.06 and 0.01,
-`benchmarks/selector_calibration.py`), both under the nominal 0.10. The
-difference is not significant at this trial count: both corrections saw the
-same 100 datasets, the one trial on which BY selected is among BH's six, and
-the exact paired test gives p = 0.06. Read it as a consistency check rather
-than a demonstrated BH failure. A selector *instance* passed to an estimator
+`benchmarks/selector_calibration.py`), both under the nominal 0.10. At this
+trial count the exact paired test does not reject equal rates (p = 0.06):
+both corrections saw the same 100 datasets, and the one trial on which BY
+selected is among BH's six. Read it as a consistency check rather than as
+evidence that BH loses control here. A selector *instance* passed to an estimator
 keeps its own settings, so `selector=PermutationSelector()` runs BH at the
 instance's `target_fdr`; the estimator warns when its `selection_correction`
 or `target_fdr` disagrees with the instance's.
@@ -62,20 +74,22 @@ or `target_fdr` disagrees with the instance's.
 against ceilings of 0.040/0.080/0.160. BY is stricter by a harmonic factor and
 realised 0.013 ± 0.005, 0.018 ± 0.005 and 0.046 ± 0.008. Power 1.00 throughout.
 `benchmarks/selector_calibration.py` derives each bound from the design and
-fails if a bound falls below a realised rate's whole 95% interval, so these figures cannot drift from the
-behaviour.
+stops with an error if a bound falls below a realised rate's whole 95%
+interval, so these figures cannot drift from the behaviour.
 
 **What the marginal null cannot see.** A feature can be jointly essential
 yet nearly marginally independent of the target — a centred quadratic
 `(c − 0.5)²` contributes almost no marginal correlation until its linear
-complement is fitted. Marginal screening correctly excludes such features
-under its null, at a measurable predictive cost on targets built from them
-(Friedman #1, over six draws: the marginal null never admits `c`, giving a
-screening-admissible ceiling of 0.874 ± 0.006 against a representation oracle
-of 0.960 ± 0.003, with the pipeline reaching 0.780 ± 0.013. Around 0.086 is
-lost to screening and 0.094 to the search. `c²` is admitted on some draws and
-not others, since `(c − 0.5)²` expands to carry a little marginal signal
-through it.)
+complement is fitted. The marginal screen has almost no power to reject the
+null for such a feature, and where the feature is exactly marginally
+independent of the target, failing to reject is correct under that null. The
+cost is measurable on targets built from them (Friedman #1, over six draws:
+the screen never rejects the null for `c`, giving a screening-admissible
+ceiling of 0.874 ± 0.006 against a representation oracle of 0.960 ± 0.003,
+with the pipeline reaching 0.780 ± 0.013. Around 0.086 is lost to screening
+and 0.094 to the search. The null for `c²` is rejected on some draws and not
+others, since `(c − 0.5)²` expands to carry a little marginal signal through
+it.)
 Joint selection recovers
 such features but certifies nothing; that trade is the design.
 
@@ -100,7 +114,8 @@ data only through `[X X̃]'[X X̃]` and `[X X̃]'y`. On the fixed-X path for
 regression beamfeat uses the lasso-path signed maximum,
 `W_j = max(Z_j, Z̃_j)·sign(Z_j − Z̃_j)`, where `Z_j` is the penalty at which
 column `j` enters the path, computed from those inner products alone; a
-test checks that rotating the rows, which keeps them, leaves `W` unchanged.
+test checks that rotating the rows, which preserves them, leaves `W`
+unchanged.
 Versions up to 0.5.0 used the difference of cross-validated lasso
 coefficients there, whose folds look at individual rows, so the guarantee
 did not strictly cover it. On Gaussian linear models at q = 0.2 (200 trials
@@ -174,8 +189,8 @@ any other; and the selection rows receive the search's output as a fixed
 set of expressions, chosen without them. The premise of the screen holds as
 before and its guarantee is unchanged. Measured on 200 paired replicates per
 design at q = 0.1 (`benchmarks/search_stress/null.py`, the screened set),
-the share of fits with a false feature was the same with the option as
-without on four null designs, 0.015 to 0.025, among them centred and
+the share of fits with at least one false discovery was the same with the
+option as without on four null designs, 0.015 to 0.025, among them centred and
 Gaussian inputs and 200 columns on 150 search rows; on a planted
 `x0*x1*x2` among centred distractors it was 0.025 against 0.020, one fit in
 200, with a false discovery rate of 0.005 either way.
@@ -193,11 +208,14 @@ together; under it, with independent rows from one distribution, permuting
 the column leaves the distribution of the data unchanged, so the p-values
 are exact. The screen's step-up correction runs across every
 (candidate, column) pair of every candidate, so which pairs are tested does
-not depend on the screen's outcome. A screened term with a column that fails
-is dropped before parsimony; `input_report_` lists every pair.
+not depend on the screen's outcome. A screened term is dropped before
+parsimony when the test fails to reject the null for any of its columns;
+`input_report_` lists every pair, with `null_rejected` marking the pairs
+whose null the test rejected.
 
 What it does not cover: a junk column correlated with a real one is not null
-in this sense, and can stay. Testing it given the other columns needs a model
+in this sense, so its null can be rejected and the term kept. Testing it
+given the other columns needs a model
 of the column given the others (knockoffs or the conditional randomisation
 test), which this test does not assume. The screen's guarantee is unchanged
 and still covers the screened set.
@@ -206,7 +224,8 @@ Measured on 20 seeds of `y = x0*x1` plus 25% noise among 10 junk columns
 (500 training and 500 test rows), against the default: printed equations with
 a junk column 14 → 1, printed terms with one 23/45 → 1/28, held-out R² 0.9413
 → 0.9416. With the junk `x8` correlated 0.82 with `x1`, 10 → 3. On pure-noise
-targets nothing passes either way, and the physics panel is unchanged.
+targets the screen rejects no null with the option or without it, and the
+physics panel is unchanged.
 
 ## Parsimony within the screened set
 
@@ -218,8 +237,8 @@ rows. Any two are available together, and the choice is one parameter.
 *within* the screened set and fits the compact subset. It is short and costs
 no rows. What it gives up is the second property: the subset is chosen on the
 rows selection already used, so the q-level guarantee certifies the set it was
-drawn from and not the terms that survived. `equation()` says so on its own
-output whenever terms were dropped —
+drawn from and not the terms the forward step retained. `equation()` says so
+on its own output whenever terms were dropped —
 
 ```text
 y = 0.9999*(x0 * x1) - 0.003943   [1 of 25 certified terms; parsimony=None prints all 25]
@@ -231,7 +250,7 @@ the returned features themselves. `fdr_controlled_` says whether there *is* a
 guarantee; `fdr_scope_` says what it is over. The full screened set with exact
 p- and q-values per candidate stays auditable in `selection_report_`. `fdp_inflation_` reports |S|/|S'|, the factor by which
 pruning can inflate the realised false discovery proportion: the denominator
-shrinks faster than the numerator, so the count of false selections cannot
+shrinks faster than the numerator, so the count of false discoveries cannot
 rise but the proportion can.
 
 **`parsimony=None`** prints the screened set entire. The guarantee covers what
@@ -243,8 +262,9 @@ screened set are the same set.
 **`parsimony_holdout`** buys both, and pays in rows. It splits the selection
 rows again: screening and parsimony use the first part, and the resulting
 subset — fixed at that point, and so an ordinary fixed-candidate set — is
-re-tested on the part held back. Terms failing the re-test are dropped, and
-because the guarantee then does cover the printed terms, `equation()` prints
+re-tested on the part held back. Terms whose null the re-test fails to
+reject are dropped, and because the guarantee then does cover the printed
+terms, `equation()` prints
 no subset note. The cost is real: comfortable above a few hundred rows,
 unaffordable below roughly a hundred, where `parsimony=None` is the better
 choice. If a compact certified equation cannot be produced, the whole screened
@@ -265,18 +285,18 @@ design pooled over its four cells.
   to 0.018 at q = 0.1 and 0.021 to 0.029 at q = 0.2 (a term printed in 7 to
   14 and 17 to 23 fits of 800), and on the planted and proxy designs no
   setting printed a term built only from distractors in 3,200 fits per
-  level. The re-test added nothing measurable here. On null data it rejected
-  the screen's rare false picks, in 20 of 22 fits at q = 0.1, and the
-  fallback to the screened set then printed them anyway, so the printed
-  equation's error is the screen's own.
+  level. The re-test added nothing measurable here. On null data it failed
+  to reject the null for the screen's rare false discoveries, in 20 of 22
+  fits at q = 0.1, and the fallback to the screened set then printed them
+  anyway, so the printed equation's error is the screen's own.
 - *In the conditional sense*, counting a printed term that uses any column
   outside the generating formula, such as a rider `(a*b/c) * x7`, no setting
   controls the rate and the marginal re-test does not lower it. It was 0.67
   to 0.77 under every setting at a signal-to-noise ratio of 1, where the
-  forward step keeps 18 terms on average. At a ratio of 3 it was 0.42 to 0.44
-  at the default and 0.53 to 0.62 with the re-test: on its smaller share of
-  rows the forward step keeps more riders, and each rider is associated with
-  the target, so the re-test keeps it.
+  forward step retains 18 terms on average. At a ratio of 3 it was 0.42 to
+  0.44 at the default and 0.53 to 0.62 with the re-test: on its smaller
+  share of rows the forward step retains more riders, and each rider is
+  associated with the target, so the re-test rejects its null.
 - Power to print the generating term (0.85 to 0.93 at a ratio of 1, 0.99 to
   1.00 at 3) and held-out R² (within 0.0033 of the default, paired) hardly
   moved under any setting.
@@ -289,28 +309,29 @@ partial correlation, and the screen's step-up correction is applied at the
 screen's level. The null for a term is that its coefficient is zero in the
 linear model of the target on all the frozen terms: given the others, it
 adds nothing linear. That null is relative to the frozen set, so a term
-standing in for a true one the set leaves out is not null under it and is
-kept. The p-values are approximate. For a single term the test is the
-marginal permutation test and exact. With others present its validity rests
-on the errors of a linear model of the target on the other terms being
-exchangeable (independent and identically distributed, so of constant
-variance), and even then the residuals it permutes are estimated and only
-nearly exchangeable, so the p-values are close to exact rather than exact
-(Anderson & Robinson, 2001; Winkler et al., 2014). The test is for
-regression only, and the step-up correction inherits its own condition:
-Benjamini–Yekutieli holds under any dependence among the p-values,
-Benjamini–Hochberg needs positive dependence.
+standing in for a true one the set leaves out is not null under it, and
+rejecting its null is not a false rejection. The p-values are approximate.
+For a single term the test is the marginal permutation test and exact. With
+others present its validity rests on the errors of a linear model of the
+target on the other terms being exchangeable (independent and identically
+distributed, so of constant variance), and even then the residuals it
+permutes are estimated and only nearly exchangeable, so the p-values are
+close to exact rather than exact (Anderson & Robinson, 2001; Winkler et al.,
+2014). The test is for regression only, and the step-up correction inherits
+its own condition: Benjamini–Yekutieli holds under any dependence among the
+p-values, Benjamini–Hochberg needs positive dependence.
 
 Measured in the same study, at a signal-to-noise ratio of 3 it brought the
 conditional rate to 0.18 to 0.22, paired −0.21 to −0.26 against the default.
-In the fits where it certified something it printed 1.1 to 1.2 terms, with a
-conditional rate of 0.026 to 0.040 at q = 0.1 and 0.052 to 0.073 at q = 0.2,
-and power 0.98 to 0.99. Its weakness is the fallback. When the frozen subset
-is long and its terms nearly reproduce one another, no term adds anything
-given the rest, nothing passes, and the screened set is returned, which
-carries the screen's marginal guarantee only. That happened in 87 to 92% of
-fits at a ratio of 1 and in 18 to 26% at 3 (37 to 52% with 300 rows, under
-1% with 1,000). `certification_result_.n_selected` is 0 on such a fit.
+In the fits where it rejected at least one null it printed 1.1 to 1.2 terms,
+with a conditional rate of 0.026 to 0.040 at q = 0.1 and 0.052 to 0.073 at
+q = 0.2, and power 0.98 to 0.99. Its weakness is the fallback. When the
+frozen subset is long and its terms nearly reproduce one another, no term
+adds anything given the rest, the test rejects no null, and the screened set
+is returned, which carries the screen's marginal guarantee only. That
+happened in 87 to 92% of fits at a ratio of 1 and in 18 to 26% at 3 (37 to
+52% with 300 rows, under 1% with 1,000). `certification_result_.n_selected`
+is 0 on such a fit.
 
 **The equation list.** `equations()` and `equations_` record the forward path
 through the whole screened set, one equation per number of terms, at every
@@ -351,29 +372,30 @@ the only bound available, and it is weak. It is an empirical observation with
 a mechanism behind it — greedy forward selection ranks by predictive
 contribution, and a marginally null feature contributes nothing, so it tends
 to be dropped first rather than kept. On a selector-level stress where
-screening was forced to admit false candidates (Gaussian design, nominal
+screening was made to reject many true nulls (Gaussian design, nominal
 q = 0.5, 300 trials), the screened set realised FDP 0.397 and the greedily
 pruned subset realised 0.000, with the proportion rising in none of the 300
 trials.
 
 ## Association is not generalisation
 
-FDR screening certifies that kept features are genuinely associated with the
-target. It does not certify that the linear model assembled from them
-generalises: a true discovery can carry extreme leverage — a reciprocal or
-logarithm evaluated near its pole — that destabilises the least-squares fit
-at points close to the singularity. The estimators keep these claims
-separate with a post-fit check on the selection holdout: a negative held-out
-R² (regression) or held-out accuracy below the majority-class rate
-(classification) raises a visible `DegenerateFitWarning` naming the gap.
-Rank-based scoring deserves particular attention here, since rank
-transformation hides exactly the magnitudes that cause the problem.
+FDR screening bounds the expected share of selected features that are not
+associated with the target. It does not certify that the linear model
+assembled from them generalises: a true discovery can carry extreme leverage
+— a reciprocal or logarithm evaluated near its pole — that destabilises the
+least-squares fit at points close to the singularity. The estimators keep
+these claims separate with a post-fit check on the selection holdout: a
+negative held-out R² (regression) or held-out accuracy below the
+majority-class rate (classification) raises a visible `DegenerateFitWarning`
+naming the gap. Rank-based scoring deserves particular attention here, since
+rank transformation hides exactly the magnitudes that cause the problem.
 
-## Honest failure
+## When no null is rejected
 
-When selection passes nothing, the default (`on_no_discoveries="empty"`)
-keeps no constructed features: the model degrades to an intercept-only fit
-(training mean, or class prior for classification) and a visible
-`NoDiscoveriesWarning` is raised. `"fallback"` keeps the unfiltered search
-output with `fdr_controlled_ = False`; `"raise"` raises. In every mode, check
-`fdr_controlled_` before treating fitted features as statistically vetted.
+When the screen rejects no null, the default (`on_no_discoveries="empty"`)
+uses no constructed features: the model degrades to an intercept-only fit
+(training mean, or class prior for classification), `fdr_controlled_` is
+`False`, and a visible `NoDiscoveriesWarning` is raised. `"fallback"` uses
+the unfiltered search output, also with `fdr_controlled_ = False`; `"raise"`
+raises. In every mode, check `fdr_controlled_` before treating fitted
+features as statistically vetted.

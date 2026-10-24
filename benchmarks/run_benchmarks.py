@@ -672,7 +672,7 @@ def summarise(outcomes: list[Outcome]) -> None:
         print("\n" + "=" * 74)
         print("FDR-CONTROL STATUS (beamfeat)")
         print("=" * 74)
-        print(f"  selection passed with guarantee intact: {n_ok}/{len(fdr_rows)} datasets")
+        print(f"  screen rejected a null, guarantee intact: {n_ok}/{len(fdr_rows)} datasets")
         for outcome in fdr_rows:
             if not outcome.fdr_ok:
                 print(f"    fallback (no guarantee): {outcome.dataset}")

@@ -1,10 +1,10 @@
 """False discoveries with and without a search option, on null and planted targets.
 
-An option that changes what the search keeps must not raise the false
-discoveries the screen lets through. This script fits the same replicates
-under each setting, so the comparison is paired, and records what the screen
-passed (``parsimony=None``: the screened set, which is what the guarantee
-covers).
+An option that changes what the search keeps must not raise the screen's
+false discoveries. This script fits the same replicates under each setting,
+so the comparison is paired, and records what the screen selected
+(``parsimony=None``: the screened set, the candidates whose nulls the screen
+rejected, which is what the guarantee covers).
 
 Designs (300 rows; 8 columns unless stated):
 
@@ -20,8 +20,8 @@ Designs (300 rows; 8 columns unless stated):
 On a null design every screened feature is false. On a planted one a
 screened feature is false when it uses none of the law's columns: such a
 feature is independent of the target, so it is a null of the permutation
-test. ``null_shifted`` and ``planted_shifted`` repeat the null study the
-0.5.1 options were measured on.
+test. ``null_shifted`` and ``planted_shifted`` repeat the null study that
+``fitted_ops`` and ``max_inputs`` were first measured on.
 
 Run from the repository root, with this checkout's ``src`` importable:
 

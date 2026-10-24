@@ -26,41 +26,43 @@ returned beside the one best alone. :class:`~beamfeat.search.BeamSearch` propose
 constant, and the product with its partner, as candidates to be scored like
 any other.
 
-**Rejection.** A fit whose best grid point is the end of a grid segment ran
-into a bound -- the margin a shift keeps between its pole and the data (see
-:func:`~beamfeat.expression.pole_margins`), the smallest positive power
-when the operand comes within that margin of 0 (the pole of a negative
-power), the linear limit of a small scale, or the step limit of a large
-one -- and is discarded, as is one whose values are not finite, constant,
-or outside the operator's domain. Snapping and rounding stay within the
-same bounds, so a simple constant never moves a pole closer to the data
-than the margin. And since each
-operator tends to an affine function of its operand at one end of its range
-(a small scale, a distant shift, a power of 1), a fit must also improve
-clearly on the operand itself, or for a product on the partner alone, by
-the likelihood-ratio test below; otherwise the constant only fits noise.
+**Discarded fits.** A fit whose best grid point is the end of a grid
+segment ran into a bound -- the margin a shift keeps between its pole and
+the data (see :func:`~beamfeat.expression.pole_margins`), the smallest
+positive power when the operand comes within that margin of 0 (the pole of
+a negative power), the linear limit of a small scale, or the step limit of
+a large one -- and is discarded, as is one whose values are not finite,
+constant, or outside the operator's domain. Snapping and rounding stay
+within the same bounds, so a simple constant never moves a pole closer to
+the data than the margin. And since each operator tends to an affine
+function of its operand at one end of its range (a small scale, a distant
+shift, a power of 1), a fit is also discarded unless the likelihood-ratio
+test below rejects the null that the operand itself, or for a product the
+partner alone, fits as well; otherwise the constant only fits noise.
 
 **Snapping.** The data rarely pin a constant to more digits than they
 support, and ``exp(-0.49991*x^2)`` is a worse answer than ``exp(-x^2/2)``.
 After the refinement, the simple values of :data:`SNAP_VALUES` (0, +-1,
-+-2, +-3, +-1/2, +-3/2, +-1/3, +-1/4) are tried, and the simplest one the
-data cannot tell apart from the optimum is used: the smallest denominator,
-then the best fit. "Cannot tell apart" is a likelihood-ratio test for a
-least-squares fit of the target on the feature: with ``L(a) = 1 - r(a)^2``
-the unexplained fraction and ``n`` the rows, the simple constant is accepted
-when ``n * log(L(simple) / L(optimum))`` is at most :data:`SNAP_LR`, the
-99.9% point of a chi-squared variable with one degree of freedom. A
-tolerance stated this way scales with the noise and the sample: on
-near-noiseless data it admits only a value that fits essentially as well
-as the optimum, on noisy data a wider range, as it should. A fixed
-tolerance on ``|r|`` cannot do both; at 0.1% noise, ``r`` is within 1e-6 of
-1 and a tolerance of 1e-4 would accept a constant that leaves a hundred
-times the noise unexplained. The 99.9% point rather than the 95% one
-makes the simpler constant the default: the true constant of a law is
-rejected in one fit in a thousand rather than one in twenty. Failing a
-snap, the constant is rounded to the fewest significant digits (up to six)
-that cost at most :data:`ROUND_LR`, so that the printed constant is the
-stored one.
++-2, +-3, +-1/2, +-3/2, +-1/3, +-1/4) are tried. For each, a
+likelihood-ratio test asks whether the data reject the null that the
+constant takes that value, and the simplest value it fails to reject is
+used: the smallest denominator, then the best fit. The test is for a
+least-squares fit of the target on the feature: with
+``L(a) = 1 - r(a)^2`` the unexplained fraction and ``n`` the rows, it fails
+to reject when ``n * log(L(simple) / L(optimum))`` is at most
+:data:`SNAP_LR`, the 99.9% point of a chi-squared variable with one degree
+of freedom, so it runs at level 0.001. A tolerance stated this way scales
+with the noise and the sample: on near-noiseless data the test fails to
+reject only a value that fits essentially as well as the optimum, on noisy
+data a wider range, as it should. A fixed tolerance on ``|r|`` cannot do
+both; at 0.1% noise, ``r`` is within 1e-6 of 1 and a tolerance of 1e-4
+would snap to a constant that leaves a hundred times the noise
+unexplained. The 99.9% point rather than the 95% one makes the simpler
+constant the default: the null for a law's true constant is falsely
+rejected, a Type I error, in one fit in a thousand rather than one in
+twenty. If the test rejects every simple value, the constant is rounded to
+the fewest significant digits (up to six) that cost at most
+:data:`ROUND_LR`, so that the printed constant is the stored one.
 
 Everything here is deterministic.
 """
@@ -79,8 +81,9 @@ from beamfeat.expression import OperatorSpec
 __all__ = ["ROUND_LR", "SNAP_LR", "SNAP_VALUES", "FittedConstant", "fit_constants", "fit_constants_many"]
 
 #: Simple constants tried after a fit, simplest first: zero, the integers to
-#: 3, halves, thirds and quarters. Among the values the data accept, one with
-#: a smaller denominator is preferred, then the one that fits best.
+#: 3, halves, thirds and quarters. Among the values whose null the snapping
+#: test fails to reject, one with a smaller denominator is preferred, then the
+#: one that fits best.
 SNAP_VALUES: tuple[Fraction, ...] = tuple(
     Fraction(sign * numerator, denominator)
     for denominator, numerators in ((1, (0, 1, 2, 3)), (2, (1, 3)), (3, (1,)), (4, (1,)))
@@ -272,9 +275,9 @@ def _fit_jobs(
     ``baseline`` is the correlation the fit has to beat: the operand's own,
     or the partner's for a product. Every operator here tends to an affine
     function of its operand at one end of its range (a small scale, a far
-    shift, a power of 1), so a constant that does not improve on the operand
-    clearly, by the likelihood-ratio test of the snap, only fits noise; the
-    fit is then rejected. Returns each job's constant, or ``None``.
+    shift, a power of 1), so unless the likelihood-ratio test of the snap
+    rejects the null that the baseline fits as well, the constant only fits
+    noise and the fit is discarded. Returns each job's constant, or ``None``.
     """
     if not jobs:
         return []
@@ -498,7 +501,7 @@ def _simplify(
     n_rows: int,
     admissible: Callable[[float], bool] = lambda constant: True,
 ) -> float:
-    """The simplest constant the data cannot tell apart from ``optimum``.
+    """The simplest constant ``c`` for which the snapping test fails to reject ``a = c``.
 
     Tries :data:`SNAP_VALUES` against :data:`SNAP_LR`, then rounding to one to
     six significant digits against :data:`ROUND_LR`; see the module notes.
@@ -525,10 +528,11 @@ def _simplify_many(
 ) -> tuple[np.ndarray, np.ndarray]:
     """:func:`_simplify` for jobs ``which``, with every candidate constant evaluated at once.
 
-    Among the snap values a job accepts, the ones with the smallest
-    denominator compete and the best fit wins (the smaller constant on a
-    tie); failing a snap, the fewest significant digits that pass win;
-    failing those, the optimum. Returns the constants and their scores.
+    Among the snap values whose null the test fails to reject for a job, the
+    ones with the smallest denominator compete and the best fit wins (the
+    smaller constant on a tie). If the test rejects every snap value, the
+    fewest significant digits within :data:`ROUND_LR` win, and otherwise the
+    optimum stays. Returns the constants and their scores.
     """
     constants, chosen = optima.astype(np.float64), scores.astype(np.float64)
 

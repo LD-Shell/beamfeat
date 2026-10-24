@@ -441,25 +441,29 @@ def _tree_size(node: Node) -> int:
 
 
 class NoDiscoveriesError(RuntimeError):
-    """Raised in ``on_no_discoveries="raise"`` mode when selection passes nothing."""
+    """Raised in ``on_no_discoveries="raise"`` mode when the screen rejects no null."""
 
 
 class DegenerateFitWarning(UserWarning):
     """Raised when the assembled model scores poorly on the selection holdout.
 
-    FDR screening certifies that the kept features are genuinely associated
-    with the target; it does not certify that the linear model built on them
-    is well conditioned — a feature can be a true discovery and still carry
-    extreme leverage that destabilises the fit. These are different claims,
-    and this warning marks the gap when it opens: negative R^2 on the
-    selection rows for regression, or accuracy below the majority-class rate
-    for classification. The check is a diagnostic — the selection rows also
-    enter the final fit — not an independent evaluation.
+    FDR screening bounds the expected share of selected features that are not
+    associated with the target; it says nothing about whether the linear
+    model built on them is well conditioned — a feature can be a true
+    discovery and still carry extreme leverage that destabilises the fit.
+    These are different claims, and this warning marks the gap when it opens:
+    negative R^2 on the selection rows for regression, or accuracy below the
+    majority-class rate for classification. The check is a diagnostic — the
+    selection rows also enter the final fit — not an independent evaluation.
     """
 
 
 class NoDiscoveriesWarning(UserWarning):
-    """Raised when no feature passed FDR-controlled selection.
+    """Raised when FDR-controlled testing leaves no feature to return.
+
+    The screen rejected no null, or a later test (the ``parsimony_holdout``
+    re-test, or ``input_test``) would drop every term the screen selected;
+    the message says which, and what the estimator returns instead.
 
     Emitted through :mod:`warnings` (not only logging) so it is visible in
     notebooks and default configurations — the scikit-learn convention for
@@ -544,18 +548,18 @@ class _BeamFeatBase(BaseEstimator):
         semantics, stated precisely: the q-level FDR guarantee applies to the
         *screening* step (the full screened set); this step then chooses a
         predictive subset of it for the fitted model, on the same rows
-        selection used. The subset is not re-certified at level q, so the
-        guarantee covers the set it came from and not the terms that survive
+        selection used. The subset is not re-tested at level q, so the
+        guarantee covers the set it came from and not the terms it retains
         — which is why :meth:`equation` says so in its own output whenever
         this step has dropped anything, rather than leaving the caller to
-        find it in the documentation. Every kept feature did pass screening,
-        and the full screened set with p- and q-values remains available in
-        ``selection_report_``.
+        find it in the documentation. The screen rejected the null of every
+        kept feature, and the full screened set with p- and q-values remains
+        available in ``selection_report_``.
 
-        The rationale: on a strong signal the marginal null correctly passes
-        many mutually redundant true discoveries, and an equation of dozens of
-        near-duplicate terms defeats the interpretability the library exists
-        for. What compactness costs is measured rather than assumed — see
+        The rationale: on a strong signal the screen correctly rejects the
+        nulls of many mutually redundant true discoveries, and an equation of
+        dozens of near-duplicate terms defeats the interpretability the library
+        exists for. What compactness costs is measured rather than assumed — see
         ``benchmarks/PARSIMONY_COST.md``, which puts it at roughly a
         thousandth of R^2, held out in every study but one scored in-sample,
         for an equation some twenty-five times shorter, with no observed inflation of the realised false discovery
@@ -774,43 +778,43 @@ class _BeamFeatBase(BaseEstimator):
         )
 
     def _test_inputs(self, nodes, data, target, screened):
-        """The screened candidates whose every input passes the input test.
+        """The screened candidates for which the input test rejects every column's null.
 
         Every candidate is tested, not only the screened ones, so which
         pairs are tested does not depend on the screen's outcome on these
-        rows. Fills :attr:`input_report_`. If no screened candidate passes,
-        the screened set is returned with a warning, as the re-test of
-        ``parsimony_holdout`` does.
+        rows. Fills :attr:`input_report_`. If that leaves no screened
+        candidate, the screened set is returned with a warning, as the
+        re-test of ``parsimony_holdout`` does.
         """
         pairs, result = self._make_input_test().test_inputs(nodes, data, target)
         for diagnostic in result.warnings_raised:
             warnings.warn(f"beamfeat input test: {diagnostic}", UserWarning, stacklevel=3)
-        passed = set(int(i) for i in result.selected)
+        rejected = set(int(i) for i in result.selected)
         self.input_report_ = [
             {
                 "formula": nodes[index].name,
                 "column": column,
                 "p_value": float(result.p_values[position]),
                 "q_value": float(result.q_values[position]),
-                "passed": position in passed,
+                "null_rejected": position in rejected,
             }
             for position, (index, column) in enumerate(pairs)
         ]
-        failed = {pairs[position][0] for position in range(len(pairs)) if position not in passed}
-        eligible = [index for index in screened if index not in failed]
+        dropped = {pairs[position][0] for position in range(len(pairs)) if position not in rejected}
+        eligible = [index for index in screened if index not in dropped]
         self._inputs_dropped_ = len(screened) - len(eligible)
         report(
             self.verbose,
             1,
-            f"input test: {len(pairs)} (term, column) pairs, {len(pairs) - len(passed)} not needed"
+            f"input test: {len(pairs)} (term, column) pairs, null rejected for {len(rejected)}"
             f" -> {len(eligible)} of {len(screened)} certified terms kept",
         )
         if not eligible:
             self._inputs_dropped_ = 0
             warnings.warn(
-                "beamfeat: every certified term reads a column the input test could not "
-                f"show it needs, at target FDR {result.target_fdr:.3g}. The certified terms "
-                "are used as if input_test were False.",
+                "beamfeat: for every certified term, the input test failed to reject the "
+                f"null for at least one of its columns at target FDR {result.target_fdr:.3g}. "
+                "The certified terms are used as if input_test were False.",
                 NoDiscoveriesWarning,
                 stacklevel=3,
             )
@@ -836,14 +840,16 @@ class _BeamFeatBase(BaseEstimator):
 
         ``"printed equation"`` when the guarantee covers exactly the returned
         features -- ``parsimony=None``, a greedy pass that kept everything, or
-        a ``parsimony_holdout`` re-test, which certifies the subset on rows of
-        its own. ``"screened set"`` when it covers a larger set the returned
-        features were drawn from. ``None`` when nothing is controlled at all.
+        a ``parsimony_holdout`` re-test that rejected at least one null, which
+        certifies the subset on rows of its own. ``"screened set"`` when it
+        covers a larger set the returned features were drawn from, as after a
+        re-test that rejected none when ``input_test`` dropped terms. ``None``
+        when nothing is controlled at all.
         """
         if not self.fdr_controlled_:
             self.fdr_scope_ = None
             return
-        if self.certification_result_ is not None:
+        if self.certification_result_ is not None and self.certification_result_.n_selected:
             self.fdr_scope_ = "printed equation"
             return
         screened = (
@@ -872,7 +878,7 @@ class _BeamFeatBase(BaseEstimator):
             f"; parsimony=None prints all {screened - dropped}" if self.parsimony is not None else ""
         )
         if dropped:
-            remedy += f"; {dropped} failed input_test"
+            remedy += f"; input_test dropped {dropped}"
         return f"   [{kept} of {screened} certified terms{remedy}]"
 
     def _latex_parsimony_note(self) -> str:
@@ -900,9 +906,8 @@ class _BeamFeatBase(BaseEstimator):
                 order.append(index)
         if not columns:
             return order
-        # A lone survivor still has to earn its place on rows it has not seen;
-        # only the multiplicity correction is trivial in that case, not the
-        # test itself.
+        # A lone term is still tested on rows it has not seen; only the
+        # multiplicity correction is trivial in that case, not the test itself.
         selector = self._make_certify_selector()
         result = selector.select(np.column_stack(columns), y[rows])
         self.certification_result_ = result
@@ -916,10 +921,10 @@ class _BeamFeatBase(BaseEstimator):
                 else "it does carry the guarantee, but it is not compact."
             )
             warnings.warn(
-                "beamfeat: no term of the parsimonious equation survived re-testing on the "
-                f"held-back rows at target FDR {selector.target_fdr:.3g}, so no compact "
-                "certified equation is available on this sample. The whole screened set is "
-                f"returned instead: {carries}",
+                "beamfeat: the re-test of the parsimonious equation on the held-back rows "
+                f"rejected no term's null at target FDR {selector.target_fdr:.3g}, so no "
+                "compact certified equation is available on this sample. The whole screened "
+                f"set is returned instead: {carries}",
                 NoDiscoveriesWarning,
                 stacklevel=2,
             )
@@ -962,7 +967,8 @@ class _BeamFeatBase(BaseEstimator):
             # the associations were certified; a fallback to the unfiltered
             # search output, or same-data selection, cannot.
             premise = (
-                "the selected features passed FDR screening (genuine associations), but "
+                "the selected features come from the FDR-screened set (the screen rejected "
+                "their nulls of no association), but "
                 if self.fdr_controlled_
                 else "the selected features carry no FDR guarantee, and "
             )
@@ -995,11 +1001,12 @@ class _BeamFeatBase(BaseEstimator):
         set, available with per-candidate p- and q-values in
         :attr:`selection_report_`. At the default ``parsimony="forward"`` the
         returned features are a data-dependent subset of that set, which is
-        not re-certified at level q; under ``parsimony=None`` they *are* the
-        set. ``False`` when selection returned nothing and the estimator fell
-        back to the search output (in which case the features carry no FDR
-        guarantee, and a warning says so); ``None`` when no selector was
-        configured.
+        not re-tested at level q; under ``parsimony=None`` they *are* the
+        set. ``False`` when the screen rejected no null (the estimator then
+        returns no features, or under ``on_no_discoveries="fallback"`` the
+        unfiltered search output, which carries no FDR guarantee, and a
+        warning says so) or when selection ran on the search rows; ``None``
+        when no selector was configured.
 
         Sets :attr:`fdr_scope_` alongside it, naming which set the flag is a
         statement about: ``"printed equation"`` when the guarantee covers the
@@ -1065,12 +1072,12 @@ class _BeamFeatBase(BaseEstimator):
         self._holdout_rows_ = holdout_index if use_holdout else None
 
         # Optional second split of the selection rows. Screening, and parsimony
-        # if it is enabled, run on the first part; the surviving terms are then
-        # re-tested on the second, which they have not seen. Because that set is
-        # fixed once the first part has been used, the re-test is an ordinary
-        # fixed-candidate screen and its guarantee therefore covers the printed
-        # equation, not merely the set it was drawn from. The price is rows:
-        # both parts have to be large enough to test on.
+        # if it is enabled, run on the first part; the terms parsimony retains
+        # are then re-tested on the second, which they have not seen. Because
+        # that set is fixed once the first part has been used, the re-test is
+        # an ordinary fixed-candidate screen and its guarantee therefore covers
+        # the printed equation, not merely the set it was drawn from. The price
+        # is rows: both parts have to be large enough to test on.
         certify_index = np.empty(0, dtype=int)
         fell_back_to_screened = False
         use_certify = (
@@ -1229,6 +1236,7 @@ class _BeamFeatBase(BaseEstimator):
                         else f"parsimony: off, keeping all {len(eligible)} "
                         f"certified term{'' if len(eligible) == 1 else 's'}",
                     )
+                    retest = None
                     if fell_back_to_screened:
                         keep_order = list(eligible)
                     elif use_certify:
@@ -1237,6 +1245,7 @@ class _BeamFeatBase(BaseEstimator):
                             [candidate_nodes[index] for index in keep_order],
                             keep_order,
                         )
+                        retest = (len(certified), len(keep_order))
                         # Nothing compact could be certified, but the screened
                         # set still is; return that (less any term the input
                         # test removed) rather than nothing.
@@ -1244,17 +1253,19 @@ class _BeamFeatBase(BaseEstimator):
                     nodes = [candidate_nodes[index] for index in keep_order]
                     kept = set(keep_order)
                     self.fdr_controlled_ = bool(nodes)
-                    if use_certify and self.certify_test == "conditional":
+                    if retest is not None and retest[0]:
+                        given = ", each given the others" if self.certify_test == "conditional" else ""
                         scope = (
-                            " re-certified on held-back rows, each term given the others;"
-                            " the guarantee covers the fitted equation"
-                        )
-                    elif use_certify:
-                        scope = (
-                            " re-certified on held-back rows; the guarantee covers the"
+                            f" after the re-test on held-back rows rejected the null for {retest[0]}"
+                            f" of {retest[1]} re-tested terms{given}; the guarantee covers the"
                             " fitted equation"
                         )
-                    elif self.parsimony is None:
+                    elif retest is not None:
+                        scope = (
+                            " from the screened set, since the re-test on held-back rows rejected"
+                            " no null; the screen's guarantee covers the screened set"
+                        )
+                    elif len(keep_order) == len(screened):
                         scope = (
                             " in the fitted equation, the screened set entire; the"
                             " guarantee covers it"
@@ -1293,8 +1304,8 @@ class _BeamFeatBase(BaseEstimator):
                     for i in range(len(candidate_nodes))
                 ]
             else:
-                # Nothing could even be evaluated on the selection rows, so
-                # nothing passed; returning the search output here unannounced
+                # Nothing could even be evaluated on the selection rows, so no
+                # null was tested; returning the search output here unannounced
                 # would skip the screening the caller configured.
                 nodes = self._no_discoveries(
                     nodes, selector.target_fdr, use_holdout,
@@ -1336,7 +1347,7 @@ class _BeamFeatBase(BaseEstimator):
             self._forward_stop_ = forward_path[2]
         # |S|/|S'| for the set actually returned, so it is measured after the
         # parsimony re-test or its fallback rather than on the forward subset.
-        # A re-certified set is its own S.
+        # A set the re-test certified is its own S.
         if kept_nodes and self.selection_result_ is not None and self.selection_result_.n_selected:
             certified = self.certification_result_
             base = (
@@ -1354,14 +1365,14 @@ class _BeamFeatBase(BaseEstimator):
     def _no_discoveries(
         self, nodes: list[Node], target_fdr: float, use_holdout: bool, notes: Sequence[str]
     ) -> list[Node]:
-        """Apply ``on_no_discoveries`` when screening passed nothing.
+        """Apply ``on_no_discoveries`` when the screen rejected no null.
 
         Returns the expressions to keep: the unfiltered search output under
         ``"fallback"``, none under ``"empty"``. ``"raise"`` raises.
         """
         self.fdr_controlled_ = False
         message = (
-            f"beamfeat: no feature passed FDR-controlled selection at target "
+            f"beamfeat: the FDR-controlled screen rejected no null at target "
             f"FDR {target_fdr:.3g} "
             + ("on the held-out split " if use_holdout else "on the search rows ")
             + f"(on_no_discoveries={self.on_no_discoveries!r}). "
@@ -1610,7 +1621,7 @@ class _BeamFeatBase(BaseEstimator):
         if self.equations_ is None:
             return "no equation list: no selector was configured, so no set was screened"
         if not self.equations_:
-            return "no equation list: no feature passed selection"
+            return "no equation list: the screen rejected no null"
 
         screened = len(self.equations_)
         rows = [
@@ -1679,7 +1690,7 @@ class _BeamFeatBase(BaseEstimator):
         elif retested and self.certification_result_.n_selected:
             how = "the forward subset, as re-tested on held-back rows"
         elif retested:
-            how = "no term survived the re-test on held-back rows, so the screened set is kept"
+            how = "the re-test on held-back rows rejected no null, so the screened set is kept"
         elif marked[0] == self._forward_stop_ == len(self.equations_):
             how = "the forward step keeps every screened term"
         elif marked[0] == self._forward_stop_:
@@ -1756,14 +1767,14 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             ``"permutation"``. A selector instance keeps its own correction
             and ``target_fdr``, and a warning names any estimator setting it
             overrides; ``PermutationSelector()`` defaults to ``"bh"``.
-        on_no_discoveries: What to return when no feature passes selection:
+        on_no_discoveries: What to return when the screen rejects no null:
             ``"empty"`` (default) keeps no constructed features,
             ``"fallback"`` keeps the unfiltered search output with
             :attr:`fdr_controlled_` ``False``, ``"raise"`` raises
             :class:`NoDiscoveriesError`.
         parsimony: ``"forward"`` (default) fits a compact subset of the
             screened set, chosen by greedy forward selection on the selection
-            rows. That subset is not re-certified, so the FDR guarantee covers
+            rows. That subset is not re-tested, so the FDR guarantee covers
             the set it was drawn from and not the terms returned, and
             :attr:`fdr_scope_` (and the regressor's and classifier's
             ``equation()``) marks this whenever terms were dropped. ``None``
@@ -1788,7 +1799,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             calling thread regardless. With ``input_test``, as many threads
             share its tests. The fitted result is the same for every value.
         max_inputs: Most distinct input columns one feature may use, or
-            ``None`` (default) for no limit. Candidates over it are rejected
+            ``None`` (default) for no limit. Candidates over it are ruled out
             during the search, before evaluation. A feature of depth d uses
             at most 2**d columns, so at the default ``max_depth`` of 2 a value
             of 4 or more has no effect. A law that needs more inputs than
@@ -1810,26 +1821,26 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         certify_test: The test the ``parsimony_holdout`` re-test applies to
             each returned term on the held-back rows. ``"marginal"``
             (default) re-runs the configured selector, whose null is that the
-            term is independent of the target; a term that only rides on a
-            true one, ``x0*x7`` when the target depends on ``x0`` alone,
-            passes it. ``"conditional"`` tests each term given the other
-            returned terms, with a Freedman-Lane permutation test: the target
-            and the term are residualised on the other terms and an
-            intercept, the target's residuals are permuted, the statistic is
-            the partial correlation, and the screen's step-up correction is
-            applied at the screen's level. Its null is that the term's
+            term is independent of the target, so it rejects the null of a
+            term that only rides on a true one, ``x0*x7`` when the target
+            depends on ``x0`` alone. ``"conditional"`` tests each term given
+            the other returned terms, with a Freedman-Lane permutation test:
+            the target and the term are residualised on the other terms and
+            an intercept, the target's residuals are permuted, the statistic
+            is the partial correlation, and the screen's step-up correction
+            is applied at the screen's level. Its null is that the term's
             coefficient is zero in a linear model of the target on all the
             returned terms. A term standing in for a true one the others
-            leave out is not null in that sense and is kept. Its p-values are
-            approximate: they rest on the errors of a linear model of the
-            target on the other terms being exchangeable (independent and
-            identically distributed, say, so of constant variance), and are
-            close to exact rather than exact even then, except for a single
-            term, where the test is the marginal one. If no term passes, the
-            screened set is returned, which carries the screen's marginal
-            guarantee only. Regression only; ignored when
-            ``parsimony_holdout`` is ``None``. See the guarantees page for
-            its measured calibration.
+            leave out is not null in that sense, so rejecting its null is not
+            a false rejection. Its p-values are approximate: they rest on the
+            errors of a linear model of the target on the other terms being
+            exchangeable (independent and identically distributed, say, so of
+            constant variance), and are close to exact rather than exact even
+            then, except for a single term, where the test is the marginal
+            one. If the re-test rejects no null, the screened set is
+            returned, which carries the screen's marginal guarantee only.
+            Regression only; ignored when ``parsimony_holdout`` is ``None``.
+            See the guarantees page for its measured calibration.
         magnitude_slots: Beam slots added at each search depth for
             candidates ranked by how well their magnitude tracks the
             target's, for laws whose parts do not correlate with the target,
@@ -1844,22 +1855,24 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             unchanged. Regression only.
         input_test: Whether to test, on the selection rows, each column
             inside each candidate that reads more than one, and drop a
-            screened term with a column it does not need before
-            ``parsimony`` runs. ``False`` (default) leaves the fit
-            unchanged. A column is tested by permuting its rows alone,
-            wherever it occurs in the expression, and recomputing the
-            screen's statistic; the screen's step-up correction is applied
-            across every (candidate, column) pair of every candidate,
-            screened or not. The null is that the column is independent of
-            the target and of the candidate's other columns, under which the
-            p-values are exact: it removes ``(x0*x1)/(x1 + x8)`` when ``x8``
-            is unrelated to everything, but a junk column correlated with a
-            real one is not null in that sense and can stay. The screen's
-            guarantee is unchanged and still covers the screened set. If no
-            screened term passes, the screened set is used with a warning.
-            Each draw re-evaluates the expression, so the time grows with the
-            rows: a few seconds at a few hundred rows, minutes at ten
-            thousand, which ``n_jobs`` threads share.
+            screened term before ``parsimony`` runs when the test fails to
+            reject the null for one of its columns. ``False`` (default)
+            leaves the fit unchanged. A column is tested by permuting its
+            rows alone, wherever it occurs in the expression, and recomputing
+            the screen's statistic; the screen's step-up correction is
+            applied across every (candidate, column) pair of every
+            candidate, screened or not. The null is that the column is
+            independent of the target and of the candidate's other columns,
+            under which the p-values are exact: it removes
+            ``(x0*x1)/(x1 + x8)`` when ``x8`` is unrelated to everything,
+            but a junk column correlated with a real one is not null in that
+            sense, so its null can be rejected and the term kept. The
+            screen's guarantee is unchanged and still covers the screened
+            set. If the test would drop every screened term, the screened
+            set is used with a warning. Each draw re-evaluates the
+            expression, so the time grows with the rows: a few seconds at a
+            few hundred rows, minutes at ten thousand, which ``n_jobs``
+            threads share.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
@@ -1890,15 +1903,15 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             whatever ``parsimony`` is, and the steps up to the returned
             subset are those the forward step takes, so recording it changes
             nothing that is returned. ``None`` without a selector, and empty
-            when nothing passed screening. The FDR guarantee covers the
+            when the screen rejected no null. The FDR guarantee covers the
             screened set, the last record, and not a record chosen from the
             list; :meth:`equations` renders it and says so.
         selection_report_: One dict per candidate screened, in the search's
             order: ``"formula"``; ``"p_value"`` and ``"q_value"``, ``None``
             for a knockoff selector, which computes neither; ``"statistic"``;
-            ``"screened"``, whether it passed FDR screening, which marks the
-            set the guarantee covers; and ``"kept"``, whether it is among the
-            returned features. ``None`` without a selector.
+            ``"screened"``, whether the screen rejected its null, which marks
+            the set the guarantee covers; and ``"kept"``, whether it is among
+            the returned features. ``None`` without a selector.
         fdp_inflation_: The size of the certified set divided by the number
             of returned features, |S|/|S'|: the factor by which returning a
             subset can raise the realised false discovery proportion. ``1.0``
@@ -1906,9 +1919,10 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             nothing was certified.
         input_report_: One dict per (candidate, column) pair the input test
             ran on: ``"formula"``, ``"column"``, ``"p_value"``,
-            ``"q_value"`` and ``"passed"``, whether the candidate needs the
-            column at the step-up level. ``None`` when ``input_test`` is
-            ``False``.
+            ``"q_value"`` and ``"null_rejected"``, whether the step-up
+            correction rejects the column's null, that it is independent of
+            the target and of the candidate's other columns. ``None`` when
+            ``input_test`` is ``False``.
         certification_result_: The :class:`~beamfeat.selection.SelectionResult`
             of the ``parsimony_holdout`` re-test, or ``None`` when it did not
             run. Its ``method`` is ``"conditional_permutation"`` under
@@ -2221,7 +2235,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         _check_equation_format(precision, style)
         if self.model_ is None:
             intercept = _format_coefficient(self.intercept_, precision, style)
-            return f"y = {intercept}  (no feature passed selection)"
+            return f"y = {intercept}  (no feature selected)"
         return _render_linear_equation(
             "y", self.coef_, float(self.intercept_), self.scaler_,
             self.feature_formulas_, precision, max_terms, style,
@@ -2262,7 +2276,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             intercept = _latex_number(_format_coefficient(self.intercept_, precision, style))
             if not note:
                 return f"y = {intercept}"
-            return rf"y = {intercept} \quad {_latex_text('(no feature passed selection)')}"
+            return rf"y = {intercept} \quad {_latex_text('(no feature selected)')}"
         return "y = " + _render_linear_latex(
             self.coef_, float(self.intercept_), self.scaler_,
             expressions, precision, max_terms, style,
@@ -2493,7 +2507,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
                     f"P({_label(klass)}) = {_format_coefficient(p, precision, style)}"
                     for klass, p in zip(self.classes_, self.class_prior_, strict=True)
                 )
-                return f"class priors only (no feature passed selection): {prior}"
+                return f"class priors only (no feature selected): {prior}"
             return f"constant prediction: {_label(self.classes_[0])}"
 
         coefficients = np.atleast_2d(self.coef_)
@@ -2554,7 +2568,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
                 )
                 if not note:
                     return prior
-                return rf"{prior} \quad {_latex_text('(class priors only; no feature passed selection)')}"
+                return rf"{prior} \quad {_latex_text('(class priors only; no feature selected)')}"
             constant = f"y = {_latex_label(self.classes_[0])}"
             return rf"{constant} \quad {_latex_text('(constant prediction)')}" if note else constant
 

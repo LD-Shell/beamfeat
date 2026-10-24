@@ -549,7 +549,7 @@ class TestSelectionIntegration:
         assert model.selection_result_ is None
         assert model.fdr_controlled_ is None
 
-    def test_flag_true_when_selection_passes(self, regression_data):
+    def test_flag_true_when_the_screen_rejects_a_null(self, regression_data):
         X, y = regression_data
         model = BeamFeatRegressor(
             max_depth=2, beam_width=20, selector="permutation", target_fdr=0.2, random_state=0
@@ -572,7 +572,7 @@ class TestSelectionIntegration:
         assert model.n_features_out_ == 0
         assert model.fdr_controlled_ is False
         np.testing.assert_allclose(model.predict(X[:7]), np.full(7, y.mean()), rtol=1e-9)
-        assert "no feature passed selection" in model.equation()
+        assert "no feature selected" in model.equation()
 
     def test_fallback_mode_keeps_search_output_flagged(self):
         rng = np.random.default_rng(3)
@@ -615,7 +615,7 @@ class TestSelectionIntegration:
     def test_default_prunes_within_the_screened_set(self, cls, regression_data,
                                                     classification_data):
         """The default is ``parsimony="forward"``: what is fitted is a subset of
-        what was screened, and every member of it passed screening."""
+        what was screened, and the screen rejected the null of every member."""
         X, y = (classification_data if cls is BeamFeatClassifier else regression_data)
         model = cls(max_depth=2, beam_width=20, selector="permutation",
                     random_state=0).fit(X, y)
@@ -636,7 +636,7 @@ class TestSelectionIntegration:
         assert compact.n_features_out_ < full.n_features_out_
         assert any("x0" in f and "x1" in f for f in compact.formulas())
         assert compact.score(X, y) > 0.99
-        # every kept feature passed screening
+        # the screen rejected the null of every kept feature
         report = {r["formula"]: r for r in compact.selection_report_}
         assert all(report[f]["screened"] for f in compact.formulas())
 
@@ -748,7 +748,7 @@ class TestSelectionIntegration:
             false = sum(1 for node in model.features_ if not (node.columns() & relevant))
             fdps.append(false / len(model.features_))
             recovered += any("x0" in f and "x1" in f for f in model.formulas())
-        assert fdps, "selection never passed; pipeline has no power"
+        assert fdps, "the screen never rejected a null; the pipeline has no power"
         assert float(np.mean(fdps)) <= nominal + 0.15
         assert recovered >= len(fdps) - 2
 
@@ -960,8 +960,8 @@ class TestHoldoutFitCheck:
             BeamFeatClassifier(max_depth=2, beam_width=20, random_state=0).fit(X, y)
 
     def test_message_does_not_claim_screening_it_did_not_have(self, monkeypatch):
-        """Under the fallback the features never passed screening, so the
-        warning must not say they did."""
+        """Under the fallback the screen rejected no null for the features, so
+        the warning must not say it did."""
         rng = np.random.default_rng(3)
         X = rng.uniform(1, 6, (400, 4))
         y = rng.standard_normal(400)
@@ -973,7 +973,7 @@ class TestHoldoutFitCheck:
             ).fit(X, y)
         assert model.fdr_controlled_ is False
         message = str([w for w in record if w.category is DegenerateFitWarning][0].message)
-        assert "passed FDR screening" not in message
+        assert "FDR-screened set" not in message
         assert "no FDR guarantee" in message
 
     def test_healthy_fit_does_not_warn(self):
@@ -1128,6 +1128,15 @@ class TestVerbose:
         else:
             assert "[NOT FDR controlled]" in out
 
+    def test_a_forward_step_that_keeps_everything_is_not_called_a_subset(self, capsys):
+        rng = np.random.default_rng(0)
+        X = rng.uniform(0.5, 3.0, (600, 8))
+        y = 2 * X[:, 0] + rng.normal(0, 0.5, 600)
+        BeamFeatRegressor(max_depth=0, random_state=0, verbose=1).fit(X, y)
+        out = capsys.readouterr().out
+        assert "result set: 1 term in the fitted equation, the screened set entire" in out
+        assert "not this subset" not in out
+
     def test_transformer_and_classifier_accept_levels(self, regression_data, capsys):
         X, y = regression_data
         _fast(BeamFeatTransformer, selector="permutation", verbose=1).fit(X, y)
@@ -1178,7 +1187,7 @@ class TestParsimonyNote:
             pytest.skip("the rows did not support a second split")
         assert self.MARKER not in model.equation()
 
-    def test_absent_when_nothing_passed_selection(self):
+    def test_absent_when_no_null_is_rejected(self):
         rng = np.random.default_rng(3)
         X = rng.uniform(1, 6, (400, 4))
         with pytest.warns(NoDiscoveriesWarning):
@@ -1245,7 +1254,7 @@ class TestFdrScope:
         assert model.fdr_controlled_ is None
         assert model.fdr_scope_ is None
 
-    def test_none_when_nothing_passed_selection(self):
+    def test_none_when_no_null_is_rejected(self):
         rng = np.random.default_rng(3)
         X = rng.uniform(1, 6, (400, 4))
         with pytest.warns(NoDiscoveriesWarning):
@@ -1300,8 +1309,8 @@ class TestParsimonyHoldout:
         model = _fast(BeamFeatRegressor, selector="permutation", parsimony_holdout=0.5).fit(X, y)
         if model.n_features_out_:
             assert model.certification_result_ is not None
-            # every returned feature survived the re-test, so the count cannot
-            # exceed what that screen certified
+            # on these data the re-test rejects the null of every returned
+            # feature, so the count cannot exceed the number it tested
             assert model.n_features_out_ <= model.certification_result_.n_candidates
             assert model.fdr_controlled_ is True
 
@@ -1356,8 +1365,9 @@ class TestCertifyTest:
     """``certify_test`` sets the test the ``parsimony_holdout`` re-test runs.
 
     ``"marginal"``, the default, re-runs the screen, whose null is
-    independence from the target, so a term that only rides on a true one
-    passes. ``"conditional"`` tests each term given the others and drops it.
+    independence from the target, so it rejects the null of a term that only
+    rides on a true one. ``"conditional"`` tests each term given the others,
+    fails to reject that term's null, and drops it.
     """
 
     @staticmethod
@@ -1464,6 +1474,27 @@ class TestCertifyTest:
             ).fit(X, y)
         assert model.certification_result_.n_selected == 0
         assert model.n_features_out_ == model.selection_result_.n_selected
+
+    def test_verbose_says_what_the_re_test_rejected(self, capsys):
+        X, y = self._rider_data()
+        self._products(certify_test="conditional", verbose=1).fit(X, y)
+        out = capsys.readouterr().out
+        assert "re-test on held-back rows rejected the null for 1 of 8 re-tested terms" in out
+        assert "each given the others" in out
+
+        rng = np.random.default_rng(0)
+        X = rng.uniform(0.5, 3.0, (400, 2))
+        y = X[:, 0] + rng.normal(0, 0.3, 400)
+        with warnings.catch_warnings():
+            # the fallback's warnings are the previous test's subject
+            warnings.simplefilter("ignore")
+            BeamFeatRegressor(
+                max_depth=1, binary_ops=("add", "sub"), unary_ops=(), parsimony=None,
+                parsimony_holdout=0.5, certify_test="conditional", random_state=0, verbose=1,
+            ).fit(X, y)
+        out = capsys.readouterr().out
+        assert "the re-test on held-back rows rejected no null" in out
+        assert "the screen's guarantee covers the screened set" in out
 
     @pytest.mark.parametrize("cls", [BeamFeatClassifier, BeamFeatTransformer])
     def test_classification_is_refused(self, cls, classification_data):
@@ -1827,7 +1858,7 @@ class TestEquationList:
         assert model.equations_ is None
         assert "no selector was configured" in model.equations()
 
-    def test_empty_when_nothing_passed_selection(self):
+    def test_empty_when_no_null_is_rejected(self):
         rng = np.random.default_rng(3)
         X = rng.uniform(1, 6, (400, 4))
         with pytest.warns(NoDiscoveriesWarning):
@@ -1835,7 +1866,7 @@ class TestEquationList:
                 max_depth=2, beam_width=15, target_fdr=0.05, random_state=3
             ).fit(X, rng.standard_normal(400))
         assert model.equations_ == []
-        assert model.equations() == "no equation list: no feature passed selection"
+        assert model.equations() == "no equation list: the screen rejected no null"
 
     def test_a_single_screened_feature(self, rng):
         X = rng.uniform(1.0, 6.0, (300, 1))
@@ -2002,7 +2033,7 @@ class TestLatex:
             model = BeamFeatRegressor(
                 max_depth=2, beam_width=15, target_fdr=0.05, random_state=3
             ).fit(X, rng.standard_normal(400))
-        assert model.latex().endswith(r"\quad \text{(no feature passed selection)}")
+        assert model.latex().endswith(r"\quad \text{(no feature selected)}")
         assert r"\text{" not in model.latex(note=False)
 
     def test_binary_classifier(self, classification_data):
@@ -2046,7 +2077,7 @@ class TestLatex:
             ).fit(X, rng.integers(0, 2, 400))
         latex = model.latex()
         assert latex.startswith("P(y = 0) = ")
-        assert "no feature passed selection" in latex
+        assert "no feature selected" in latex
 
     def test_missing_sympy_fails_as_to_sympy_does(self, model, monkeypatch):
         import sys
@@ -2115,19 +2146,19 @@ class TestInputTest:
         assert self._columns(plain) - {"x0", "x1"}
         assert self._columns(tested) == {"x0", "x1"}
         assert tested.fdr_controlled_ is True and tested.fdr_scope_ == "screened set"
-        assert "failed input_test" in tested.equation()
+        assert "input_test dropped" in tested.equation()
 
     def test_report_lists_every_pair(self):
         X, y = self._distractors(seed=0)
         model = BeamFeatRegressor(random_state=0, input_test=True).fit(X, y)
         report = model.input_report_
-        assert report and set(report[0]) == {"formula", "column", "p_value", "q_value", "passed"}
+        assert report and set(report[0]) == {"formula", "column", "p_value", "q_value", "null_rejected"}
         tested = {(row["formula"], row["column"]) for row in report}
         for formula in model.formulas():
             node = next(n for n in model.features_ if n.name == formula)
             if len(node.columns()) > 1:
                 assert all((formula, c) in tested for c in node.columns())
-                assert all(row["passed"] for row in report if row["formula"] == formula)
+                assert all(row["null_rejected"] for row in report if row["formula"] == formula)
 
     def test_off_by_default_and_changes_nothing(self):
         X, y = self._distractors(seed=1)
@@ -2144,6 +2175,22 @@ class TestInputTest:
         certified = BeamFeatRegressor(random_state=0, input_test=True, parsimony_holdout=0.5).fit(X, y)
         assert self._columns(certified) <= {"x0", "x1"}
 
+    def test_scope_after_a_re_test_that_rejects_no_null(self):
+        # The input test drops terms and the conditional re-test of the rest
+        # rejects no null, so the screened set less those terms is returned:
+        # a subset of the set the guarantee covers.
+        X, y = self._distractors(seed=11)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = BeamFeatRegressor(
+                random_state=0, input_test=True, parsimony=None, parsimony_holdout=0.5,
+                certify_test="conditional",
+            ).fit(X, y)
+        assert model.certification_result_.n_selected == 0
+        assert model.n_features_out_ < model.selection_result_.n_selected
+        assert model.fdr_scope_ == "screened set"
+        assert "input_test dropped" in model.equation()
+
     def test_n_jobs_gives_the_same_fit(self):
         X, y = self._distractors(seed=4)
         serial = BeamFeatRegressor(random_state=0, input_test=True).fit(X, y)
@@ -2158,10 +2205,10 @@ class TestInputTest:
         assert model.input_report_ is not None
         assert self._columns(model) <= {"x0", "x1"}
 
-    def test_falls_back_when_no_term_passes(self, monkeypatch):
+    def test_falls_back_when_it_would_drop_every_term(self, monkeypatch):
         from beamfeat.selection import SelectionResult, _InputPermutationTest
 
-        def nothing_passes(self, nodes, data, target):
+        def rejects_no_null(self, nodes, data, target):
             pairs = [(i, c) for i, n in enumerate(nodes) if len(n.columns()) > 1 for c in sorted(n.columns())]
             ones = np.ones(len(pairs))
             return pairs, SelectionResult(
@@ -2169,7 +2216,7 @@ class TestInputTest:
                 method="input_permutation",
             )
 
-        monkeypatch.setattr(_InputPermutationTest, "test_inputs", nothing_passes)
+        monkeypatch.setattr(_InputPermutationTest, "test_inputs", rejects_no_null)
         X, y = self._distractors(seed=0)
         with pytest.warns(NoDiscoveriesWarning, match="as if input_test were False"):
             # Without fitted constants, whose one-column terms need no test.

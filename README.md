@@ -1,7 +1,7 @@
 # beamfeat
 
 [![CI](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml/badge.svg)](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-686%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-955%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
 [![PyPI](https://img.shields.io/pypi/v/beamfeat)](https://pypi.org/project/beamfeat/)
 [![Python](https://img.shields.io/badge/python-3.10%E2%80%933.15-blue)](https://github.com/LD-Shell/beamfeat)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE)
@@ -10,8 +10,9 @@
 [![Docs](https://img.shields.io/badge/docs-ld--shell.github.io-blue)](https://ld-shell.github.io/beamfeat/)
 
 beamfeat builds readable formulas from the columns of a table, such as
-`(x0 / x2) * x1` or `log(a) * log(b)`, and keeps only those that pass a
-statistical test with a stated false-discovery-rate guarantee. The result is
+`(x0 / x2) * x1` or `log(a) * log(b)`, tests each against the null
+hypothesis that it is independent of the target, and keeps only those whose
+null is rejected, with a stated false-discovery-rate guarantee. The result is
 a short equation in your own column names, from a scikit-learn estimator you
 can fit, inspect and predict with. The method is described in a
 [TMLR 2026 paper](https://openreview.net/forum?id=UibXoy4h3u).
@@ -51,7 +52,7 @@ pip install "beamfeat[display]"   # + sympy, for to_sympy() and latex()
 pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
-Python 3.10 or newer, with no upper version pins: the 686 tests pass on
+Python 3.10 or newer, with no upper version pins: the 955 tests pass on
 Python 3.10 to 3.15 with the newest releases each supports, and the suite runs
 on the oldest supported stack too.
 [Installation](https://ld-shell.github.io/beamfeat/installation/) lists the
@@ -90,18 +91,23 @@ model.predict(X_new)
   places for parts whose size tracks the target's even when they do not
   correlate with it, such as `x0` and `x1` in `y = x0*x1` with centred
   inputs.
+- **Every column in a formula tested, opt in.** `input_test=True` tests each
+  column inside each formula, and drops a formula when the test fails to
+  reject the null for one of its columns, such as `x6` in
+  `(x0 * x1) / (x0 + x6)`.
 - **Stability.** `stability_report` refits on many splits and shows whether
   the equation is the only good one or one of many.
 
 ## The guarantee
 
-The search runs on half of the training rows, and the formulas it returns are
-tested on the other half, with a permutation test and the Benjamini–Yekutieli
-correction, so that on average at most 10% of the certified formulas are
-false discoveries (`target_fdr`). That is an average over repeated fits, not
-a promise about any one fit, and it covers the certified set, of which the
-printed equation is by default a compact subset. If nothing passes, the model
-keeps no formulas and warns.
+The search runs on half of the training rows. On the other half, each formula
+it returns is tested against the null hypothesis that it is independent of
+the target, with a permutation test and the Benjamini–Yekutieli correction.
+The formulas whose nulls are rejected are the certified set, and on average
+at most 10% of them are false discoveries (`target_fdr`). That is an average
+over repeated fits, not a promise about any one fit, and it covers the
+certified set, of which the printed equation is by default a compact subset.
+If no null is rejected, the model uses no formulas and warns.
 [Statistical guarantees](https://ld-shell.github.io/beamfeat/guarantees/)
 gives each procedure's assumptions and what was measured.
 

@@ -59,15 +59,17 @@ are looking at, `None` when there is no guarantee to scope. Branch on
 
 ## Why the equation says "1 of 25"
 
-Screening certified twenty-five formulas. On a strong signal the marginal
-null correctly passes every near-duplicate of the true feature — each one
-really is associated with the target — so twenty-five is the honest size of
-the certified set. A parsimony step then keeps the compact predictive subset
-and fits that, because an equation of dozens of near-duplicate terms defeats
-the interpretability the library exists for.
+The screen rejected the null for twenty-five formulas, the certified set.
+Each formula's null is that it is independent of the target, and on a strong
+signal every near-duplicate of the true feature really is associated with
+the target, so rejecting its null is correct and twenty-five is the honest
+size of the certified set. A parsimony step then selects the compact
+predictive subset and fits that, because an equation of dozens of
+near-duplicate terms defeats the interpretability the library exists for.
 
 The subset is chosen on the rows selection already used, so the q-level
-guarantee covers the twenty-five it came from and not the one that survived.
+guarantee covers the twenty-five it came from and not the one the forward
+step retained.
 That is what the suffix records, and `fdp_inflation_` prices it:
 
 ```python
@@ -112,12 +114,13 @@ the guarantee: see `parsimony_holdout` on the
 
 `parsimony_holdout` holds back that fraction of the selection rows.
 Screening and the forward step run on the rest, and the terms they return,
-fixed at that point, are tested again on the rows held back; terms that fail
-are dropped. By default the re-test is the screen again
-(`certify_test="marginal"`), which tests each term's association with the
-target on its own. A term that only rides on a true one passes it, since it
-is associated with the target through that term. `certify_test="conditional"`
-tests each term given the other printed terms instead:
+fixed at that point, are tested again on the rows held back; terms whose
+null the re-test fails to reject are dropped. By default the re-test is the
+screen again (`certify_test="marginal"`), which tests each term's
+association with the target on its own. It rejects the null for a term that
+only rides on a true one, since such a term is associated with the target
+through the true one. `certify_test="conditional"` tests each term given the
+other printed terms instead:
 
 ```python
 import numpy as np
@@ -146,18 +149,57 @@ The conditional re-test is a permutation test for regression only, and its
 p-values are approximate; the guarantees page states its null and what its
 validity rests on. It works when the subset it receives is short. When the
 subset is long and its terms nearly reproduce one another, no term adds
-anything given the rest, nothing passes, and the estimator returns the whole
-screened set, which carries only the screen's marginal guarantee;
-`certification_result_.n_selected` is then 0, and a `NoDiscoveriesWarning`
-says so. In the calibration study (`benchmarks/parsimony_holdout/`) that
-happened in about nine fits in ten at a signal-to-noise ratio of 1, where
-the forward step keeps 18 terms on average, and in about one in five at a
+anything given the rest, the re-test rejects no null, and the estimator
+returns the whole screened set, which carries only the screen's marginal
+guarantee; `certification_result_.n_selected` is then 0, and a
+`NoDiscoveriesWarning` says so. In the calibration study
+(`benchmarks/parsimony_holdout/`) that happened in about nine fits in ten at
+a signal-to-noise ratio of 1, where the forward step retains 18 terms on
+average, and in about one in five at a
 ratio of 3. At that ratio, the share of printed terms using a column outside
 the generating formula was 0.42 to 0.44 at the defaults, 0.53 to 0.62 with
 the marginal re-test and 0.18 to 0.22 with the conditional one, which
 printed about one term in the fits it did not hand back to the screened
 set. Both re-tests cost rows: hold back a fraction only when the selection
 rows number a few hundred or more.
+
+## Columns that ride along inside a term
+
+The screen tests each term as a whole, so a term that attaches a junk column
+to the true one is still a true discovery: `((x0 * x1) / (x0 + x6))` is
+associated with the target through `x0 * x1`, however unrelated `x6` is.
+`input_test=True` tests each column inside each term that reads more than
+one. The column's rows are permuted wherever it occurs in the expression,
+and its null is that it is independent of the target and of the term's
+other columns. A screened term is dropped before the forward step when the
+test fails to reject the null for any of its columns:
+
+```python
+import numpy as np
+from beamfeat import BeamFeatRegressor
+
+rng = np.random.default_rng(11)
+X = rng.uniform(1, 6, (500, 12))
+signal = X[:, 0] * X[:, 1]
+y = signal + rng.normal(0, 0.25 * np.std(signal), 500)
+print(BeamFeatRegressor(random_state=0).fit(X, y).equation())
+print(BeamFeatRegressor(random_state=0, input_test=True).fit(X, y).equation())
+```
+
+```text
+y = 1.052*(x0 * x1) - 0.4088*((x0 * x1) / (x0 + x6)) - 0.1452*((x3 / x0) - x1) + 0.1295*((x5 / x0) - x1) + 0.04642   [4 of 50 certified terms; parsimony=None prints all 50]
+y = 1.013*(x0 * x1) - 0.1608   [1 of 50 certified terms; parsimony=None prints all 8; input_test dropped 42]
+```
+
+`input_report_` lists every (term, column) pair with its p- and q-value, and
+`null_rejected` marks the pairs whose null the test rejected. The screen's
+guarantee is unchanged and still covers the screened set of 50. A junk
+column that is correlated with a real one is not null in this sense, so its
+null can be rejected and the term kept; the
+[guarantees page](guarantees.md#columns-inside-a-term-input_test) states
+what the test covers and what was measured. It is opt-in because it costs
+time that grows with the rows: here the fit took about seven times as long,
+and `n_jobs` threads share the tests.
 
 ## The equation at every size
 
@@ -199,7 +241,7 @@ well, where the marked line is the last.
 The records behind the text are in `equations_`, one dict per line with
 `n_terms`, `complexity`, `r2`, `formulas`, the `features` as expression
 nodes, and `model`, which marks the fitted line. It is `None` without a
-selector and empty when nothing passed screening.
+selector and empty when the screen rejected no null.
 
 ## One equation or one of many
 
@@ -379,7 +421,8 @@ print(BeamFeatRegressor(random_state=0).fit(df, target).formulas())
 ## Dimensional analysis
 
 Give units as pint quantities or plain strings; dimensionally invalid
-expressions (metres plus kilograms) are rejected before any numerical work — so `x0 + x1` (kg plus m) is never even scored:
+expressions (metres plus kilograms) are ruled out before any numerical work —
+so `x0 + x1` (kg plus m) is never even scored:
 
 ```python
 y_phys = X[:, 0] * X[:, 1] / X[:, 2]          # kg·m/s
@@ -451,10 +494,12 @@ How the constants are chosen:
 - **How.** Each constant maximises the absolute correlation with the target:
   a coarse grid scaled to the operand (for `exp_scaled`, `|a|` up to
   10/max|x|; for `pow`, `a` from -4 to 4; for the shifts, poles kept off the
-  observed range), then a golden-section refinement. A fit that runs to the edge of its grid, or
-  that does not clearly beat the operand on its own (each operator becomes
-  linear in `x` at one end of its range), is discarded. Correlation is used
-  whatever the `scorer`; the scorer then ranks the result.
+  observed range), then a golden-section refinement. A fit that runs to the
+  edge of its grid is discarded, and so is one for which the likelihood-ratio
+  test of the snapping step below does not reject the null that the operand
+  on its own fits as well (each operator becomes linear in `x` at one end of
+  its range). Correlation is used whatever the `scorer`; the scorer then
+  ranks the result.
 - **Poles.** `inv_shift` and `log_shift` keep their pole away from the
   data they were fitted on: at least twice the spread of the operand's ten
   most extreme values at that end, and at least 1% of its range. A pole
@@ -476,11 +521,12 @@ How the constants are chosen:
   fitted as a factor of a beam member, and that product joins the next
   depth's candidates.
 - **Snapping.** The constant is replaced by the simplest of 0, ±1, ±2, ±3,
-  ±1/2, ±3/2, ±1/3, ±1/4 that the data cannot tell apart from the optimum
-  (a likelihood-ratio test at the 99.9% point), so `exp(-0.49991·x²)` is
-  reported as `exp(-x²/2)`; failing that it is rounded to the fewest
-  significant digits that cost nothing measurable. A snapped constant is
-  exact in `to_sympy()`, `latex()` and the printed formulas.
+  ±1/2, ±3/2, ±1/3, ±1/4 for which a likelihood-ratio test at level 0.001
+  fails to reject the null that the constant takes that value, so
+  `exp(-0.49991·x²)` is reported as `exp(-x²/2)`. If the test rejects every
+  one of them, the constant is rounded to the fewest significant digits that
+  cost nothing measurable. A snapped constant is exact in `to_sympy()`,
+  `latex()` and the printed formulas.
 - **Stored.** The constant is part of the expression: `transform`,
   `predict` and a pickled model reuse it on new data without refitting.
 
@@ -528,23 +574,24 @@ is absorbed into the fitted coefficient rather than returned as a symbol.
 
 ## Audit what selection did
 
-Every candidate's permutation p-value and its adjusted q-value is kept:
+Every candidate's permutation p-value and its adjusted q-value is recorded:
 
 ```python
 for row in model.selection_report_[:3]:
     print(row["formula"], round(row["q_value"], 4), row["kept"])
 ```
 
-Features are *kept* only if they pass FDR screening at `target_fdr`
-(default 0.1, Benjamini–Yekutieli) on a held-out split, then survive the
-parsimony pass. `screened` marks the certified set, which is what the
-guarantee covers; `kept` marks the compact subset the equation prints. Set
-`parsimony=None` and the two agree.
+A feature is *kept* only if the screen rejects its null at `target_fdr`
+(default 0.1, Benjamini–Yekutieli) on the held-out split and the parsimony
+step then retains it. `screened` marks the certified set, the candidates
+whose nulls the screen rejected, which is what the guarantee covers; `kept`
+marks the compact subset the equation prints. Set `parsimony=None` and the
+two agree.
 
-## Honest failure, by default
+## When no null is rejected
 
-On a target with no structure, nothing passes — and the model says so
-instead of returning junk:
+On a target with no structure the screen rejects no null, and the model says
+so instead of returning junk:
 
 ```python
 noise = rng.standard_normal(400)
@@ -554,15 +601,16 @@ print(model.equation())
 ```
 
 ```text
-y = 0.03527  (no feature passed selection)
+y = 0.03527  (no feature selected)
 ```
 
-Not on every draw. Under a global null every selection is false, so the FDR
-is the probability that a fit certifies anything at all: up to `target_fdr`
-of pure-noise fits still certify features, and when one does, correlated
-candidates tend to pass together. The same noise under another search seed
-can certify a dozen formulas with `fdr_controlled_ = True`: that is the error
-the guarantee bounds in expectation, not a breach of it.
+Not on every draw. Under the global null every rejection is a false
+rejection, so the FDR is the probability that a fit rejects any null at all:
+up to `target_fdr` of pure-noise fits still certify features, and when one
+does, the nulls of correlated candidates tend to be rejected together. The
+same noise under another search seed can certify a dozen formulas with
+`fdr_controlled_ = True`: that is the error the guarantee bounds in
+expectation, not a breach of it.
 
 Prefer the old behaviour? `on_no_discoveries="fallback"` keeps the
 unfiltered search output (flagged `fdr_controlled_=False`); `"raise"`
@@ -601,9 +649,9 @@ far enough outside them can still reach it: `(x1)^(-0.5)`, fitted where
 `max_inputs` caps the distinct input columns in one feature: `max_inputs=2`
 admits `x0 * log(x0 / x1)` but not `x0 * x1 / x2`. Use it when a feature that
 mixes many columns would be uninterpretable to you anyway. It is checked as
-each candidate is constructed, before any numerical work, so a rejected
-candidate costs no evaluation and takes no beam slot. Rejections are counted
-per depth in `search_result_.trace` (`n_rejected_constraints`).
+each candidate is constructed, before any numerical work, so a candidate it
+rules out costs no evaluation and takes no beam slot. `search_result_.trace`
+counts them per depth (`n_rejected_constraints`).
 
 It does not make selection more powerful. The screen's multiple-testing
 correction runs over the features that reach selection, which the beam

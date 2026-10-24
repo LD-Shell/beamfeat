@@ -151,7 +151,7 @@ class TestPermutationExactness:
         np.testing.assert_allclose(first.p_values, second.p_values)
 
     def test_auto_permutations_meets_satisfiability_bound(self):
-        """B must reach ceil(2 m / q); below m/q - 1 selection is impossible."""
+        """B must reach ceil(2 m / q); below m/q - 1 a lone feature's null cannot be rejected."""
         selector = PermutationSelector(target_fdr=0.1, n_permutations=50)
         assert selector._required_permutations(40) == 800
 
@@ -162,6 +162,12 @@ class TestPermutationExactness:
             target_fdr=0.01, n_permutations=100, max_permutations=200
         ).select(features, target)
         assert any("max_permutations" in message for message in result.warnings_raised)
+        # Switching to BH is advice for a BY selector only.
+        assert not any("correction='bh'" in message for message in result.warnings_raised)
+        by = PermutationSelector(
+            target_fdr=0.01, n_permutations=100, max_permutations=200, correction="by"
+        ).select(features, target)
+        assert any("correction='bh'" in message for message in by.warnings_raised)
 
 
 # --------------------------------------------------------------------------- #
@@ -417,7 +423,7 @@ class TestFixedXKnockoffs:
         assert _fdp(result.selected, np.append(truth, True)) <= 0.2
 
     def test_rank_deficient_pool_does_not_select_nulls(self):
-        """Three signals cannot pass knockoff+ at level 0.1, which needs ten
+        """knockoff+ at level 0.1 cannot select three signals, since it needs ten
         positive statistics; with one duplicated null the collapsed
         construction selected 11 to 15 features on three of these four
         seeds, most of them nulls."""
@@ -745,8 +751,8 @@ class TestPermutationResolution:
 
 class TestConditionalPermutation:
     """The Freedman-Lane test behind ``certify_test="conditional"``: each
-    feature is tested given the others, so a term that only rides on a true
-    one fails where the marginal test passes it."""
+    feature is tested given the others, so the test fails to reject the null
+    of a term that only rides on a true one, where the marginal test rejects it."""
 
     @staticmethod
     def _rider_design(rng, n=600):
@@ -901,10 +907,10 @@ class TestInputPermutationTest:
         pairs, result = _InputPermutationTest(target_fdr=0.1, correction="by").test_inputs(
             self._nodes(), data, y
         )
-        passed = {pairs[i] for i in result.selected}
+        rejected = {pairs[i] for i in result.selected}
         assert pairs == [(0, "x0"), (0, "x1"), (1, "x0"), (1, "x1"), (1, "x2")]
-        assert {(0, "x0"), (0, "x1")} <= passed
-        assert (1, "x2") not in passed
+        assert {(0, "x0"), (0, "x1")} <= rejected
+        assert (1, "x2") not in rejected
         assert result.n_candidates == 5 and result.method == "input_permutation"
 
     def test_single_column_candidates_are_not_tested(self):
