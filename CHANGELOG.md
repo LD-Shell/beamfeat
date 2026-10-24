@@ -26,9 +26,9 @@ forward step without `parsimony_alpha` is deprecated.
   and cost 1.19 times 0.6.1's fit time and 1.06 times its memory. The
   end-to-end calibration and the pure-noise pipeline stress give the results
   they gave without them. For regression, a fit at the 0.7.0 defaults is the
-  0.6.1 fit with `magnitude_slots=10`, field for field (all 1,425 regression
-  items of the comparison); `magnitude_slots=0` gives the 0.6.1 fit (all
-  1,430).
+  earlier fit with `magnitude_slots=10`, field for field (0.6.0's, whose fits
+  0.6.1 shares, on all 1,425 regression items of the comparison);
+  `magnitude_slots=0` gives the 0.6.1 fit (all 1,430).
 - The largest modules are split into smaller private ones, so that each
   stage of a fit can be read on its own. `estimators.py` keeps the three
   public classes; the fitting machinery they share is in `_base.py`, with
