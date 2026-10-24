@@ -296,14 +296,22 @@ def traced_class():
     return TracedSearch
 
 
+def _search_module():
+    """The module whose ``BeamSearch`` a fit looks up: ``beamfeat._base`` from 0.7.0, ``beamfeat.estimators`` before."""
+    import importlib
+    import importlib.util
+
+    if importlib.util.find_spec("beamfeat._base") is not None:
+        return importlib.import_module("beamfeat._base")
+    return importlib.import_module("beamfeat.estimators")
+
+
 class Instrumented:
-    """Installs the traced search where the estimators module looks it up."""
+    """Installs the traced search where the fit looks it up (see _search_module)."""
 
     def __init__(self) -> None:
-        import beamfeat.estimators as estimators
-
-        self.module = estimators
-        self.original = estimators.BeamSearch
+        self.module = _search_module()
+        self.original = self.module.BeamSearch
         self.traced = traced_class()
 
     def __enter__(self):

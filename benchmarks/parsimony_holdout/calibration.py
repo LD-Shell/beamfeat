@@ -184,19 +184,27 @@ def fingerprint(model, X_test: np.ndarray) -> tuple:
     )
 
 
+def _search_module():
+    """The module whose ``BeamSearch`` a fit looks up: ``beamfeat._base`` from 0.7.0, ``beamfeat.estimators`` before."""
+    import importlib
+    import importlib.util
+
+    if importlib.util.find_spec("beamfeat._base") is not None:
+        return importlib.import_module("beamfeat._base")
+    return importlib.import_module("beamfeat.estimators")
+
+
 class SearchMemo:
     """Memoises ``BeamSearch.run`` on its inputs, within one replicate.
 
-    Installed by replacing the name the estimators module looks up, so the
+    Installed by replacing the name the fit looks up (see _search_module), so the
     estimator runs unmodified otherwise. The key covers the search's
     constructor arguments and every array and option passed to ``run``.
     """
 
     def __init__(self) -> None:
-        import beamfeat.estimators as estimators
-
-        self.module = estimators
-        self.original = estimators.BeamSearch
+        self.module = _search_module()
+        self.original = self.module.BeamSearch
         self.results: dict[str, object] = {}
         memo = self
 
