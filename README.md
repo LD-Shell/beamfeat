@@ -17,6 +17,15 @@ a short equation in your own column names, from a scikit-learn estimator you
 can fit, inspect and predict with. The method is described in a
 [TMLR 2026 paper](https://openreview.net/forum?id=UibXoy4h3u).
 
+**New in 0.6.1.** `input_test` no longer runs out of memory on large data:
+on California housing it needed over 7 GB and now needs 0.55 GB, with the
+same results. Two options are new and off by default: `parsimony_alpha`, a
+chance check that keeps the equation short when the target is a few strong
+terms, and `KnockoffSelector(s_method="ci")` for columns that are near-copies
+of each other. Default fits are those of 0.6.0. How 0.4.2 (the paper's
+release), 0.5.0, 0.6.0 and 0.6.1 compare on accuracy, speed and memory:
+[release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md).
+
 ## An example: fat content from a spectrum
 
 ![Held-out R² on tecator over five splits: beamfeat 0.991 from three or four formulas; ridge 0.957, LightGBM 0.756 and random forest 0.717 on all 100 channels](https://raw.githubusercontent.com/LD-Shell/beamfeat/main/docs/assets/tecator.png)

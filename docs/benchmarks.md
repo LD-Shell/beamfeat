@@ -244,6 +244,28 @@ control; beamfeat applies it to symbolic expressions on tabular columns.
 [Migrating from autofeat](migrating-from-autofeat.md) maps one API onto the
 other.
 
+## Release comparison
+
+[`benchmarks/release_comparison/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/release_comparison)
+runs the same benchmarks, data, splits and seeds through 0.4.2 (the paper's
+release), 0.5.0, 0.6.0 and 0.6.1 on one software stack, at their defaults
+and with the options 0.6.0 and 0.6.1 add: about 16,000 fits. At the
+defaults:
+
+| measure | 0.4.2 | 0.5.0 | 0.6.0 | 0.6.1 |
+| :-- | --: | --: | --: | --: |
+| Feynman panel, solved of 60 | 47 | 47 | 50 | 50 |
+| Riders at signal to noise 1 (conditional FDR) | 0.736 | 0.736 | 0.720 | 0.720 |
+| 7 real datasets, mean held-out score | 0.725 | 0.726 | 0.726 | 0.726 |
+| Fit time, x 0.5.0 | 3.18 | 1.00 | 1.53 | 1.54 |
+| Peak fit memory, x 0.5.0 | 5.27 | 1.00 | 1.08 | 1.10 |
+
+0.5.0 gives 0.4.2's fits on 1,415 of 1,430 items in a third of the time.
+0.6.0's changes to the fits all come from `fitted_ops`, and 0.6.1's default
+fits are 0.6.0's. The
+[report](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md)
+also measures each option against its release's default.
+
 ## Test suite
 
 965 tests at 97% statement coverage, with a 90% floor enforced in CI,
