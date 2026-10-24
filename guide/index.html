@@ -1,0 +1,2323 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Beam-search feature construction with FDR-controlled selection">
+      
+      
+        <meta name="author" content="Olanrewaju M. Daramola">
+      
+      
+        <link rel="canonical" href="https://ld-shell.github.io/beamfeat/guide/">
+      
+      
+        <link rel="prev" href="../installation/">
+      
+      
+        <link rel="next" href="../guarantees/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>User guide - beamfeat</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  <meta name="author" content="Olanrewaju M. Daramola">
+  <link rel="author" href="https://orcid.org/0009-0006-3327-2047">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="beamfeat">
+  <meta property="og:title" content="User guide — beamfeat">
+  <meta property="og:description" content="Beam-search feature construction with FDR-controlled selection">
+  <meta property="og:url" content="https://ld-shell.github.io/beamfeat/guide/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="User guide — beamfeat">
+  <meta name="twitter:description" content="Beam-search feature construction with FDR-controlled selection">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "beamfeat",
+    "description": "Beam-search feature construction with FDR-controlled selection",
+    "codeRepository": "https://github.com/LD-Shell/beamfeat",
+    "programmingLanguage": "Python",
+    "license": "https://opensource.org/licenses/MIT",
+    "author": {
+      "@type": "Person",
+      "name": "Olanrewaju M. Daramola",
+      "@id": "https://orcid.org/0009-0006-3327-2047",
+      "url": "https://orcid.org/0009-0006-3327-2047"
+    }
+  }
+  </script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#user-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="beamfeat" class="md-header__button md-logo" aria-label="beamfeat" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            beamfeat
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              User guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/LD-Shell/beamfeat" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  User guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../guarantees/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Statistical guarantees
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../benchmarks/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Benchmarks
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../migrating-from-autofeat/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Migrating from autofeat
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../notebooks/01_getting_started/" class="md-tabs__link">
+          
+  
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../api/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API reference
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="beamfeat" class="md-nav__button md-logo" aria-label="beamfeat" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    beamfeat
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/LD-Shell/beamfeat" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sixty-seconds-to-a-vetted-equation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sixty seconds to a vetted equation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-equation-says-1-of-25" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the equation says "1 of 25"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#re-testing-the-printed-terms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-testing the printed terms
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#columns-that-ride-along-inside-a-term" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Columns that ride along inside a term
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-equation-at-every-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The equation at every size
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-equation-or-one-of-many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One equation or one of many
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#latex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LaTeX
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#export-to-numpy-jax-or-pytorch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export to NumPy, JAX or PyTorch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#column-names-flow-into-formulas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column names flow into formulas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dimensional-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dimensional analysis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constants-inside-expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constants inside expressions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#columns-that-carry-no-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Columns that carry no data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-what-selection-did" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit what selection did
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-no-null-is-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When no null is rejected
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classification
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rows-outside-a-formulas-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rows outside a formula's domain
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#search-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Search constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#laws-whose-parts-the-score-cannot-see" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Laws whose parts the score cannot see
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#real-data-with-missing-values-or-categoricals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real data with missing values or categoricals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#predicting-with-the-original-columns-as-well" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Predicting with the original columns as well
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#speed-and-memory-on-wide-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Speed and memory on wide data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-reach-for-something-else" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to reach for something else
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guarantees/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistical guarantees
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-from-autofeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating from autofeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/01_getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started with beamfeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/02_search_and_scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Search and scoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/03_selection_and_units/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selection and units
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/04_reading_a_fit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading a fit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sixty-seconds-to-a-vetted-equation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sixty seconds to a vetted equation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-equation-says-1-of-25" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the equation says "1 of 25"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#re-testing-the-printed-terms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-testing the printed terms
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#columns-that-ride-along-inside-a-term" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Columns that ride along inside a term
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-equation-at-every-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The equation at every size
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-equation-or-one-of-many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One equation or one of many
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#latex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LaTeX
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#export-to-numpy-jax-or-pytorch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export to NumPy, JAX or PyTorch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#column-names-flow-into-formulas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column names flow into formulas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dimensional-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dimensional analysis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constants-inside-expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constants inside expressions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#columns-that-carry-no-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Columns that carry no data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-what-selection-did" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit what selection did
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-no-null-is-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When no null is rejected
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classification
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rows-outside-a-formulas-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rows outside a formula's domain
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#search-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Search constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#laws-whose-parts-the-score-cannot-see" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Laws whose parts the score cannot see
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#real-data-with-missing-values-or-categoricals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real data with missing values or categoricals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#predicting-with-the-original-columns-as-well" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Predicting with the original columns as well
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#speed-and-memory-on-wide-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Speed and memory on wide data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-reach-for-something-else" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to reach for something else
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="user-guide">User guide</h1>
+<p>Everything below is runnable as-is; outputs shown are from real runs.</p>
+<h2 id="install">Install</h2>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>beamfeat<span class="w">              </span><span class="c1"># core: numpy, scikit-learn, joblib</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"beamfeat[units]"</span><span class="w">     </span><span class="c1"># + pint, for dimensional analysis</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"beamfeat[display]"</span><span class="w">   </span><span class="c1"># + sympy, for to_sympy() and latex()</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"beamfeat[all]"</span><span class="w">       </span><span class="c1"># + both, pandas and the test dependencies</span>
+</code></pre></div>
+<p>See <a href="../installation/">Installation</a> for running the test suite or
+reproducing the benchmarks.</p>
+<h2 id="sixty-seconds-to-a-vetted-equation">Sixty seconds to a vetted equation</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">beamfeat</span><span class="w"> </span><span class="kn">import</span> <span class="n">BeamFeatRegressor</span>
+
+<span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="p">(</span><span class="mi">400</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mi">400</span><span class="p">)</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">beam_width</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">equation</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">fdr_controlled_</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>y = 0.9999*(x0 * x1) - 0.003943   [1 of 25 certified terms; parsimony=None prints all 25]
+True
+</code></pre></div>
+<p>Three things matter. <code>equation()</code> is the fitted model itself — evaluate it on
+raw feature values and you reproduce <code>predict()</code>. <code>fdr_controlled_</code> states
+whether the features carry the false-discovery-rate guarantee; check it before
+treating them as statistically vetted. And the suffix says that those two do
+not describe the same set of terms.</p>
+<p>That last point has an attribute as well as a suffix, because a script never
+reads the printed string:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">fdr_controlled_</span><span class="p">,</span> <span class="s2">"|"</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">fdr_scope_</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>True | screened set
+</code></pre></div>
+<p><code>fdr_controlled_</code> says whether there is a guarantee. <code>fdr_scope_</code> says what it
+is over: <code>"screened set"</code> when the printed terms were pruned from a larger
+certified set, <code>"printed equation"</code> when the guarantee covers the terms you
+are looking at, <code>None</code> when there is no guarantee to scope. Branch on
+<code>fdr_scope_</code>, not on the equation text.</p>
+<h2 id="why-the-equation-says-1-of-25">Why the equation says "1 of 25"</h2>
+<p>The screen rejected the null for twenty-five formulas, the certified set.
+Each formula's null is that it is independent of the target, and on a strong
+signal every near-duplicate of the true feature really is associated with
+the target, so rejecting its null is correct and twenty-five is the honest
+size of the certified set. A parsimony step then selects the compact
+predictive subset and fits that, because an equation of dozens of
+near-duplicate terms defeats the interpretability the library exists for.</p>
+<p>The subset is chosen on the rows selection already used, so the q-level
+guarantee covers the twenty-five it came from and not the one the forward
+step retained.
+That is what the suffix records, and <code>fdp_inflation_</code> prices it:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">fdp_inflation_</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>25.0
+</code></pre></div>
+<p>|S|/|S'|, the factor by which pruning can inflate the realised false
+discovery proportion, since the denominator shrinks faster than the numerator
+can. Set <code>parsimony=None</code> to fit the screened set entire, at which point the
+printed equation <em>is</em> the certified object and the suffix disappears:</p>
+<div class="highlight"><pre><span></span><code><span class="n">full</span> <span class="o">=</span> <span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">beam_width</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                         <span class="n">parsimony</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">full</span><span class="o">.</span><span class="n">n_features_out_</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">full</span><span class="o">.</span><span class="n">equation</span><span class="p">(</span><span class="n">max_terms</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>25
+y = 1.077*(x0 * x1) - 0.2264*(x0 * sqrt(x1)) - 0.5879*(sqrt(x1) - 1/(x0)) + 1.369
+</code></pre></div>
+<p><code>max_terms</code> shortens the display, not the model: the terms it leaves out are
+held at their training mean, and their average contribution moves into the
+constant, which is why it differs from the full equation's.</p>
+<p>What the default costs you in fit is small, and measured rather than asserted:
+about a thousandth of R² across 308 paired fits (held out in every study but
+the end-to-end calibration, which scores in-sample), for an equation some
+twenty-five times shorter, with no case where pruning inflated the realised
+false discovery proportion. The measurement is
+<code>benchmarks/PARSIMONY_COST.md</code>. Short <em>and</em> certified costs rows instead of
+the guarantee: see <code>parsimony_holdout</code> on the
+<a href="../guarantees/">guarantees page</a>, and the next section.</p>
+<h2 id="re-testing-the-printed-terms">Re-testing the printed terms</h2>
+<p><code>parsimony_holdout</code> holds back that fraction of the selection rows.
+Screening and the forward step run on the rest, and the terms they return,
+fixed at that point, are tested again on the rows held back; terms whose
+null the re-test fails to reject are dropped. By default the re-test is the
+screen again (<code>certify_test="marginal"</code>), which tests each term's
+association with the target on its own. It rejects the null for a term that
+only rides on a true one, since such a term is associated with the target
+through the true one. <code>certify_test="conditional"</code> tests each term given the
+other printed terms instead:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">beamfeat</span><span class="w"> </span><span class="kn">import</span> <span class="n">BeamFeatRegressor</span>
+
+<span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="p">(</span><span class="mi">600</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+<span class="n">y</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mi">600</span><span class="p">)</span>  <span class="c1"># x0 alone</span>
+
+<span class="c1"># Products only, and the whole screened set: every product of x0 with</span>
+<span class="c1"># another column rides on x0, and the re-test sees them all.</span>
+<span class="n">options</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">binary_ops</span><span class="o">=</span><span class="p">(</span><span class="s2">"mul"</span><span class="p">,),</span> <span class="n">unary_ops</span><span class="o">=</span><span class="p">(),</span> <span class="n">parsimony</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+               <span class="n">parsimony_holdout</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">marginal</span> <span class="o">=</span> <span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="o">**</span><span class="n">options</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="n">conditional</span> <span class="o">=</span> <span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="o">**</span><span class="n">options</span><span class="p">,</span> <span class="n">certify_test</span><span class="o">=</span><span class="s2">"conditional"</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">marginal</span><span class="o">.</span><span class="n">formulas</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">conditional</span><span class="o">.</span><span class="n">equation</span><span class="p">())</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>['x0', '(x0 * x7)', '(x0 * x6)', '(x0 * x3)', '(x0 * x2)', '(x0 * x1)', '(x0 * x5)', '(x0 * x4)']
+y = 2.009*x0 - 0.003251
+</code></pre></div>
+<p>The conditional re-test is a permutation test for regression only, and its
+p-values are approximate; the guarantees page states its null and what its
+validity rests on. It works when the subset it receives is short. When the
+subset is long and its terms nearly reproduce one another, no term adds
+anything given the rest, the re-test rejects no null, and the estimator
+returns the whole screened set, which carries only the screen's marginal
+guarantee; <code>certification_result_.n_selected</code> is then 0, and a
+<code>NoDiscoveriesWarning</code> says so. In the calibration study
+(<code>benchmarks/parsimony_holdout/</code>) that happened in about nine fits in ten at
+a signal-to-noise ratio of 1, where the forward step retains 18 terms on
+average, and in about one in five at a
+ratio of 3. At that ratio, the share of printed terms using a column outside
+the generating formula was 0.42 to 0.44 at the defaults, 0.53 to 0.62 with
+the marginal re-test and 0.18 to 0.22 with the conditional one, which
+printed about one term in the fits it did not hand back to the screened
+set. Both re-tests cost rows: hold back a fraction only when the selection
+rows number a few hundred or more.</p>
+<h2 id="columns-that-ride-along-inside-a-term">Columns that ride along inside a term</h2>
+<p>The screen tests each term as a whole, so a term that attaches a junk column
+to the true one is still a true discovery: <code>((x0 * x1) / (x0 + x6))</code> is
+associated with the target through <code>x0 * x1</code>, however unrelated <code>x6</code> is.
+<code>input_test=True</code> tests each column inside each term that reads more than
+one. The column's rows are permuted wherever it occurs in the expression,
+and its null is that it is independent of the target and of the term's
+other columns. A screened term is dropped before the forward step when the
+test fails to reject the null for any of its columns:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">beamfeat</span><span class="w"> </span><span class="kn">import</span> <span class="n">BeamFeatRegressor</span>
+
+<span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">11</span><span class="p">)</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="p">(</span><span class="mi">500</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span>
+<span class="n">signal</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">signal</span> <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">signal</span><span class="p">),</span> <span class="mi">500</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">equation</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">input_test</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">equation</span><span class="p">())</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>y = 1.052*(x0 * x1) - 0.4088*((x0 * x1) / (x0 + x6)) - 0.1452*((x3 / x0) - x1) + 0.1295*((x5 / x0) - x1) + 0.04642   [4 of 50 certified terms; parsimony=None prints all 50]
+y = 1.013*(x0 * x1) - 0.1608   [1 of 50 certified terms; parsimony=None prints all 8; input_test dropped 42]
+</code></pre></div>
+<p><code>input_report_</code> lists every (term, column) pair with its p- and q-value, and
+<code>null_rejected</code> marks the pairs whose null the test rejected. The screen's
+guarantee is unchanged and still covers the screened set of 50. A junk
+column that is correlated with a real one is not null in this sense, so its
+null can be rejected and the term kept; the
+<a href="../guarantees/#columns-inside-a-term-input_test">guarantees page</a> states
+what the test covers and what was measured. It is opt-in because it costs
+time that grows with the rows: here the fit took about seven times as long,
+and <code>n_jobs</code> threads share the tests.</p>
+<h2 id="the-equation-at-every-size">The equation at every size</h2>
+<p>The forward step adds terms one at a time and stops when the next adds less
+than <code>parsimony_tol</code> to R². <code>equations()</code> shows the step continued through the
+whole screened set, one equation per number of terms, so you can see what the
+stopping point traded away:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">equations</span><span class="p">(</span><span class="n">max_n_terms</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Forward path through the 25 screened terms. R^2 is in-sample, on the rows screening used; gain is the R^2 the line's last term adds.
+  k complexity    R^2      gain equation
+* 1          4 0.9999    0.9999 y ~ (x0 * x1)
+  2         10 0.9999 1.159e-06 y ~ (x0 * x1) + ((x0 + x3) * x1)
+  3         18 0.9999 1.103e-06 y ~ (x0 * x1) + ((x0 + x3) * x1) + ((x0 * x1) * (x1 * x2))
+  ...
+* the fitted model (the forward step stops before the first gain below parsimony_tol=0.001).
+The FDR guarantee covers the screened set of 25 terms (line 25), not an equation chosen from this list.
+</code></pre></div>
+<p>Complexity counts the nodes in each term's expression tree — operators and
+input columns, <code>(x0 * x1)</code> being 3 — plus one per term for its coefficient
+and one per <a href="#constants-inside-expressions">fitted constant</a>.
+The lines are written <code>y ~ a + b</code>, without coefficients, because only the
+marked one has been fitted; <code>equation()</code> prints its coefficients. For a
+classifier the R² is that of the integer-coded labels, the heuristic the
+forward step ranks by, not a classification metric.</p>
+<p>The last line of the output is the one to keep in mind. Every line is a subset of the
+screened set chosen on the rows screening used, so picking line 3 because it
+looks better is the same kind of choice the forward step makes, and the
+guarantee covers it no more than it covers the fitted line. Recording the path
+changes nothing that is fitted, and it is recorded at <code>parsimony=None</code> as
+well, where the marked line is the last.</p>
+<p>The records behind the text are in <code>equations_</code>, one dict per line with
+<code>n_terms</code>, <code>complexity</code>, <code>r2</code>, <code>formulas</code>, the <code>features</code> as expression
+nodes, and <code>model</code>, which marks the fitted line. It is <code>None</code> without a
+selector and empty when the screen rejected no null.</p>
+<h2 id="one-equation-or-one-of-many">One equation or one of many</h2>
+<p>A fit prints one equation, found on one random split of the training rows
+into the part the search sees and the part selection tests on. Where many
+expressions predict about equally well, another split prints another
+equation, and nothing in a single fit says which case you are in.
+<code>stability_report</code> finds out. It refits clones of the estimator on random
+splits of the data, scores each once on a test part its fit never saw, and
+counts the distinct equations:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">beamfeat</span><span class="w"> </span><span class="kn">import</span> <span class="n">stability_report</span>
+
+<span class="n">report</span> <span class="o">=</span> <span class="n">stability_report</span><span class="p">(</span><span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">beam_width</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">n_splits</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>BeamFeatRegressor refitted on 30 random splits (random_state=0), each fitted on 300 rows and scored on the other 100.
+
+Held-out R^2: mean 1.000, sd 0.000, min 1.000, max 1.000.
+1 distinct equation in 30 splits: every split printed it.
+1 distinct feature, selected in 30 of the 30 splits.
+
+Equations printed in more than one split, most frequent first:
+  30/30  y ~ (x0 * x1)
+
+Features, most frequent first:
+  30/30  (x0 * x1)
+
+Features whose values on the rows of X correlate above 0.999 in absolute value are counted as one; an equation is the set of its features, whatever its coefficients.
+</code></pre></div>
+<p>Every split found the planted product. The diabetes data are another matter:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_diabetes</span>
+
+<span class="n">diabetes</span> <span class="o">=</span> <span class="n">load_diabetes</span><span class="p">(</span><span class="n">as_frame</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">report</span> <span class="o">=</span> <span class="n">stability_report</span><span class="p">(</span><span class="n">BeamFeatRegressor</span><span class="p">(),</span> <span class="n">diabetes</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">diabetes</span><span class="o">.</span><span class="n">target</span><span class="p">,</span> <span class="n">n_splits</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="n">max_rows</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>BeamFeatRegressor refitted on 30 random splits (random_state=0), each fitted on 331 rows and scored on the other 111.
+
+Held-out R^2: mean 0.496, sd 0.050, min 0.389, max 0.575.
+30 distinct equations in 30 splits; none recurs.
+86 distinct features; the most frequent in 11 of the 30 splits.
+
+Features, most frequent first:
+  11/30  ((bmi + s5) + (bp - s3))
+   8/30  ((bmi + s5) - (s3 + sex))
+   8/30  ((bmi + bp) - (s3 + sex))
+  ... and 83 more features
+
+Features whose values on the rows of X correlate above 0.999 in absolute value are counted as one; an equation is the set of its features, whatever its coefficients.
+</code></pre></div>
+<p>No two of the thirty splits printed the same equation, and their held-out
+R² ranges from 0.389 to 0.575, a spread that one fit's score would hide. An
+equation fitted to these data is one draw among many that predict about as
+well. What recurs is a
+family of sums and differences of <code>bmi</code>, <code>s5</code>, <code>bp</code> and <code>s3</code>, the commonest
+member in 11 of the 30 splits. Report that family, with its frequencies,
+rather than one equation.</p>
+<p>Two formulas count as one feature when their values on the rows of <code>X</code>
+correlate above 0.999 in absolute value. A rewriting such as <code>(x1 - x0)</code> for
+<code>(x0 - x1)</code> is then not counted twice, and neither is a rescaling or a
+near-duplicate. An equation is the set of its features, whatever its
+coefficients. The report keeps everything behind the summary:</p>
+<ul>
+<li><code>report.splits[i]</code> has the rows split <code>i</code> was fitted and scored on, its
+  formulas, its <code>equation()</code>, its score and the fitted clone;</li>
+<li><code>report.features</code> and <code>report.equations</code> hold the classes, most frequent
+  first, each with the splits it appeared in;</li>
+<li><code>report.scores</code> holds the held-out scores.</li>
+</ul>
+<p>The splits and the clones' seeds come from <code>random_state</code> (default 0), so a
+report is reproducible, and <code>n_jobs</code> fits splits in parallel processes
+without changing it. The regressor is scored by R² and the classifier by
+accuracy, as their <code>score</code> methods are. A transformer has no score of its
+own, so it is scored by a ridge regression on its features, or by a logistic
+regression for classification. When a test row is outside a selected
+formula's <a href="#rows-outside-a-formulas-domain">domain</a>, the classifier predicts
+its most frequent training class there, as its <code>predict</code> does. A regressor or
+transformer has no score on such a test part, so that split goes unscored,
+and the summary counts it.</p>
+<p><code>resample</code> chooses what varies. The default, <code>"splits"</code>, draws new training
+and test rows as well as a new seed for every split. It measures
+split-to-split variability: how far the equation and its score move with
+another sample of the data. <code>resample="seeds"</code> keeps the first split's rows
+and varies only the seed, and with it the search/selection split inside each
+fit. That design, the one in the paper's stability study (Appendix E),
+measures seed-to-seed variability on fixed data: how much the printed
+equation owes to one random draw, the draw the FDR guarantee is conditional
+on. Run on diabetes as above with <code>resample="seeds"</code>, it still prints 30
+distinct equations in 30 fits, with 84 distinct features and the commonest
+in 10. The standard deviation of R² falls from 0.050 to 0.008, though, so
+most of the default's spread comes from the test parts, while the turnover of
+equations persists with the rows held fixed.</p>
+<h2 id="latex">LaTeX</h2>
+<p><code>latex()</code> typesets <code>equation()</code>: the same terms, coefficients and options
+(<code>precision</code>, <code>max_terms</code>, <code>style</code>), and the same note when the guarantee
+covers more terms than are printed. It needs sympy (<code>pip install
+"beamfeat[display]"</code>), as <code>to_sympy()</code> does.</p>
+<div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">latex</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">latex_formulas</span><span class="p">())</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>y = 0.9999 x_{0} x_{1} - 0.003943 \quad \text{[1 of 25 certified terms; parsimony=None prints all 25]}
+['x_{0} x_{1}']
+</code></pre></div>
+<p><code>latex(note=False)</code> leaves the note off, for pasting into a document; the
+guarantee still covers the screened set, so say so where the equation
+appears. The string has no math delimiters; wrap it in <code>$...$</code>, or in a
+notebook use <code>IPython.display.Math(model.latex())</code>. The classifier's <code>latex()</code> gives the
+log-odds of the positive class, or one softmax score per class in an
+<code>aligned</code> block, as its <code>equation()</code> does.</p>
+<h2 id="export-to-numpy-jax-or-pytorch">Export to NumPy, JAX or PyTorch</h2>
+<p><code>to_sympy()</code> returns each feature as a sympy expression in real symbols named
+after the input columns, so <code>sympy.lambdify</code> turns the features into a
+function for any array library sympy can print to. No extra dependency is
+involved beyond sympy and the target library:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sympy</span>
+
+<span class="n">columns</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">symbols</span><span class="p">(</span><span class="s2">"x0:4"</span><span class="p">,</span> <span class="n">real</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># one symbol per input column, in order</span>
+<span class="n">features</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">lambdify</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">to_sympy</span><span class="p">(),</span> <span class="n">modules</span><span class="o">=</span><span class="s2">"numpy"</span><span class="p">)</span>
+
+<span class="n">raw</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">coef_</span> <span class="o">/</span> <span class="n">model</span><span class="o">.</span><span class="n">scaler_</span><span class="o">.</span><span class="n">scale_</span>
+<span class="n">offset</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">intercept_</span> <span class="o">-</span> <span class="n">raw</span> <span class="o">@</span> <span class="n">model</span><span class="o">.</span><span class="n">scaler_</span><span class="o">.</span><span class="n">mean_</span>
+<span class="n">prediction</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">(</span><span class="n">features</span><span class="p">(</span><span class="o">*</span><span class="n">X</span><span class="o">.</span><span class="n">T</span><span class="p">))</span> <span class="o">@</span> <span class="n">raw</span> <span class="o">+</span> <span class="n">offset</span>  <span class="c1"># model.predict(X), to rounding</span>
+</code></pre></div>
+<p><code>modules="jax"</code> or <code>modules="torch"</code> (sympy 1.14 or newer) gives the same
+function on JAX or PyTorch arrays, with <code>jnp.stack(..., axis=1)</code> or <code>torch.stack(..., dim=1)</code> in
+place of <code>np.column_stack</code>; the coefficients and offset are plain arrays to
+convert once. Columns of a DataFrame keep their names as symbols when the
+names are valid identifiers, and are sanitised otherwise; read the symbols
+from <code>free_symbols</code> of the expressions in that case.</p>
+<p>Two differences from <code>transform</code> remain. sympy may rewrite an expression into
+an equivalent form, so a value can overflow in one and not the other. And a
+row outside a formula's domain gives whatever the array library gives there,
+with no warning from beamfeat.</p>
+<h2 id="column-names-flow-into-formulas">Column names flow into formulas</h2>
+<p>Fit on a DataFrame and formulas use your names:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"mass"</span><span class="p">:</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">300</span><span class="p">),</span>
+                   <span class="s2">"vol"</span><span class="p">:</span>  <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">300</span><span class="p">)})</span>
+<span class="n">target</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"mass"</span><span class="p">]</span> <span class="o">/</span> <span class="n">df</span><span class="p">[</span><span class="s2">"vol"</span><span class="p">]</span> <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.02</span><span class="p">,</span> <span class="mi">300</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span><span class="o">.</span><span class="n">formulas</span><span class="p">())</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>['(mass / vol)']
+</code></pre></div>
+<h2 id="dimensional-analysis">Dimensional analysis</h2>
+<p>Give units as pint quantities or plain strings; dimensionally invalid
+expressions (metres plus kilograms) are ruled out before any numerical work —
+so <code>x0 + x1</code> (kg plus m) is never even scored:</p>
+<div class="highlight"><pre><span></span><code><span class="n">y_phys</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>          <span class="c1"># kg·m/s</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">BeamFeatRegressor</span><span class="p">(</span>
+    <span class="n">units</span><span class="o">=</span><span class="p">{</span><span class="s2">"x0"</span><span class="p">:</span> <span class="s2">"kg"</span><span class="p">,</span> <span class="s2">"x1"</span><span class="p">:</span> <span class="s2">"m"</span><span class="p">,</span> <span class="s2">"x2"</span><span class="p">:</span> <span class="s2">"s"</span><span class="p">},</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span>
+<span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">y_phys</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">formulas</span><span class="p">())</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>['((x1 / x2) * x0)']
+</code></pre></div>
+<p>The recovered form, kg·m/s, is exactly the target's dimension — and the
+dimensionally invalid spellings never consumed a beam slot.</p>
+<p>Cover every column. A column without a unit is dimensionally
+unconstrained, so it combines freely with the labelled ones and the check
+stops binding on exactly the columns you did not vouch for — labelling your
+real measurements and leaving the noise blank is the case worth naming,
+because it looks careful and is not. Give the genuinely unitless columns
+<code>"dimensionless"</code>; the estimator warns when coverage is partial, and raises
+when the keys match no column at all. Keys are column names, so a DataFrame
+lets you write <code>{"rho": "kg/m**3"}</code> rather than <code>{"x0": ...}</code>.</p>
+<h2 id="constants-inside-expressions">Constants inside expressions</h2>
+<p>The linear model supplies the coefficients outside the expressions. That
+alone cannot write <code>exp(-x²/2)</code>, <code>x^1.5</code> or <code>(x0 + x1)/(1 + x0·x1)</code>, where the
+constant sits inside a nonlinearity, so the estimators also use operators that
+carry one fitted constant each, listed in <code>fitted_ops</code>. All four are on by
+default (since 0.6.0); <code>fitted_ops=()</code> keeps every expression free of
+constants, as the default did before, and fits about twice as fast on small
+data. They are a list of their own: restricting <code>unary_ops</code> leaves them on,
+so <code>unary_ops=()</code> still allows <code>log(x + a)</code> unless <code>fitted_ops=()</code> too.</p>
+<table>
+<thead>
+<tr>
+<th>name</th>
+<th>expression</th>
+<th>operand</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"exp_scaled"</code></td>
+<td><code>exp(a·x)</code></td>
+<td>dimensionless</td>
+</tr>
+<tr>
+<td><code>"pow"</code></td>
+<td><code>x^a</code></td>
+<td>positive, dimensionless</td>
+</tr>
+<tr>
+<td><code>"inv_shift"</code></td>
+<td><code>1/(x + a)</code></td>
+<td>any; <code>a</code> takes the operand's unit</td>
+</tr>
+<tr>
+<td><code>"log_shift"</code></td>
+<td><code>log(x + a)</code></td>
+<td><code>x + a</code> positive, dimensionless</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="p">(</span><span class="mi">500</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">,</span> <span class="mi">500</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">formulas</span><span class="p">(),</span> <span class="n">model</span><span class="o">.</span><span class="n">to_sympy</span><span class="p">())</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>['exp(-0.5*(x0)^2)'] [exp(-x0**2/2)]
+</code></pre></div>
+<p>With <code>fitted_ops=()</code> the same data give <code>(x0 + (x0)^2)</code> and <code>log(x0)</code>, a
+surrogate that scores well on this range and says nothing about the law.</p>
+<p>How the constants are chosen:</p>
+<ul>
+<li><strong>Where.</strong> At each depth, every listed operator is fitted to every
+  expression in the previous depth's beam (at the first depth, the
+  <code>beam_width</code> best input columns), and to the previous depth's
+  <code>beam_width</code> best candidates that the beam dropped as near-duplicates:
+  two expressions that correlate at 0.95 need not stay alike under
+  <code>1/(x + a)</code> or <code>exp(a·x)</code>. The results join that depth's candidates, to
+  be scored, pruned and kept like any other. The ceiling
+  <code>max_candidates_per_depth</code> counts the operator proposals only.</li>
+<li><strong>How.</strong> Each constant maximises the absolute correlation with the target:
+  a coarse grid scaled to the operand (for <code>exp_scaled</code>, <code>|a|</code> up to
+  10/max|x|; for <code>pow</code>, <code>a</code> from -4 to 4; for the shifts, poles kept off the
+  observed range), then a golden-section refinement. A fit that runs to the
+  edge of its grid is discarded, and so is one for which the likelihood-ratio
+  test of the snapping step below does not reject the null that the operand
+  on its own fits as well (each operator becomes linear in <code>x</code> at one end of
+  its range). Correlation is used whatever the <code>scorer</code>; the scorer then
+  ranks the result.</li>
+<li><strong>Poles.</strong> <code>inv_shift</code> and <code>log_shift</code> keep their pole away from the
+  data they were fitted on: at least twice the spread of the operand's ten
+  most extreme values at that end, and at least 1% of its range. A pole
+  just past the edge of the data is shaped by the few rows next to it, and
+  the first new row a little further out falls beyond it: NaN for the
+  logarithm, a value of the wrong sign and any size for the reciprocal.
+  A fit that wants its pole closer runs into the bound and is discarded,
+  and snapping never moves a constant past it. The margin widens where the
+  data thin out towards the edge and narrows where they are dense. On 18
+  real datasets, poles inside it were crossed by a row the fit had not
+  seen in 14% of fits, and poles outside it in 0.3%. A negative power has
+  its pole at 0, so <code>pow</code> fits one only when the operand stays more than
+  the same margin above 0. Otherwise <code>a</code> runs from 0.1 to 4, and a fit that
+  wants less is discarded, since <code>x^a</code> then takes the shape of <code>log(x)</code>,
+  which has the same pole.</li>
+<li><strong>In context.</strong> <code>1/(x0·x1 + a)</code> on its own correlates best with the target
+  as <code>a</code> runs to the pole; only as the denominator of <code>(x0 + x1)</code> is <code>a = 1</code>
+  identifiable. While the depth limit leaves room, each constant is also
+  fitted as a factor of a beam member, and that product joins the next
+  depth's candidates.</li>
+<li><strong>Snapping.</strong> The constant is replaced by the simplest of 0, ±1, ±2, ±3,
+  ±1/2, ±3/2, ±1/3, ±1/4 for which a likelihood-ratio test at level 0.001
+  fails to reject the null that the constant takes that value, so
+  <code>exp(-0.49991·x²)</code> is reported as <code>exp(-x²/2)</code>. If the test rejects every
+  one of them, the constant is rounded to the fewest significant digits that
+  cost nothing measurable. A snapped constant is exact in <code>to_sympy()</code>,
+  <code>latex()</code> and the printed formulas.</li>
+<li><strong>Near copies.</strong> A fitted constant can also bend an expression into a near
+  copy of a simple law. With 10% noise on <code>log(x0)</code>, <code>(x0)^(-0.02)</code>
+  correlates with <code>log(x0)</code> at 0.99999, and since its constant was fitted on
+  the search rows it fits them a little better. So at the end of the search,
+  each kept expression with fitted constants is compared with its near copies
+  among everything the search found (correlation at <code>redundancy_threshold</code>)
+  that carry fewer constants and are not near copies of another kept
+  expression. The snapping test decides, on the same rows: if it fails to
+  reject the null that a copy fits the target as well, the simplest such copy
+  takes the expression's place. Without this step, <code>log(x0)</code>, <code>sqrt(x0)</code>,
+  <code>1/x0</code> and <code>x0²</code> at that noise were printed as themselves in 0, 0, 2 and 2
+  of 10 fits; with it, in 10, 7, 10 and 8, against 10, 9, 10 and 8 with
+  <code>fitted_ops=()</code>. A law that needs its constant keeps it while the data
+  reject the simpler forms, as the Gaussian and relativistic velocity
+  addition of the physics panel do at 0.1% noise.</li>
+<li><strong>Stored.</strong> The constant is part of the expression: <code>transform</code>,
+  <code>predict</code> and a pickled model reuse it on new data without refitting.</li>
+</ul>
+<p>The constants are fitted inside the search, on the search rows only, so the
+screen on the selection rows sees fixed expressions and its guarantee is
+unchanged; see the <a href="../guarantees/#selective-inference-why-the-estimators-split-their-data">guarantees page</a>.</p>
+<p>What it costs. Fitting adds a few candidates per parent and operator, and
+makes a fit on the Feynman panel about five times slower (about 0.2 s to
+1.1 s per equation). Fitted expressions also take beam slots, so enabling
+them can change what else a depth keeps: within a depth, a constant-free
+candidate is never dropped as a near-duplicate of a fitted one, but it can be
+out-ranked, and at the end of the search it takes a fitted expression's place
+only as described under <em>Near copies</em>. And
+constants are fitted one at a time, greedily: a law needs its constant-free
+parts to be among a depth's best candidates first.</p>
+<h2 id="columns-that-carry-no-data">Columns that carry no data</h2>
+<p>A column with no variation cannot be selected — it standardises to zeros, so
+its association with the target is zero wherever it appears. That is the right
+outcome and costs nothing, but in the output it looks the same as a column
+that simply does not matter, so it is reported. Real tables have such columns
+more often than one would think: in the UJIIndoorLoc Wi-Fi fingerprints,
+dozens of access points never register at all.</p>
+<div class="highlight"><pre><span></span><code><span class="n">stuck</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="mi">400</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="mf">9.81</span><span class="p">)</span>               <span class="c1"># a sensor stuck at one reading</span>
+<span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">X</span><span class="p">,</span> <span class="n">stuck</span><span class="p">]),</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>UserWarning: beamfeat: 1 of 5 columns are constant (x4) and cannot be selected.
+They are ignored and cost nothing, but check whether they are meant to carry
+data.
+</code></pre></div>
+<p>Constancy is relative to the column's magnitude, not an absolute floor on the
+spread — a column varying over 0 to 1e-9 has a smaller variance than a stuck
+sensor reading 9.81, and only the second is constant. Use <code>is_constant</code> to
+apply the same test when screening a table before fitting.</p>
+<p>A constant with a genuine unit is a different matter: gravity is m/s² whether
+or not it varies, and expressions built from it are unit-checked, so label it.
+Its absence from a recovered formula is not a miss — a multiplicative constant
+is absorbed into the fitted coefficient rather than returned as a symbol.</p>
+<h2 id="audit-what-selection-did">Audit what selection did</h2>
+<p>Every candidate's permutation p-value and its adjusted q-value is recorded:</p>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">selection_report_</span><span class="p">[:</span><span class="mi">3</span><span class="p">]:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"formula"</span><span class="p">],</span> <span class="nb">round</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"q_value"</span><span class="p">],</span> <span class="mi">4</span><span class="p">),</span> <span class="n">row</span><span class="p">[</span><span class="s2">"kept"</span><span class="p">])</span>
+</code></pre></div>
+<p>A feature is <em>kept</em> only if the screen rejects its null at <code>target_fdr</code>
+(default 0.1, Benjamini–Yekutieli) on the held-out split and the parsimony
+step then retains it. <code>screened</code> marks the certified set, the candidates
+whose nulls the screen rejected, which is what the guarantee covers; <code>kept</code>
+marks the compact subset the equation prints. Set <code>parsimony=None</code> and the
+two agree.</p>
+<h2 id="when-no-null-is-rejected">When no null is rejected</h2>
+<p>On a target with no structure the screen rejects no null, and the model says
+so instead of returning junk:</p>
+<div class="highlight"><pre><span></span><code><span class="n">noise</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">standard_normal</span><span class="p">(</span><span class="mi">400</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">noise</span><span class="p">)</span>
+<span class="c1"># NoDiscoveriesWarning: ... Returning no constructed features ...</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">equation</span><span class="p">())</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>y = 0.03527  (no feature selected)
+</code></pre></div>
+<p>Not on every draw. Under the global null every rejection is a false
+rejection, so the FDR is the probability that a fit rejects any null at all:
+up to <code>target_fdr</code> of pure-noise fits still certify features, and when one
+does, the nulls of correlated candidates tend to be rejected together. The
+same noise under another search seed can certify a dozen formulas with
+<code>fdr_controlled_ = True</code>: that is the error the guarantee bounds in
+expectation, not a breach of it.</p>
+<p>Prefer the old behaviour? <code>on_no_discoveries="fallback"</code> keeps the
+unfiltered search output (flagged <code>fdr_controlled_=False</code>); <code>"raise"</code>
+raises.</p>
+<h2 id="classification">Classification</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">beamfeat</span><span class="w"> </span><span class="kn">import</span> <span class="n">BeamFeatClassifier</span>
+
+<span class="n">labels</span> <span class="o">=</span> <span class="p">(</span><span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<span class="n">clf</span> <span class="o">=</span> <span class="n">BeamFeatClassifier</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">clf</span><span class="o">.</span><span class="n">equation</span><span class="p">())</span>          <span class="c1"># log-odds form; boundary = zero level set</span>
+</code></pre></div>
+<h2 id="rows-outside-a-formulas-domain">Rows outside a formula's domain</h2>
+<p>A fitted formula can be undefined on new data that the training data never
+reached: <code>log(x0)</code> at a negative <code>x0</code>, or <code>1/(x0)</code> at zero. Such a row is NaN
+in that formula's column of <code>transform</code>, and <code>predict</code> returns NaN for it; every
+other row gets exactly the value it would get on its own, whatever else is in
+the batch. A <code>UserWarning</code> names the formula and counts the rows. The
+classifier's <code>predict</code> cannot return NaN as a label, so it assigns those rows
+the most frequent training class, while <code>predict_proba</code> and
+<code>decision_function</code> return NaN for them, which is how to find them. The
+regressor's <code>score</code> raises rather than scoring the remaining rows.</p>
+<p>Fitted constants do not change this. <code>(x0)^1.5</code> is NaN for a negative
+<code>x0</code>, as <code>sqrt(x0)</code> is. A fitted pole keeps a
+<a href="#constants-inside-expressions">margin</a> from the training rows, but a row
+far enough outside them can still reach it: <code>(x1)^(-0.5)</code>, fitted where
+<code>x1</code> lies between 1 and 3, is infinite at <code>x1 = 0</code>, as <code>1/(x1)</code> would be.</p>
+<h2 id="search-constraints">Search constraints</h2>
+<p><code>max_inputs</code> caps the distinct input columns in one feature: <code>max_inputs=2</code>
+admits <code>x0 * log(x0 / x1)</code> but not <code>x0 * x1 / x2</code>. Use it when a feature that
+mixes many columns would be uninterpretable to you anyway. It is checked as
+each candidate is constructed, before any numerical work, so a candidate it
+rules out costs no evaluation and takes no beam slot. <code>search_result_.trace</code>
+counts them per depth (<code>n_rejected_constraints</code>).</p>
+<p>It does not make selection more powerful. The screen's multiple-testing
+correction runs over the features that reach selection, which the beam
+already caps at <code>beam_width</code> and <code>max_features</code> however many expressions were
+proposed; the limit changes which features those are and how long the search
+takes.</p>
+<p>It is off by default (<code>None</code>), and it only ever narrows the search. An
+expression of depth d combines at most 2^d input columns, so at the default
+<code>max_depth=2</code> no feature uses more than four, and <code>max_inputs=4</code> or more
+changes nothing; at <code>max_depth=3</code> the limit matters up to 8. Set it at or
+above the number of inputs any law you look for needs. A law that needs more
+cannot be built, and the search returns the best expression within the limit
+instead:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">beamfeat</span><span class="w"> </span><span class="kn">import</span> <span class="n">BeamSearch</span>
+
+<span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="p">(</span><span class="mi">400</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mi">400</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">limit</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
+    <span class="n">search</span> <span class="o">=</span> <span class="n">BeamSearch</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">beam_width</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">max_inputs</span><span class="o">=</span><span class="n">limit</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">search</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>None ((x0 * x1) + (x2 * x3))
+3 ((x0 + x2) * sqrt(x1))
+</code></pre></div>
+<p>On wide data whose signal is spread over many columns, a low limit can
+still help, because it keeps the beam from filling with combinations of many
+columns. Compare the held-out score with and without it rather than assuming
+either way.</p>
+<h2 id="laws-whose-parts-the-score-cannot-see">Laws whose parts the score cannot see</h2>
+<p>The search keeps, at each depth, the candidates that correlate best with the
+target and builds the next depth from them. A law can need a part that does
+not correlate with the target at all. With inputs centred on zero, <code>x0</code> and
+<code>x1</code> are each uncorrelated with <code>x0*x1</code>, and every pairwise product is
+uncorrelated with <code>x0*x1*x2</code>: the score ranks those parts among the noise,
+and the beam drops them before they can be combined. On positive inputs, as
+in most physical tables, each factor of a product correlates with it, and
+the problem does not arise.</p>
+<p><a href="https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/search_stress"><code>benchmarks/search_stress/</code></a>
+measures what it costs. At the defaults, with 500 rows and 10% noise, the
+search recovered <code>x0*x1*x2</code> on centred uniform inputs in 54% of fits with 20
+columns, 18% with 100 and 10% with 300, and in every fit on positive inputs;
+each miss was the first depth's beam dropping the pairwise products. A beam
+of 200 lifted the 20-column figure to 96% at about nine times the fit time,
+but the 100-column one only to 26%. Past the proposal ceiling, from about 258
+columns at the defaults, a centred pair can be lost before it is scored:
+with 1,000 columns <code>x0*x1</code> was recovered in 32% of fits, because neither
+input scored well enough for the pair to be proposed. A miss mostly ends in
+no equation and a <code>NoDiscoveriesWarning</code>, sometimes in terms that ride on
+one of the law's columns.</p>
+<p><code>magnitude_slots</code> adds beam slots for candidates whose magnitude tracks the
+target's:</p>
+<div class="highlight"><pre><span></span><code><span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="mi">400</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mi">400</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">slots</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">beam_width</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">magnitude_slots</span><span class="o">=</span><span class="n">slots</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">slots</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">formulas</span><span class="p">())</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>0 []
+3 ['(x0 * (x1 * x2))']
+</code></pre></div>
+<p>The first fit finds nothing and warns <code>NoDiscoveriesWarning</code>.</p>
+<p>How it works:</p>
+<ul>
+<li><strong>The score.</strong> A candidate <code>c</code> is scored by the absolute correlation of
+  <code>log(1 + |c|/rms(c))</code> with the same transform of the centred target, where
+  <code>rms</code> is the root mean square. The logarithm turns a product into a sum,
+  so a factor's magnitude tracks the product's even where the factor itself
+  does not correlate with it. The 1 keeps the rows where a product nears
+  zero, and the noise there, from dominating, and it compresses a heavy
+  tail, so that a ratio with a denominator near zero does not score by
+  accident. On more than 1,000 search rows the score is computed on 1,000
+  of them, evenly spaced, which is plenty to rank a few slots and keeps its
+  cost from growing with the table.</li>
+<li><strong>The slots.</strong> After the <code>beam_width</code> candidates the score keeps, up to
+  <code>magnitude_slots</code> more are kept from the rest, best magnitude score first,
+  under the same redundancy check. They are kept at every depth but the
+  last, since they are there to be built on.</li>
+<li><strong>The proposals.</strong> When the first depth cannot propose every pair of
+  inputs, the inputs are proposed in an order that interleaves their
+  magnitude ranking with their score ranking. The magnitude ranking takes
+  the first place and <code>magnitude_slots / (beam_width + magnitude_slots)</code> of
+  those after it.</li>
+<li><strong>A part behind a visible term.</strong> In <code>x0*x1 + x2</code> the product does
+  correlate with the target, but hundreds of sums of <code>x2</code> with another column
+  can outrank it. The search then relies on scoring candidates against the
+  residual left by the inputs, and with more inputs than search rows that
+  residual is empty. The magnitude score is also taken against the residual
+  on the best-scoring columns, at most a quarter as many as the rows, which
+  keeps <code>x0*x1</code> in view.</li>
+</ul>
+<p>Measured at 10 slots on the stress test, it recovered <code>x0*x1*x2</code> on
+centred inputs in every fit with 20, 100 and 300 columns, the centred pair
+in every fit with 1,000 columns, and <code>x0*x1 + x2</code> with 300 columns and 250
+search rows in 88% of fits, where the default recovered none; in no setting
+did it lose a law the default found. Fits took 1.2 to 1.7 times as long
+there, and 1.4 times on the high-dimensional study's three 10,000-row
+tables. Where no such law is hidden it changes little either way: the main
+suite's mean held-out score over 24 regression datasets went from 0.885 to
+0.884, with diabetes and california housing about 0.01 lower, and the
+high-dimensional study's mean from 0.647 to 0.649. Try it when a law may
+hide behind centred or signed inputs, and keep it if the held-out score
+agrees.</p>
+<p>It is for regression only, since a class label has no magnitude to track.
+The ranking runs inside the search, on the search rows only, so the screen on
+the selection rows sees fixed expressions and its guarantee is unchanged;
+see the <a href="../guarantees/#selective-inference-why-the-estimators-split-their-data">guarantees page</a>.
+It was measured on products and on a product beside a visible term, and a
+law whose parts the magnitude score cannot see either is still out of reach.</p>
+<h2 id="real-data-with-missing-values-or-categoricals">Real data with missing values or categoricals</h2>
+<p>beamfeat never imputes or encodes silently — compose explicitly:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.pipeline</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_pipeline</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.impute</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimpleImputer</span>
+
+<span class="n">pipe</span> <span class="o">=</span> <span class="n">make_pipeline</span><span class="p">(</span><span class="n">SimpleImputer</span><span class="p">(</span><span class="n">strategy</span><span class="o">=</span><span class="s2">"median"</span><span class="p">),</span>
+                     <span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+</code></pre></div>
+<h2 id="predicting-with-the-original-columns-as-well">Predicting with the original columns as well</h2>
+<p>The regressor predicts from the certified features alone, so the fitted model
+is the equation it prints. When accuracy matters more than a readable model,
+fit the final model on the original columns plus the certified features:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.impute</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimpleImputer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.linear_model</span><span class="w"> </span><span class="kn">import</span> <span class="n">RidgeCV</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.pipeline</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_pipeline</span><span class="p">,</span> <span class="n">make_union</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.preprocessing</span><span class="w"> </span><span class="kn">import</span> <span class="n">StandardScaler</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">beamfeat</span><span class="w"> </span><span class="kn">import</span> <span class="n">BeamFeatTransformer</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">make_pipeline</span><span class="p">(</span>
+    <span class="n">make_union</span><span class="p">(</span><span class="s2">"passthrough"</span><span class="p">,</span> <span class="n">BeamFeatTransformer</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)),</span>
+    <span class="n">SimpleImputer</span><span class="p">(</span><span class="n">strategy</span><span class="o">=</span><span class="s2">"median"</span><span class="p">),</span>  <span class="c1"># rows outside a formula's domain</span>
+    <span class="n">StandardScaler</span><span class="p">(),</span>
+    <span class="n">RidgeCV</span><span class="p">(),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<p>This helps when the signal is spread thinly over many columns, which a few
+certified features cannot capture but a penalised fit on every column can,
+and when the certified features add structure a linear model on the raw
+columns misses. Two things change:</p>
+<ul>
+<li><strong>The model is no longer interpretable.</strong> It has a coefficient for every
+  input column, so it reads like ridge regression, not like an equation.</li>
+<li><strong>The guarantee is unchanged but narrower in scope.</strong> The FDR guarantee
+  covers which constructed features are reported, and those are the same as
+  without the original columns. It says nothing about the coefficients the
+  final model puts on the raw columns.</li>
+</ul>
+<p>If the combined model scores no better than ridge on the original columns
+alone, the certified features are adding nothing to prediction on that data.</p>
+<h2 id="speed-and-memory-on-wide-data">Speed and memory on wide data</h2>
+<p><code>n_jobs</code> spreads the search over cores, and <code>-1</code> uses all of them. The
+workers are threads, since numpy releases the GIL while it scores, or
+processes for the gradient-boosting scorer, whose model fits do not. Apart
+from that scorer, a depth with fewer than 4096 candidates is scored in the
+calling thread, so the setting pays off on wide tables rather than on a
+handful of columns. It never changes the fit: features, p-values and
+predictions are identical for every value.</p>
+<div class="highlight"><pre><span></span><code><span class="n">model</span> <span class="o">=</span> <span class="n">BeamFeatRegressor</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</code></pre></div>
+<p>Memory does not grow with the number of candidates either. Each depth is
+evaluated and scored in chunks of about 8 MiB and only the scores are kept,
+so a default fit on 1000 columns and 600 rows peaks at about 0.35 GB.
+<code>BeamSearch(chunk_size=...)</code> sets the chunk size directly, again without
+changing the result. The exceptions are mutual information, which draws its
+noise for a whole depth, and a custom scorer that does not declare itself
+<code>separable</code>: both still receive a depth at once.</p>
+<h2 id="when-to-reach-for-something-else">When to reach for something else</h2>
+<p>If a tree model beats beamfeat by a wide margin, your signal is likely
+piecewise, not algebraic — use the tree. <code>fitted_ops</code> covers one constant
+per operator, fitted one operator at a time; if your law needs several
+constants fitted jointly (<code>exp(-a·x)·cos(b·x + c)</code>), constants inside sums
+or products (<code>a·x0 + b·x1</code> under a logarithm), or deeper nesting than the
+beam reaches, use a symbolic regressor such as PySR. The <a href="../guarantees/">guarantees page</a> states every boundary with the
+measurement behind it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 <a href="https://orcid.org/0009-0006-3327-2047" rel="author">Olanrewaju M. Daramola</a> (ORCID)
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.sections", "navigation.top", "search.suggest", "navigation.tabs", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">
+/* Shared by full pages and Material's instant navigation. */
+(() => {
+  const config = JSON.parse(document.currentScript.dataset.mkdocsJupyterMathjax);
+  if (window.mkdocsJupyterMathJax) return;
+
+  let loading;
+  let queue = Promise.resolve();
+  let previous = [];
+
+  const ready = async () => {
+    if (!loading) {
+      loading = (async () => {
+        let math = window.MathJax;
+        if (!math?.typesetPromise) {
+          const url = new URL(config.url, document.baseURI).href;
+          const existing = Array.from(document.scripts).find(script =>
+            script.src && (script.src === url || script.id === 'MathJax-script' ||
+              (/mathjax/i.test(script.src) &&
+               /\/(?:MathJax|latest|(?:tex|mml)(?:-mml)?-(?:chtml|svg))\.js(?:[?#]|$)/i.test(script.src))));
+          if (existing) {
+            if (!math?.startup?.promise) {
+              await new Promise((resolve, reject) => {
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', reject, { once: true });
+              });
+            }
+          } else {
+            // Keep site macros, delimiters and startup hooks when supplied.
+            const options = math || {};
+            window.MathJax = {
+              ...options,
+              loader: {
+                ...options.loader,
+                load: Array.from(new Set(['ui/safe', ...(options.loader?.load || [])]))
+              },
+              startup: { typeset: false, ...options.startup },
+              tex: {
+                tags: 'ams',
+                useLabelIds: true,
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true,
+                ...options.tex
+              }
+            };
+            await new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = config.url;
+              script.id = 'MathJax-script';
+              script.async = true;
+              script.onload = resolve;
+              script.onerror = reject;
+              document.head.appendChild(script);
+            });
+          }
+        }
+        math = window.MathJax;
+        await math.startup.promise;
+        return math;
+      })();
+    }
+    const math = await loading;
+    // A site owner can extend the v3 queue again on each navigation.
+    await math.startup.promise;
+    return math;
+  };
+
+  const unrendered = node => {
+    if (node.matches('mjx-container')) return [];
+    if (!node.querySelector('mjx-container')) return [node];
+    // In v3, scanning generated assistive MathML again produces nested output.
+    return Array.from(node.children).flatMap(unrendered);
+  };
+
+  const refresh = () => {
+    // A separate chain also serializes v3, without changing v4's startup promise.
+    queue = queue.then(async () => {
+      const notebooks = Array.from(document.querySelectorAll('.jupyter-wrapper'));
+      if (!notebooks.length && !previous.length) return;
+      if (notebooks.length === previous.length &&
+          notebooks.every((node, index) => node === previous[index])) return;
+      const math = await ready();
+      if (previous.length) {
+        math.typesetClear(previous);
+        math.texReset();
+      }
+      previous = notebooks.filter(node => node.isConnected);
+      const pending = previous.flatMap(unrendered);
+      if (pending.length) await math.typesetPromise(pending);
+    }).catch(error => console.error('mkdocs-jupyter: MathJax rendering failed', error));
+    return queue;
+  };
+
+  window.mkdocsJupyterMathJax = { refresh };
+  const start = () => {
+    if (typeof document$ !== 'undefined') document$.subscribe(refresh);
+    else refresh();
+  };
+  // Theme bundles and user-provided MathJax scripts can follow notebook content.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else start();
+})();
+
+</script>
+</body>
+</html>
