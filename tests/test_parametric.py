@@ -18,7 +18,7 @@ from sklearn.base import clone
 
 from beamfeat import BeamFeatClassifier, BeamFeatRegressor, BeamFeatTransformer, BeamSearch
 from beamfeat._prediction import _undefined_rows
-from beamfeat.estimators import _equation_list, _tree_size
+from beamfeat._rendering import _equation_list, _tree_size
 from beamfeat.expression import (
     OPERATORS,
     Evaluator,

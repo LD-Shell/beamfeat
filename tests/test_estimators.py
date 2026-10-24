@@ -2068,7 +2068,7 @@ class TestLatex:
 
     def test_sums_are_parenthesised(self):
         sympy = pytest.importorskip("sympy")
-        from beamfeat.estimators import _render_linear_latex
+        from beamfeat._rendering import _render_linear_latex
 
         class Scaler:
             mean_ = np.array([0.0, 0.0])
@@ -2081,7 +2081,7 @@ class TestLatex:
         assert rhs == r"2 \left(a + b\right) - 0.5 a b + 1"
 
     def test_numbers_and_text(self):
-        from beamfeat.estimators import _latex_label, _latex_number, _latex_text
+        from beamfeat._rendering import _latex_label, _latex_number, _latex_text
 
         assert _latex_number("3.2e-07") == r"3.2 \times 10^{-7}"
         assert _latex_number("1.50e+03") == r"1.50 \times 10^{3}"
