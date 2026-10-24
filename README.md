@@ -96,10 +96,10 @@ model.predict(X_new)
 - **Fitted constants.** Expressions can carry one constant fitted inside
   them, such as `exp(a*x)` and `1/(x + a)`, which recovers laws like
   `exp(-x^2/2)` exactly. On by default; `fitted_ops=()` turns it off.
-- **Hidden building blocks, opt in.** `magnitude_slots` keeps a few beam
-  places for parts whose size tracks the target's even when they do not
-  correlate with it, such as `x0` and `x1` in `y = x0*x1` with centred
-  inputs.
+- **Hidden building blocks.** `magnitude_slots` keeps a few beam places for
+  parts whose size tracks the target's even when they do not correlate with
+  it, such as `x0` and `x1` in `y = x0*x1` with centred inputs. On by default
+  for regression since 0.7.0; `magnitude_slots=0` turns it off.
 - **Every column in a formula tested, opt in.** `input_test=True` tests each
   column inside each formula, and drops a formula when the test fails to
   reject the null for one of its columns, such as `x6` in

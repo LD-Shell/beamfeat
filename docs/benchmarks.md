@@ -12,21 +12,25 @@ described under [Reading the paper today](#reading-the-paper-today).
 environment the comparisons need.
 
 Unless a result says otherwise, it was measured with constants inside
-expressions off (`fitted_ops=()`), the default before 0.6.0. The scripts build
-their estimators at the current defaults, so to reproduce an archived result,
-run the script through the options launcher with the old default:
+expressions off (`fitted_ops=()`), the default before 0.6.0, and without
+magnitude slots (`magnitude_slots=0`), the default before 0.7.0. The scripts
+build their estimators at the current defaults, so to reproduce an archived
+result, run the script through the options launcher with the old defaults:
 
 ```bash
-BEAMFEAT_OPTIONS='{"fitted_ops": []}' \
+BEAMFEAT_OPTIONS='{"fitted_ops": [], "magnitude_slots": 0}' \
     python benchmarks/search_stress/with_options.py benchmarks/run_benchmarks.py
 ```
 
 This reproduces the archived core-suite R² of every synthetic problem to
-within 1e-10. At the current defaults (since 0.6.0), the core suite recovers the same 10/10
-formulas, Friedman #1 rises from 0.745 to 0.765 and the other problems move
-by at most 0.0004; the robustness suite recovers the same 5/5, with R² lower
-by at most 0.004 (the distractors at 50% noise, 0.776 to 0.772); and the
-end-to-end calibration below is unchanged.
+within 1e-10. With the fitted constants of 0.6.0, the core suite recovers the
+same 10/10 formulas, Friedman #1 rises from 0.745 to 0.765 and the other
+problems move by at most 0.0004; the robustness suite recovers the same 5/5,
+with R² lower by at most 0.004 (the distractors at 50% noise, 0.776 to 0.772).
+The magnitude slots of 0.7.0 keep both recoveries and raise three R²: Friedman
+#1 to 0.777, the distractors at 50% noise to 0.777 and threshold_step from
+0.844 to 0.845. At the 0.7.0 defaults the end-to-end calibration below is
+unchanged.
 
 ## High-dimensional data
 
@@ -186,15 +190,15 @@ beamfeat adds none.
 - **Laws whose parts do not correlate with the target**
   ([`benchmarks/search_stress/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/search_stress)).
   With centred inputs, the parts of `x0*x1*x2`, and of `x0*x1` among
-  hundreds of columns, do not correlate with the target, so the default
-  search can drop them before it combines them. Over 50 fits per cell, on
+  hundreds of columns, do not correlate with the target, so a search without
+  magnitude slots can drop them before it combines them. Over 50 fits per cell, on
   inputs uniform on (-1, 1), `x0*x1*x2` is recovered exactly in every fit
   with 5 columns but in 0.54, 0.18 and 0.10 of them with 20, 100 and 300,
   and `x0*x1` in 0.32 with 1,000 columns; on shifted inputs the same laws are recovered in every fit.
-  A wider beam does not close the gap. The opt-in `magnitude_slots=10`
-  recovered every lost cell but one crowded sum law (0.88), at 1.2 to 1.7
-  times the fit time, and left the real-data suites and the false-discovery
-  rates essentially unchanged; the
+  A wider beam does not close the gap. `magnitude_slots=10`, opt-in then and
+  the regression default since 0.7.0, recovered every lost cell but one
+  crowded sum law (0.88), at 1.2 to 1.7 times the fit time, and left the
+  real-data suites and the false-discovery rates essentially unchanged; the
   [guide](guide.md#laws-whose-parts-the-score-cannot-see) shows how to use it.
 - **Friedman #1**
   ([`benchmarks/friedman_decomposition.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/friedman_decomposition.py)).

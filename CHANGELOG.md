@@ -10,6 +10,19 @@ Towards 0.7.0: `beamfeat.__version__` is `0.7.0.dev0` until the release.
 
 ### Changed
 
+- **`magnitude_slots="auto"` is the default**, where it was `0`: 10 beam
+  slots for regression and none for classification, whose labels carry no
+  magnitude. The slots keep candidates whose magnitude tracks the target's,
+  so that the search recovers laws whose parts do not correlate with the
+  target, such as `x0*x1*x2` with centred inputs. In
+  `benchmarks/release_comparison/` they recovered every such stress law
+  (exact recovery 0.40 and 0.55 without them, 1.00 with), left the held-out
+  score of 10 of 11 real datasets within 0.005 (superconduct 0.746 to
+  0.740), and cost 1.2 times the fit time and 1.1 times the memory. The
+  end-to-end calibration and the pure-noise pipeline stress give the results
+  they gave without them. For regression, a fit at the 0.7.0 defaults is the
+  0.6.1 fit with `magnitude_slots=10`, field for field; `magnitude_slots=0`
+  gives the 0.6.1 fit.
 - The largest modules are split into smaller private ones, so that each
   stage of a fit can be read on its own. `estimators.py` keeps the three
   public classes; the fitting machinery they share is in `_base.py`, with

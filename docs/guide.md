@@ -733,20 +733,21 @@ in most physical tables, each factor of a product correlates with it, and
 the problem does not arise.
 
 [`benchmarks/search_stress/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/search_stress)
-measures what it costs. At the defaults, with 500 rows and 10% noise, the
-search recovered `x0*x1*x2` on centred uniform inputs in 54% of fits with 20
+measures what it costs. Without magnitude slots (below), with 500 rows and
+10% noise, the search recovered `x0*x1*x2` on centred uniform inputs in 54% of fits with 20
 columns, 18% with 100 and 10% with 300, and in every fit on positive inputs;
 each miss was the first depth's beam dropping the pairwise products. A beam
 of 200 lifted the 20-column figure to 96% at about nine times the fit time,
 but the 100-column one only to 26%. Past the proposal ceiling, from about 258
-columns at the defaults, a centred pair can be lost before it is scored:
+columns at the default beam, a centred pair can be lost before it is scored:
 with 1,000 columns `x0*x1` was recovered in 32% of fits, because neither
 input scored well enough for the pair to be proposed. A miss mostly ends in
 no equation and a `NoDiscoveriesWarning`, sometimes in terms that ride on
 one of the law's columns.
 
 `magnitude_slots` adds beam slots for candidates whose magnitude tracks the
-target's:
+target's. Its default, `"auto"`, adds 10 for regression; `0` turns them off,
+as the first fit here does:
 
 ```python
 rng = np.random.default_rng(3)
@@ -796,17 +797,18 @@ How it works:
 Measured at 10 slots on the stress test, it recovered `x0*x1*x2` on
 centred inputs in every fit with 20, 100 and 300 columns, the centred pair
 in every fit with 1,000 columns, and `x0*x1 + x2` with 300 columns and 250
-search rows in 88% of fits, where the default recovered none; in no setting
-did it lose a law the default found. Fits took 1.2 to 1.7 times as long
+search rows in 88% of fits, where the search without slots recovered none; in
+no setting did it lose a law the search without them found. Fits took 1.2 to 1.7 times as long
 there, and 1.4 times on the high-dimensional study's three 10,000-row
 tables. Where no such law is hidden it changes little either way: the main
 suite's mean held-out score over 24 regression datasets went from 0.885 to
 0.884, with diabetes and california housing about 0.01 lower, and the
-high-dimensional study's mean from 0.647 to 0.649. Try it when a law may
-hide behind centred or signed inputs, and keep it if the held-out score
-agrees.
+high-dimensional study's mean from 0.647 to 0.649. On that evidence it is
+on by default for regression since 0.7.0; `benchmarks/release_comparison/`
+has its effect on every benchmark there.
 
-It is for regression only, since a class label has no magnitude to track.
+It is for regression only, since a class label has no magnitude to track:
+`"auto"` adds no slot for classification, and a positive number raises.
 The ranking runs inside the search, on the search rows only, so the screen on
 the selection rows sees fixed expressions and its guarantee is unchanged;
 see the [guarantees page](guarantees.md#selective-inference-why-the-estimators-split-their-data).

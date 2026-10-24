@@ -208,7 +208,11 @@ the share of fits with at least one false discovery was the same with the
 option as without on four null designs, 0.015 to 0.025, among them centred and
 Gaussian inputs and 200 columns on 150 search rows; on a planted
 `x0*x1*x2` among centred distractors it was 0.025 against 0.020, one fit in
-200, with a false discovery rate of 0.005 either way.
+200, with a false discovery rate of 0.005 either way. With the slots on by
+default for regression since 0.7.0, the end-to-end study and the pure-noise
+pipeline stress above give the results they gave without them: no false
+discovery in 200 replicates, power 1.000, nothing selected in 60 global-null
+replicates; BH 6/100 and BY 1/100.
 
 ## Columns inside a term (`input_test`)
 
