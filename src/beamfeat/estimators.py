@@ -28,7 +28,7 @@ import logging
 import numbers
 import warnings
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin, TransformerMixin
@@ -138,6 +138,17 @@ class NoDiscoveriesWarning(UserWarning):
     notebooks and default configurations — the scikit-learn convention for
     fit-time conditions the user must act on.
     """
+
+
+class _Rows(NamedTuple):
+    """The training rows each stage of a fit uses (row indices into ``X``)."""
+
+    search: np.ndarray
+    selection: np.ndarray
+    certify: np.ndarray
+    use_holdout: bool
+    use_certify: bool
+    fell_back_to_screened: bool
 
 
 class _BeamFeatBase(_EquationsMixin, BaseEstimator):
@@ -371,7 +382,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                         + " not used. Configure the instance, or pass the selector "
                         "by name to use the estimator's settings.",
                         UserWarning,
-                        stacklevel=3,
+                        stacklevel=4,
                     )
             return self.selector
         selector_kwargs = {}
@@ -444,7 +455,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         """
         pairs, result = self._make_input_test().test_inputs(nodes, data, target)
         for diagnostic in result.warnings_raised:
-            warnings.warn(f"beamfeat input test: {diagnostic}", UserWarning, stacklevel=3)
+            warnings.warn(f"beamfeat input test: {diagnostic}", UserWarning, stacklevel=5)
         rejected = set(int(i) for i in result.selected)
         self.input_report_ = [
             {
@@ -472,7 +483,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                 f"null for at least one of its columns at target FDR {result.target_fdr:.3g}. "
                 "The certified terms are used as if input_test were False.",
                 NoDiscoveriesWarning,
-                stacklevel=3,
+                stacklevel=5,
             )
             return list(screened)
         return eligible
@@ -543,7 +554,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         result = selector.select(np.column_stack(columns), y[rows])
         self.certification_result_ = result
         for diagnostic in result.warnings_raised:
-            warnings.warn(f"beamfeat certification: {diagnostic}", UserWarning, stacklevel=2)
+            warnings.warn(f"beamfeat certification: {diagnostic}", UserWarning, stacklevel=4)
         if result.n_selected == 0:
             carries = (
                 "it carries the screen's marginal guarantee, not a conditional one, and it "
@@ -557,7 +568,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                 "compact certified equation is available on this sample. The whole screened "
                 f"set is returned instead: {carries}",
                 NoDiscoveriesWarning,
-                stacklevel=2,
+                stacklevel=4,
             )
         return [order[int(i)] for i in result.selected]
 
@@ -660,6 +671,28 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         units = self._resolve_units(feature_names)
         n_samples = X.shape[0]
 
+        self._warn_constant_columns(X, feature_names)
+        rows = self._split_rows(n_samples)
+        nodes = self._search(X, y, rows, feature_names, units)
+
+        self.selection_result_ = None
+        self.selection_report_: list[dict] | None = None
+        self.fdr_controlled_: bool | None = None
+        self.fdr_scope_: str | None = None
+        self.certification_result_ = None
+        self.fdp_inflation_: float | None = None
+        self.equations_: list[dict] | None = None
+        self.input_report_: list[dict] | None = None
+        self._inputs_dropped_ = 0
+
+        candidate_nodes: list[Node] = []
+        forward_path = None
+        if self.selector is not None:
+            nodes, candidate_nodes, forward_path = self._select(X, y, rows, feature_names, units, nodes)
+        return self._finalise(X, nodes, candidate_nodes, forward_path, feature_names, units)
+
+    def _warn_constant_columns(self, X: np.ndarray, feature_names: list[str]) -> None:
+        """Warn about input columns with no variation, which cannot be selected."""
         # A column with no variation cannot be selected: it standardises to
         # zeros, so its association with the target is zero at every depth it
         # appears in. That is the correct outcome and costs nothing, but it is
@@ -676,9 +709,17 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                 "They are ignored and cost nothing, but check whether they are meant "
                 "to carry data.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=3,
             )
 
+    def _split_rows(self, n_samples: int) -> _Rows:
+        """Split the training rows into search, selection and re-test rows.
+
+        The selection rows are held out of the search when a selector is
+        configured and ``selection_holdout`` is set; with ``parsimony_holdout``
+        they are split again, the second part kept for the re-test. Sets
+        :attr:`_holdout_rows_` and :attr:`_certify_rows_`.
+        """
         use_holdout = (
             self.selector is not None
             and self.selection_holdout is not None
@@ -734,23 +775,38 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                     "parsimony_holdout=None to get the compact uncertified equation, "
                     "or add rows.",
                     UserWarning,
-                    stacklevel=2,
+                    stacklevel=3,
                 )
             else:
                 inner = split_rng.permutation(len(holdout_index))
                 certify_index = np.sort(holdout_index[inner[:n_certify]])
                 holdout_index = np.sort(holdout_index[inner[n_certify:]])
         self._certify_rows_ = certify_index if use_certify else None
+        return _Rows(
+            search=search_index,
+            selection=holdout_index,
+            certify=certify_index,
+            use_holdout=use_holdout,
+            use_certify=use_certify,
+            fell_back_to_screened=fell_back_to_screened,
+        )
 
-        search_data = {name: X[search_index, index] for index, name in enumerate(feature_names)}
+    def _search(
+        self, X: np.ndarray, y: np.ndarray, rows: _Rows, feature_names: list[str], units
+    ) -> list[Node]:
+        """Run the beam search on the search rows; sets :attr:`search_result_`.
+
+        Returns its expressions, or the input columns when it produced none.
+        """
+        search_data = {name: X[rows.search, index] for index, name in enumerate(feature_names)}
 
         report(
             self.verbose,
             1,
-            f"fit: {n_samples} rows x {len(feature_names)} columns"
+            f"fit: {X.shape[0]} rows x {len(feature_names)} columns"
             + (
-                f", split {len(search_index)} search / {len(holdout_index)} selection"
-                if use_holdout
+                f", split {len(rows.search)} search / {len(rows.selection)} selection"
+                if rows.use_holdout
                 else ", no holdout (selection shares the search rows)"
             ),
         )
@@ -772,189 +828,235 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
             fitted_ops=self.fitted_ops,
             magnitude_slots=self.magnitude_slots,
         )
-        search_result = search.run(search_data, y[search_index], units=units)
+        search_result = search.run(search_data, y[rows.search], units=units)
         self.search_result_ = search_result
 
         nodes = list(search_result.nodes)
         if not nodes:
             nodes = Evaluator(search_data, units=units).leaf_nodes()
             logger.warning("[beamfeat] search produced no features; falling back to input columns")
+        return nodes
 
-        self.selection_result_ = None
-        self.selection_report_: list[dict] | None = None
-        self.fdr_controlled_: bool | None = None
-        self.fdr_scope_: str | None = None
-        self.certification_result_ = None
-        self.fdp_inflation_: float | None = None
-        self.equations_: list[dict] | None = None
-        self.input_report_: list[dict] | None = None
-        self._inputs_dropped_ = 0
+    def _select(
+        self, X: np.ndarray, y: np.ndarray, rows: _Rows, feature_names: list[str], units, nodes: list[Node]
+    ) -> tuple[list[Node], list[Node], tuple[list[int], list[float], int] | None]:
+        """Screen the search's expressions on the selection rows and choose the terms to fit.
+
+        Sets :attr:`selection_result_`, :attr:`selection_report_` and
+        :attr:`fdr_controlled_`. Returns the expressions to fit, the
+        candidates screened, and the forward path when one was taken.
+        """
         forward_path = None
+        selection_rows = rows.selection if rows.use_holdout else np.arange(X.shape[0])
+        selection_data = {name: X[selection_rows, index] for index, name in enumerate(feature_names)}
+        evaluator = Evaluator(selection_data, units=units)
+        selection_target = y[rows.selection] if rows.use_holdout else y
 
-        if self.selector is not None:
-            selection_rows = holdout_index if use_holdout else np.arange(n_samples)
-            selection_data = {name: X[selection_rows, index] for index, name in enumerate(feature_names)}
-            evaluator = Evaluator(selection_data, units=units)
-            selection_target = y[holdout_index] if use_holdout else y
+        # Candidates are a fixed set here; expressions that cannot be
+        # evaluated on the selection rows (overflow, non-finite) drop out
+        # of candidacy rather than entering as zero columns.
+        candidate_nodes: list[Node] = []
+        candidate_columns: list[np.ndarray] = []
+        for node in nodes:
+            values = evaluator.transform_values(node)
+            if values is not None:
+                candidate_nodes.append(node)
+                candidate_columns.append(values)
 
-            # Candidates are a fixed set here; expressions that cannot be
-            # evaluated on the selection rows (overflow, non-finite) drop out
-            # of candidacy rather than entering as zero columns.
-            candidate_nodes: list[Node] = []
-            candidate_columns: list[np.ndarray] = []
-            for node in nodes:
-                values = evaluator.transform_values(node)
-                if values is not None:
-                    candidate_nodes.append(node)
-                    candidate_columns.append(values)
+        selector = self._make_selector(warn=True)
+        self.equations_ = []
+        # A single candidate is screened like any other set: only the
+        # multiplicity correction is trivial for it, not the test.
+        if candidate_nodes:
+            matrix = np.column_stack(candidate_columns)
+            selection_result = selector.select(matrix, selection_target)
+            self.selection_result_ = selection_result
+            self._report_screen(selection_result, selector, candidate_nodes)
+            for diagnostic in selection_result.warnings_raised:
+                warnings.warn(f"beamfeat selection: {diagnostic}", UserWarning, stacklevel=3)
+            screened = set(int(i) for i in selection_result.selected)
 
-            selector = self._make_selector(warn=True)
-            self.equations_ = []
-            # A single candidate is screened like any other set: only the
-            # multiplicity correction is trivial for it, not the test.
-            if candidate_nodes:
-                matrix = np.column_stack(candidate_columns)
-                selection_result = selector.select(matrix, selection_target)
-                self.selection_result_ = selection_result
-                correction = getattr(selector, "correction", None)
+            if selection_result.n_selected > 0:
+                keep_order, retest, forward_path = self._choose_terms(
+                    X, y, rows, feature_names, units, matrix, selection_data, selection_target,
+                    candidate_nodes, screened,
+                )
+                nodes = [candidate_nodes[index] for index in keep_order]
+                kept = set(keep_order)
+                self.fdr_controlled_ = bool(nodes)
+                self._report_result(nodes, keep_order, screened, retest)
+            else:
+                kept = set()
+                nodes = self._no_discoveries(
+                    nodes, selector.target_fdr, rows.use_holdout, selection_result.warnings_raised
+                )
+
+            self.selection_report_ = self._selection_records(
+                candidate_nodes, selection_result, screened, kept
+            )
+        else:
+            # Nothing could even be evaluated on the selection rows, so no
+            # null was tested; returning the search output here unannounced
+            # would skip the screening the caller configured.
+            nodes = self._no_discoveries(
+                nodes, selector.target_fdr, rows.use_holdout,
+                ["no candidate could be evaluated on the selection rows"],
+            )
+
+        if not rows.use_holdout and self.fdr_controlled_:
+            # Same-data selection: the guarantee is stated for a fixed
+            # candidate set, which this is not. Record honestly.
+            self.fdr_controlled_ = False
+            warnings.warn(
+                "beamfeat: selection ran on the same rows the search used to choose "
+                "candidates (selection_holdout disabled or too few rows); p-values are "
+                "optimistically biased and fdr_controlled_ is therefore False",
+                UserWarning,
+                stacklevel=3,
+            )
+        return nodes, candidate_nodes, forward_path
+
+    def _report_screen(self, selection_result, selector: Selector, candidate_nodes: list[Node]) -> None:
+        """The verbose report of the screen: its outcome, and at level 2 the strongest terms."""
+        correction = getattr(selector, "correction", None)
+        report(
+            self.verbose,
+            1,
+            f"screen: {selection_result.n_candidates} candidates, "
+            f"{selection_result.method}"
+            + (f" ({correction.upper()})" if correction else "")
+            + f" at q={selector.target_fdr:g} -> "
+            f"{selection_result.n_selected} certified",
+        )
+        if self.verbose >= 2 and selection_result.n_selected:
+            ranked = sorted(
+                selection_result.selected,
+                key=lambda index: float(selection_result.p_values[index]),
+            )
+            for index in ranked[:5]:
                 report(
                     self.verbose,
-                    1,
-                    f"screen: {selection_result.n_candidates} candidates, "
-                    f"{selection_result.method}"
-                    + (f" ({correction.upper()})" if correction else "")
-                    + f" at q={selector.target_fdr:g} -> "
-                    f"{selection_result.n_selected} certified",
+                    2,
+                    f"  {candidate_nodes[index].name}  "
+                    f"p={float(selection_result.p_values[index]):.2e} "
+                    f"q={float(selection_result.q_values[index]):.2e}",
                 )
-                if self.verbose >= 2 and selection_result.n_selected:
-                    ranked = sorted(
-                        selection_result.selected,
-                        key=lambda index: float(selection_result.p_values[index]),
-                    )
-                    for index in ranked[:5]:
-                        report(
-                            self.verbose,
-                            2,
-                            f"  {candidate_nodes[index].name}  "
-                            f"p={float(selection_result.p_values[index]):.2e} "
-                            f"q={float(selection_result.q_values[index]):.2e}",
-                        )
-                    if len(ranked) > 5:
-                        report(self.verbose, 2, f"  ... and {len(ranked) - 5} more")
-                for diagnostic in selection_result.warnings_raised:
-                    warnings.warn(f"beamfeat selection: {diagnostic}", UserWarning, stacklevel=2)
-                screened = set(int(i) for i in selection_result.selected)
+            if len(ranked) > 5:
+                report(self.verbose, 2, f"  ... and {len(ranked) - 5} more")
 
-                if selection_result.n_selected > 0:
-                    # The terms parsimony and its fallbacks draw from: the
-                    # screened set, less any term the input test removes.
-                    eligible = sorted(screened)
-                    if self.input_test:
-                        eligible = self._test_inputs(
-                            candidate_nodes, selection_data, selection_target, eligible
-                        )
-                    forward_path = self._forward_path(matrix, selection_target, eligible)
-                    keep_order = self._parsimonious_subset(
-                        matrix, selection_target, eligible, forward_path
-                    )
-                    report(
-                        self.verbose,
-                        1,
-                        f"parsimony: {len(eligible)} certified -> "
-                        f"{len(keep_order)} term{'' if len(keep_order) == 1 else 's'}"
-                        f" (|S|/|S'| = {len(eligible) / len(keep_order):.2f})"
-                        if self.parsimony is not None
-                        else f"parsimony: off, keeping all {len(eligible)} "
-                        f"certified term{'' if len(eligible) == 1 else 's'}",
-                    )
-                    retest = None
-                    if fell_back_to_screened:
-                        keep_order = list(eligible)
-                    elif use_certify:
-                        certified = self._certify_subset(
-                            X, y, certify_index, feature_names, units,
-                            [candidate_nodes[index] for index in keep_order],
-                            keep_order,
-                        )
-                        retest = (len(certified), len(keep_order))
-                        # Nothing compact could be certified, but the screened
-                        # set still is; return that (less any term the input
-                        # test removed) rather than nothing.
-                        keep_order = certified if certified else list(eligible)
-                    nodes = [candidate_nodes[index] for index in keep_order]
-                    kept = set(keep_order)
-                    self.fdr_controlled_ = bool(nodes)
-                    if retest is not None and retest[0]:
-                        given = ", each given the others" if self.certify_test == "conditional" else ""
-                        scope = (
-                            f" after the re-test on held-back rows rejected the null for {retest[0]}"
-                            f" of {retest[1]} re-tested terms{given}; the guarantee covers the"
-                            " fitted equation"
-                        )
-                    elif retest is not None:
-                        scope = (
-                            " from the screened set, since the re-test on held-back rows rejected"
-                            " no null; the screen's guarantee covers the screened set"
-                        )
-                    elif len(keep_order) == len(screened):
-                        scope = (
-                            " in the fitted equation, the screened set entire; the"
-                            " guarantee covers it"
-                        )
-                    else:
-                        scope = (
-                            " in the fitted equation (the guarantee covers the"
-                            " certified set, not this subset)"
-                        )
-                    report(
-                        self.verbose,
-                        1,
-                        f"result set: {len(nodes)} term{'' if len(nodes) == 1 else 's'}" + scope,
-                    )
-                else:
-                    kept = set()
-                    nodes = self._no_discoveries(
-                        nodes, selector.target_fdr, use_holdout, selection_result.warnings_raised
-                    )
+    def _choose_terms(
+        self, X, y, rows: _Rows, feature_names, units, matrix, selection_data, selection_target,
+        candidate_nodes: list[Node], screened: set[int],
+    ) -> tuple[list[int], tuple[int, int] | None, tuple[list[int], list[float], int]]:
+        """The terms to fit, from a screen that rejected at least one null.
 
-                self.selection_report_ = [
-                    {
-                        "formula": candidate_nodes[i].name,
-                        "p_value": (
-                            float(selection_result.p_values[i])
-                            if selection_result.p_values is not None else None
-                        ),
-                        "q_value": (
-                            float(selection_result.q_values[i])
-                            if selection_result.q_values is not None else None
-                        ),
-                        "statistic": float(selection_result.statistics[i]),
-                        "screened": i in screened,
-                        "kept": i in kept if selection_result.n_selected > 0 else False,
-                    }
-                    for i in range(len(candidate_nodes))
-                ]
-            else:
-                # Nothing could even be evaluated on the selection rows, so no
-                # null was tested; returning the search output here unannounced
-                # would skip the screening the caller configured.
-                nodes = self._no_discoveries(
-                    nodes, selector.target_fdr, use_holdout,
-                    ["no candidate could be evaluated on the selection rows"],
-                )
+        The screened set, less any term the input test removes; then the
+        forward step's subset of it; then, with ``parsimony_holdout``, the
+        terms the re-test certifies, or the screened set when it certifies
+        none. Returns the kept indices, the re-test's (certified, re-tested)
+        counts or ``None``, and the forward path.
+        """
+        # The terms parsimony and its fallbacks draw from: the
+        # screened set, less any term the input test removes.
+        eligible = sorted(screened)
+        if self.input_test:
+            eligible = self._test_inputs(
+                candidate_nodes, selection_data, selection_target, eligible
+            )
+        forward_path = self._forward_path(matrix, selection_target, eligible)
+        keep_order = self._parsimonious_subset(
+            matrix, selection_target, eligible, forward_path
+        )
+        report(
+            self.verbose,
+            1,
+            f"parsimony: {len(eligible)} certified -> "
+            f"{len(keep_order)} term{'' if len(keep_order) == 1 else 's'}"
+            f" (|S|/|S'| = {len(eligible) / len(keep_order):.2f})"
+            if self.parsimony is not None
+            else f"parsimony: off, keeping all {len(eligible)} "
+            f"certified term{'' if len(eligible) == 1 else 's'}",
+        )
+        retest = None
+        if rows.fell_back_to_screened:
+            keep_order = list(eligible)
+        elif rows.use_certify:
+            certified = self._certify_subset(
+                X, y, rows.certify, feature_names, units,
+                [candidate_nodes[index] for index in keep_order],
+                keep_order,
+            )
+            retest = (len(certified), len(keep_order))
+            # Nothing compact could be certified, but the screened
+            # set still is; return that (less any term the input
+            # test removed) rather than nothing.
+            keep_order = certified if certified else list(eligible)
+        return keep_order, retest, forward_path
 
-            if not use_holdout and self.fdr_controlled_:
-                # Same-data selection: the guarantee is stated for a fixed
-                # candidate set, which this is not. Record honestly.
-                self.fdr_controlled_ = False
-                warnings.warn(
-                    "beamfeat: selection ran on the same rows the search used to choose "
-                    "candidates (selection_holdout disabled or too few rows); p-values are "
-                    "optimistically biased and fdr_controlled_ is therefore False",
-                    UserWarning,
-                    stacklevel=2,
-                )
+    def _report_result(
+        self, nodes: list[Node], keep_order: list[int], screened: set[int], retest: tuple[int, int] | None
+    ) -> None:
+        """The verbose report of the result set and what the guarantee covers."""
+        if retest is not None and retest[0]:
+            given = ", each given the others" if self.certify_test == "conditional" else ""
+            scope = (
+                f" after the re-test on held-back rows rejected the null for {retest[0]}"
+                f" of {retest[1]} re-tested terms{given}; the guarantee covers the"
+                " fitted equation"
+            )
+        elif retest is not None:
+            scope = (
+                " from the screened set, since the re-test on held-back rows rejected"
+                " no null; the screen's guarantee covers the screened set"
+            )
+        elif len(keep_order) == len(screened):
+            scope = (
+                " in the fitted equation, the screened set entire; the"
+                " guarantee covers it"
+            )
+        else:
+            scope = (
+                " in the fitted equation (the guarantee covers the"
+                " certified set, not this subset)"
+            )
+        report(
+            self.verbose,
+            1,
+            f"result set: {len(nodes)} term{'' if len(nodes) == 1 else 's'}" + scope,
+        )
 
+    def _selection_records(
+        self, candidate_nodes: list[Node], selection_result, screened: set[int], kept: set[int]
+    ) -> list[dict]:
+        """The rows of :attr:`selection_report_`, one per screened candidate."""
+        return [
+            {
+                "formula": candidate_nodes[i].name,
+                "p_value": (
+                    float(selection_result.p_values[i])
+                    if selection_result.p_values is not None else None
+                ),
+                "q_value": (
+                    float(selection_result.q_values[i])
+                    if selection_result.q_values is not None else None
+                ),
+                "statistic": float(selection_result.statistics[i]),
+                "screened": i in screened,
+                "kept": i in kept if selection_result.n_selected > 0 else False,
+            }
+            for i in range(len(candidate_nodes))
+        ]
+
+    def _finalise(
+        self, X: np.ndarray, nodes: list[Node], candidate_nodes: list[Node], forward_path,
+        feature_names: list[str], units,
+    ) -> np.ndarray:
+        """Evaluate the kept expressions on the full training data and record the fit.
+
+        Sets :attr:`features_`, :attr:`feature_formulas_`, :attr:`n_features_out_`,
+        :attr:`fdr_scope_`, :attr:`equations_` and :attr:`fdp_inflation_`.
+        Returns the transformed training matrix.
+        """
         # Evaluate the final expressions on the full training data for the
         # downstream model.
         full_evaluator = Evaluator(
@@ -990,7 +1092,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         if not kept_nodes:
             # The honest empty outcome: zero constructed columns. Downstream
             # models degrade to an intercept-only fit rather than pretending.
-            return np.empty((n_samples, 0), dtype=np.float64)
+            return np.empty((X.shape[0], 0), dtype=np.float64)
         return np.column_stack(kept_columns)
 
     def _no_discoveries(
@@ -1020,7 +1122,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                 message + "Falling back to the UNFILTERED search output: the "
                 "returned features carry no false-discovery-rate guarantee.",
                 NoDiscoveriesWarning,
-                stacklevel=3,
+                stacklevel=4,
             )
             return nodes
         warnings.warn(
@@ -1029,7 +1131,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
             "(classification). Set on_no_discoveries='fallback' to keep "
             "the unfiltered search output instead.",
             NoDiscoveriesWarning,
-            stacklevel=3,
+            stacklevel=4,
         )
         return []
 
