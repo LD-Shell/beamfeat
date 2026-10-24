@@ -979,7 +979,6 @@ one of them has a fix.
     ),
     code(
         """
-import re
 import sys
 import warnings
 
@@ -1051,7 +1050,7 @@ print(f"R^2: {model.score(X, y):.4f}")
     ),
     markdown(
         """
-`(H / eta) * (Q * rho)` is `rho * Q * H / eta` — the physics, exactly, with
+`(H * Q) / (eta / rho)` is `rho * Q * H / eta` — the physics, exactly, with
 none of the eight noise columns in it.
 
 The suffix is the equation being honest about its own scope: screening
@@ -1103,7 +1102,7 @@ print(
     ),
     markdown(
         """
-The physics is still in there — `(H / eta) * (Q * rho)` — but `noise_0`
+The physics is still in there — `(H * Q) / (eta / rho)` — but `noise_0`
 has been bolted onto it, and `fdr_controlled_` is still
 `True`. The R^2 is unchanged to four decimals. We searched four times as many
 candidates for an equation nobody can read.
@@ -1175,27 +1174,45 @@ print(gated.equation())
 print(f"R^2: {gated.score(X, y):.4f}")
 
 
-# Formulas that add or subtract a noise column outright, across the whole
-# certified set rather than the pruned equation.
-ADDED_NOISE = re.compile(r"(noise_\d+ [+-]|[+-] noise_\d+)")
+from beamfeat import UnitError
+from beamfeat.expression import combine, leaf, transform
 
 
-def added_noise(model):
+# The same expression built with the units above; UnitError if they rule it out.
+def with_units(node):
+    if node.is_leaf:
+        return leaf(node.column, units[node.column])
+    children = [with_units(child) for child in node.children]
+    if len(children) == 1:
+        return transform(node.op, children[0], node.const)
+    return combine(node.op, *children)
+
+
+# Formulas of the whole certified set, not only the pruned equation, that the
+# units rule out.
+def ruled_out(model):
     full = BeamFeatRegressor(**{**model.get_params(), "parsimony": None, "verbose": 0}).fit(X, y)
-    return [f for f in full.formulas() if ADDED_NOISE.search(f)], full.n_features_out_
+    count = 0
+    for node in full.features_:
+        try:
+            with_units(node)
+        except UnitError:
+            count += 1
+    return count, full.n_features_out_
 
 
 for label, m in (("no units", deep), ("units", gated)):
-    hits, total = added_noise(m)
-    print(f"certified formulas adding a noise column, {label:8s}: {len(hits)} of {total}")
+    count, total = ruled_out(m)
+    print(f"certified formulas the units rule out, {label:8s}: {count} of {total}")
         """
     ),
     markdown(
         """
 The same over-deep search now returns the clean core. Identical R^2, no
-parasites — and the effect is not just in the pruned equation: across the whole
-certified set, not one formula adds a noise column to a dimensioned quantity,
-against almost all of them before. That is the general lesson — where a
+parasites — and the effect is not just in the pruned equation: rebuilt with the
+units, almost every formula the unlabelled search certified is ruled out, most
+of them for adding a noise column to a dimensioned quantity, and not one of
+those certified under the units is. That is the general lesson — where a
 statistical criterion cannot separate two candidates, a structural constraint
 often can, and it costs nothing because it applies before any numerical work.
 
@@ -1207,10 +1224,11 @@ nothing objects, because `g` was absorbed. Units rule out nonsense; they will
 not tell you a factor is missing.
 
 And a *dimensionless* column is legal almost everywhere. `Q / noise_7` is still
-m³/s, so noise can ride in multiplicatively even under a full labelling, and
-most of the certified set still mentions one. What units removed is the whole
-class of violations — adding a bare number to a physical quantity — not every
-appearance of an irrelevant column.
+m³/s, and `noise_3 + noise_5` adds one dimensionless column to another, so
+noise can ride in even under a full labelling, and most of the certified set
+still mentions one. What units removed is the whole class of violations —
+adding a bare number to a physical quantity — not every appearance of an
+irrelevant column.
         """
     ),
     markdown(
@@ -1428,7 +1446,7 @@ column names are valid identifiers, so the symbols carry them unchanged; other
 names are sanitised, and the expressions' `free_symbols` show what they became.
 
 Two differences from `predict` remain. sympy may rewrite an expression into an
-equivalent form — `(H / eta) * (Q * rho)` came back as `H*Q*rho/eta` — so a
+equivalent form — `(H * Q) / (eta / rho)` came back as `H*Q*rho/eta` — so a
 value can overflow in one and not the other. And a row outside a formula's
 domain gives whatever the array library gives there, where `predict` gives NaN
 and a warning.
