@@ -17,6 +17,8 @@ keywords:
   - feature construction
   - feature selection
   - false discovery rate
+  - Benjamini-Hochberg
+  - Benjamini-Yekutieli
   - multiple testing
   - permutation test
   - knockoffs

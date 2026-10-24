@@ -49,8 +49,9 @@ forward step without `parsimony_alpha` is deprecated.
   largest after the split, so that new code is split rather than grown.
 - The package's keywords, in `pyproject.toml`, `CITATION.cff` and
   `.zenodo.json`, name what it does (feature construction, multiple testing,
-  equation discovery, among others), and its classifiers add the operating
-  system, the topics and `Typing :: Typed`. It stays in beta until 1.0.
+  Benjamini-Hochberg and Benjamini-Yekutieli, equation discovery, among
+  others), and its classifiers add the operating system, the topics and
+  `Typing :: Typed`. It stays in beta until 1.0.
 
 ### Benchmarks
 
