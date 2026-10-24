@@ -16,55 +16,71 @@ flowchart TD
     fit --> pipe["_run_pipeline · <i>_base.py</i>"]
     pipe --> rows["_split_rows<br/>search rows · selection rows · re-test rows"]
     rows --> search["_search → BeamSearch.run<br/><i>search.py</i>"]
-    search --> screen["_select<br/>evaluate the candidates on the selection rows,<br/>then selector.select · <i>selection.py</i>"]
-    screen -->|"nulls rejected"| choose["_choose_terms<br/>input test → forward step · <i>_forward.py</i><br/>→ re-test on the re-test rows"]
-    screen -->|"none rejected"| nodisc["_no_discoveries<br/>on_no_discoveries: empty · fallback · raise"]
+    search -->|"a selector (the default)"| screen["_select<br/>evaluate the candidates on the selection rows,<br/>then selector.select · <i>selection.py</i>"]
+    search -->|"selector=None"| finish
+    screen -->|"a null rejected"| choose["_choose_terms, within _select<br/>input test if on → forward step · <i>_forward.py</i><br/>→ re-test if parsimony_holdout"]
+    screen -->|"none rejected, or nothing testable"| nodisc["_no_discoveries, within _select<br/>on_no_discoveries: empty · fallback · raise"]
     choose --> finish["_finalise<br/>evaluate the kept terms on all rows;<br/>features_, equations_, fdr_scope_"]
     nodisc --> finish
-    finish --> model["regressor: StandardScaler + ridge<br/>classifier: StandardScaler + logistic<br/>transformer: returns the columns"]
-    model --> out["equation() · latex() · equations()<br/><i>estimators.py, _rendering.py</i>"]
+    finish --> model["back in fit()<br/>regressor: StandardScaler + ridge · classifier: StandardScaler + logistic<br/>(the mean or the class prior when no term is kept)<br/>transformer: the columns, no model"]
+    model --> check["_holdout_fit_check, regressor and classifier<br/>DegenerateFitWarning when the model is degenerate on the selection rows"]
 ```
 
 - **Rows.** With a selector (the default) and `selection_holdout` (0.5 by
-  default), the search sees one part of the rows and the screen the other.
-  That split is what the FDR guarantee rests on: the screen tests a candidate
-  set fixed before it looked at its rows. `parsimony_holdout` splits the
-  selection rows again for the re-test.
-- **Screen.** `PermutationSelector` (the default, Benjamini-Yekutieli) or
-  `KnockoffSelector` tests every candidate; `selection_report_` records each
-  one's statistic, its p- and q-value when the selector computes them, and
-  whether its null was rejected. The guarantee covers the screened set.
-- **Choice of terms.** The screened set, less any term with a column whose
-  null the `input_test` fails to reject; then, at the default
-  `parsimony="forward"`, the forward step, which adds terms while each adds
-  at least `parsimony_tol` to R² (and, with `parsimony_alpha`, rejects the
-  null that chance reaches its gain); then, with
-  `parsimony_holdout`, the terms the re-test certifies on rows of their own,
-  or the screened set when it certifies none.
-- **Prediction.** `predict` and `transform` replay the kept expressions on
-  new rows without searching again. A row on which an expression is
-  undefined (the logarithm of a negative value, say) gets NaN in that
-  expression's column and nowhere else (`_prediction.py`); the regressor
-  predicts NaN for it, and the classifier the most frequent training class.
+  default), the search sees one part of the rows and the screen the other,
+  provided both parts have at least 10 rows; otherwise the screen runs on the
+  search rows and `fdr_controlled_` is `False`. That split is what the FDR
+  guarantee rests on: the screen tests a candidate set fixed before it looked
+  at its rows. `parsimony_holdout` splits the selection rows again for the
+  re-test; without the first split it is ignored.
+- **Screen.** The default, `selector="permutation"`, is a
+  `PermutationSelector` with the estimator's `selection_correction`,
+  Benjamini-Yekutieli by default. A selector instance passed in keeps its own
+  settings (a `PermutationSelector()` uses Benjamini-Hochberg), with a warning
+  where they differ from the estimator's. `selection_report_` records each
+  candidate's statistic, its p- and q-value when the selector computes them,
+  and whether its null was rejected. The guarantee covers the screened set.
+- **Choice of terms.** The screened set, less, with `input_test=True`, any
+  term with a column whose null the input test fails to reject (if that would
+  leave none, the screened set is kept, with a warning); then, at the default
+  `parsimony="forward"`, the forward step, which adds terms while each adds at
+  least `parsimony_tol` to R² (and, with `parsimony_alpha`, rejects the null
+  that chance reaches its gain); then, with `parsimony_holdout`, the terms the
+  re-test certifies on rows of their own. When the re-test certifies none,
+  or the selection rows are too few to split for it (with a warning), the
+  terms before the forward step are returned instead: the screened set, less
+  any the input test removed.
+- **Prediction.** `predict` and `transform` replay the kept expressions on new
+  rows without searching again (`_BeamFeatBase._apply`). An expression that
+  fails on some rows, the logarithm of a negative value say, is evaluated row
+  so that each row gets the value it would get alone (`_prediction.py`), and
+  is NaN on the rows it fails on only. `_model_output` returns the model's
+  output with NaN on those rows where the output is a float (predictions,
+  probabilities), and the mask of rows that are defined; the classifier's
+  `predict` gives an undefined row the most frequent training class, as its
+  labels cannot be NaN.
 
 ## Inside the search
 
 ```mermaid
 flowchart TD
     zero["_depth_zero<br/>score the input columns: the beam of depth 0"]
-    zero --> depth{"depth 1 … max_depth"}
+    zero --> depth{"_run_depth<br/>for depth 1 … max_depth"}
     depth --> cand["_depth_candidates<br/>_propose: transforms and pairs from the beam and pool<br/>_fit: constants of fitted_ops"]
     cand --> score["_score_round<br/>evaluate; rank on the larger of the score<br/>against the target and against the residual"]
-    score --> keep["_prune_redundant / _prune_evaluated: keep beam_width<br/>_reserve: magnitude_slots"]
+    score --> keep["_prune_redundant / _prune_evaluated: keep beam_width<br/>_reserve: magnitude_slots<br/>_extra_parents: more parents for the next round's fits"]
     keep --> record["trace and verbose report"]
     record --> depth
-    depth -->|"last depth, or nothing new"| fin["rescore everything kept against the target;<br/>_finalise: remove near-duplicates,<br/>keep max_features (default beam_width)"]
+    depth -->|"last depth, nothing new, nothing evaluated, or an empty beam"| fin["rescore everything kept against the target;<br/>_finalise: remove near-duplicates, keep max_features<br/>(default beam_width); _constant_free_copies"]
 ```
 
 `_SearchState` carries the beam, the pool, everything kept so far and the
 trace from one depth to the next. The constants of `fitted_ops` are fitted in
-`parametric.py`; the expressions are `Node` objects from `expression.py`,
-evaluated and cached by its `Evaluator`.
+`parametric.py`. `_constant_free_copies` then swaps a kept feature that has
+fitted constants for a near copy with fewer, among the expressions the search
+accumulated but left out of the final set, when a likelihood-ratio test fails to reject the null that
+the copy fits as well; of those, the simplest. The expressions are `Node`
+objects from `expression.py`, evaluated and cached by its `Evaluator`.
 
 ## Modules
 
@@ -106,17 +122,17 @@ exists.
 
 | module | what it holds |
 | :-- | :-- |
-| `estimators.py` | the three public estimators: their parameters, `fit`, `predict`, `transform`, `equation` and `latex` |
-| `_base.py` | `_BeamFeatBase`, the fit they share: validation, the row split, the stages above, units; the public warnings and errors |
+| `estimators.py` | the three public estimators: their parameters, `fit`, `predict`, `transform`, and `equation` and `latex` for the regressor and the classifier |
+| `_base.py` | `_BeamFeatBase`, what the three share: validation, units, the row split and the stages above, prediction on new rows (`_apply`, `_model_output`), the introspection methods (`formulas`, `to_sympy`, `latex_formulas`, `get_feature_names_out`), and the public warnings and errors |
 | `_forward.py` | the forward step's path through the screened set and its chance check (`parsimony_alpha`) |
-| `_rendering.py` | number and LaTeX formatting, the equation list and the notes on what the guarantee covers |
-| `_prediction.py` | evaluation of an expression on new rows where it is defined |
-| `search.py` | `BeamSearch`, `SearchResult`, `SearchTrace` |
+| `_rendering.py` | number and LaTeX formatting, the equation list (`equations`, for all three estimators) and the notes on what the guarantee covers |
+| `_prediction.py` | the row-by-row evaluation of an expression that fails on some rows |
+| `search.py` | `BeamSearch`, `SearchResult`, `SearchTrace`; the default operator sets (`DEFAULT_UNARY`, `DEFAULT_BINARY`, and `DEFAULT_FITTED`, the estimators' default; `BeamSearch` itself fits no constants unless given `fitted_ops`), `magnitude_scores`, and `report`, the verbose output |
 | `parametric.py` | the constants inside `exp(a*x)`, `x^a`, `1/(x + a)` and `log(x + a)` |
 | `expression.py` | `Node`, the expression DAG; `Evaluator`; units; the operator registry |
 | `_operators.py` | the built-in operators: function, formula, unit rule, domain, constant grid |
 | `scoring.py` | the scorers that rank candidates in the search |
-| `selection.py` | the FDR-controlled selectors and the input test |
+| `selection.py` | the FDR-controlled selectors, the input test, and the Freedman-Lane test of the conditional re-test (`_ConditionalPermutationSelector`) |
 | `stability.py` | `stability_report`: refits on many splits and counts the distinct equations |
 | `_compat.py` | differences between scikit-learn versions |
 
@@ -124,15 +140,21 @@ exists.
 
 | change | where |
 | :-- | :-- |
-| a new operator | a `register_operator(OperatorSpec(...))` call in `_operators.py`; tests in `tests/test_expression.py` |
+| a new operator | a `register_operator(OperatorSpec(...))` call in `_operators.py`, and its sympy form in `_sympy_builders` in `expression.py` (without one, `to_sympy` and the LaTeX show it as an opaque function); a fitted operator whose constant can make it a plain operator or a constant also goes in `_PLAIN_FORMS` or `_DEGENERATE` there. To use it by default, add it to `DEFAULT_UNARY`, `DEFAULT_BINARY` or `DEFAULT_FITTED` in `search.py`. Tests in `tests/test_expression.py`; a fitted operator also in `tests/test_parametric.py`, whose `FITTED` names every one and which pins `DEFAULT_FITTED` |
 | a new scorer | a `Scorer` subclass in `scoring.py`, named in `_SCORERS`; `tests/test_scoring.py` |
 | a new selector | a `Selector` subclass in `selection.py`, named in `_SELECTORS`; `tests/test_selection.py` |
 | how terms are chosen after the screen | `_BeamFeatBase._choose_terms` in `_base.py`, the forward step in `_forward.py`; `tests/test_parsimony.py` |
+| prediction on new rows | `_apply` and `_model_output` in `_base.py`, `_prediction.py`, and each estimator's `predict` in `estimators.py`; `tests/test_estimators.py` |
 | the printed equation or LaTeX | `_rendering.py`, and `equation` / `latex` in `estimators.py`; `tests/test_rendering.py` |
 | the search | `search.py`: `_depth_candidates`, `_score_round`, `_prune_redundant`; `tests/test_search.py` |
 | a new estimator parameter | `_BeamFeatBase.__init__` and each public class's `__init__` (scikit-learn reads a class's parameters from its own signature), `_validate_params`, and the `Args` of `BeamFeatTransformer`'s docstring, which the other two refer to |
 
-The test files follow the modules: `tests/test_estimators.py` for the
-estimators' API, `tests/test_screening.py` for the screen inside a fit, and
-one file per other module. ruff limits the size of a function in `src/`
-(`pyproject.toml`), so a stage that grows is split rather than lengthened.
+The test files follow the code by topic: `tests/test_estimators.py` for the
+estimators' API and prediction, `tests/test_screening.py` for the screen
+inside a fit, `tests/test_parsimony.py` for the forward step, the re-test and
+what the guarantee covers, `tests/test_rendering.py` for the renderings, and
+one file each for `expression`, `parametric`, `scoring`, `search`,
+`selection`, `stability` and `_compat`. ruff (`pyproject.toml`) limits the
+complexity and the number of statements of a function everywhere but the
+tests and the benchmark scripts, so a stage that grows is split rather than
+lengthened.
