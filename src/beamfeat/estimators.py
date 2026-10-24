@@ -41,6 +41,7 @@ from beamfeat._prediction import _evaluate_by_row
 from beamfeat._rendering import (
     _check_equation_format,
     _equation_list,
+    _EquationsMixin,
     _format_coefficient,
     _label,
     _latex_label,
@@ -139,7 +140,7 @@ class NoDiscoveriesWarning(UserWarning):
     """
 
 
-class _BeamFeatBase(BaseEstimator):
+class _BeamFeatBase(_EquationsMixin, BaseEstimator):
     """Shared fitting machinery for the beamfeat estimators.
 
     Not intended for direct use; instantiate one of the concrete classes.
@@ -515,31 +516,6 @@ class _BeamFeatBase(BaseEstimator):
             "screened set" if screened > int(self.n_features_out_)
             else "printed equation"
         )
-
-    def _parsimony_note(self) -> str:
-        """Suffix for ``equation()`` when the printed terms are a strict subset.
-
-        Empty whenever the printed terms *are* the certified ones, which is
-        what :attr:`fdr_scope_` already decides.
-        """
-        if getattr(self, "fdr_scope_", None) != "screened set":
-            return ""
-        screened, kept = int(self.selection_result_.n_selected), int(self.n_features_out_)
-        # A subset can also arise without the parsimony step, when a screened
-        # expression cannot be evaluated on the full training data; pointing
-        # that caller at parsimony=None would be advice they have taken.
-        dropped = int(getattr(self, "_inputs_dropped_", 0))
-        remedy = (
-            f"; parsimony=None prints all {screened - dropped}" if self.parsimony is not None else ""
-        )
-        if dropped:
-            remedy += f"; input_test dropped {dropped}"
-        return f"   [{kept} of {screened} certified terms{remedy}]"
-
-    def _latex_parsimony_note(self) -> str:
-        """:meth:`_parsimony_note` as LaTeX text, or empty when it is."""
-        note = self._parsimony_note().strip()
-        return rf" \quad {_latex_text(note)}" if note else ""
 
     def _certify_subset(self, X, y, rows, feature_names, units, nodes, keep_order):
         """Re-screen the terms kept after parsimony on rows not yet used for them.
@@ -1231,152 +1207,6 @@ class _BeamFeatBase(BaseEstimator):
         import sympy
 
         return [sympy.latex(expression) for expression in self.to_sympy()]
-
-    def _path_lhs(self) -> str:
-        """Left-hand side naming the modelled quantity in :meth:`equations`."""
-        return "y"
-
-    def equations(self, precision: int = 4, max_n_terms: int | None = None) -> str:
-        """Return the forward path through the screened set, one equation per size.
-
-        Line ``k`` holds the ``k`` terms the greedy forward step of
-        ``parsimony="forward"`` would fit if it stopped there, with its
-        complexity, the in-sample R^2 of a least-squares fit of those terms
-        on the rows screening used, and the R^2 its last term added. The
-        line holding the returned features is marked ``*``; at the default
-        settings it is the first line whose successor adds less than
-        ``parsimony_tol``. The records behind the text are
-        :attr:`equations_`.
-
-        Each line is written ``y ~ a + b``: a linear model in those terms,
-        without coefficients, since only the marked line has fitted ones,
-        which the regressor's and classifier's ``equation()`` prints. For classification the R^2 is that of
-        the integer-coded labels, the ranking heuristic the forward step
-        uses, and not a classification metric.
-
-        The FDR guarantee covers the screened set, the last line, and not an
-        equation chosen from this list: every line is a subset of the
-        screened set chosen on the rows screening used, as the features
-        returned at the default settings are. The output says so in its last
-        line.
-
-        Args:
-            precision: Decimal places for R^2, and significant figures for
-                its gain.
-            max_n_terms: If set, show only the equations with at most this
-                many terms, and the marked line whatever its size. The
-                remaining lines are elided as ``...``.
-
-        Returns:
-            The list as text, or a one-line explanation when nothing was
-            screened.
-        """
-        check_is_fitted(self, ["equations_"])
-        _check_equation_format(precision, "significant")
-        if self.equations_ is None:
-            return "no equation list: no selector was configured, so no set was screened"
-        if not self.equations_:
-            return "no equation list: the screen rejected no null"
-
-        screened = len(self.equations_)
-        rows = [
-            (
-                "*" if record["model"] else "",
-                str(record["n_terms"]),
-                str(record["complexity"]),
-                f"{record['r2']:.{precision}f}",
-                f"{record['r2'] - previous:.{precision}g}",
-                f"{self._path_lhs()} ~ " + " + ".join(record["formulas"]),
-            )
-            for record, previous in zip(
-                self.equations_,
-                [0.0] + [record["r2"] for record in self.equations_[:-1]],
-            )
-            if max_n_terms is None
-            or record["n_terms"] <= max_n_terms
-            or record["model"]
-        ]
-        header = ("", "k", "complexity", "R^2", "gain", "equation")
-        widths = [max(len(row[column]) for row in [header, *rows]) for column in range(5)]
-        measure = (
-            "R^2 is of the integer-coded labels, a ranking heuristic rather than a "
-            "classification metric"
-            if self._problem_type == "classification"
-            else "R^2 is in-sample"
-        )
-
-        def line(row: tuple[str, ...]) -> str:
-            cells = [cell.rjust(width) for cell, width in zip(row[1:5], widths[1:])]
-            return " ".join([row[0].ljust(widths[0]), *cells, row[5]]).rstrip()
-
-        lines = [
-            f"Forward path through the {screened} screened term{'' if screened == 1 else 's'}. "
-            f"{measure}, on the rows screening used; gain is the R^2 the line's last "
-            "term adds.",
-            line(header),
-        ]
-        elided = " " * widths[0] + " " + "...".rjust(widths[1])
-        previous = 0
-        for row in rows:
-            if int(row[1]) > previous + 1:
-                lines.append(elided)
-            previous = int(row[1])
-            lines.append(line(row))
-        if previous < screened:
-            lines.append(elided)
-        lines.append(self._path_model_note())
-        lines.append(self._path_scope_note(screened))
-        return "\n".join(lines)
-
-    def _path_model_note(self) -> str:
-        """Footer line of :meth:`equations` saying which line is the model."""
-        returned = "fitted model" if hasattr(self, "equation") else "returned features"
-        marked = [record["n_terms"] for record in self.equations_ if record["model"]]
-        retested = self.certification_result_ is not None
-        if not marked:
-            reason = (
-                "its terms were re-tested on held-back rows (parsimony_holdout)"
-                if retested
-                else "some screened terms could not be evaluated on the full training data"
-            )
-            return f"No line is the {returned}: {reason}."
-        if self.parsimony is None:
-            how = "parsimony=None keeps the whole screened set"
-        elif retested and self.certification_result_.n_selected:
-            how = "the forward subset, as re-tested on held-back rows"
-        elif retested:
-            how = "the re-test on held-back rows rejected no null, so the screened set is kept"
-        elif marked[0] == self._forward_stop_ == len(self.equations_):
-            how = "the forward step keeps every screened term"
-        elif marked[0] == self._forward_stop_:
-            how = (
-                "the forward step stops before the first gain below "
-                f"parsimony_tol={self.parsimony_tol:g}"
-            )
-            if self.parsimony_alpha is not None:
-                how += (
-                    ", or the first that fails to reject the null of chance at "
-                    f"parsimony_alpha={self.parsimony_alpha:g}"
-                )
-        else:
-            how = "parsimony_holdout could not split the selection rows, so the screened set is kept"
-        return f"* the {returned} ({how})."
-
-    def _path_scope_note(self, screened: int) -> str:
-        """Footer line of :meth:`equations` stating what the guarantee covers."""
-        if not self.fdr_controlled_:
-            return (
-                "No line carries the FDR guarantee: fdr_controlled_ is False, since "
-                "selection did not run on rows held out of the search."
-            )
-        last = f"the screened set of {screened} term{'' if screened == 1 else 's'} (line {screened})"
-        if self.certification_result_ is not None and self.certification_result_.n_selected:
-            return (
-                f"The FDR guarantee covers {last} and, after its re-test, the "
-                f"{'fitted model' if hasattr(self, 'equation') else 'returned features'}; "
-                "it does not cover another equation chosen from this list."
-            )
-        return f"The FDR guarantee covers {last}, not an equation chosen from this list."
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
