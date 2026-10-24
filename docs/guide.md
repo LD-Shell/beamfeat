@@ -527,6 +527,21 @@ How the constants are chosen:
   one of them, the constant is rounded to the fewest significant digits that
   cost nothing measurable. A snapped constant is exact in `to_sympy()`,
   `latex()` and the printed formulas.
+- **Near copies.** A fitted constant can also bend an expression into a near
+  copy of a simple law. With 10% noise on `log(x0)`, `(x0)^(-0.02)`
+  correlates with `log(x0)` at 0.99999, and since its constant was fitted on
+  the search rows it fits them a little better. So at the end of the search,
+  each kept expression with fitted constants is compared with its near copies
+  among everything the search found (correlation at `redundancy_threshold`)
+  that carry fewer constants and are not near copies of another kept
+  expression. The snapping test decides, on the same rows: if it fails to
+  reject the null that a copy fits the target as well, the simplest such copy
+  takes the expression's place. Without this step, `log(x0)`, `sqrt(x0)`,
+  `1/x0` and `x0²` at that noise were printed as themselves in 0, 0, 2 and 2
+  of 10 fits; with it, in 10, 7, 10 and 8, against 10, 9, 10 and 8 with
+  `fitted_ops=()`. A law that needs its constant keeps it while the data
+  reject the simpler forms, as the Gaussian and relativistic velocity
+  addition of the physics panel do at 0.1% noise.
 - **Stored.** The constant is part of the expression: `transform`,
   `predict` and a pickled model reuse it on new data without refitting.
 
@@ -537,8 +552,10 @@ unchanged; see the [guarantees page](guarantees.md#selective-inference-why-the-e
 What it costs. Fitting adds a few candidates per parent and operator, and
 makes a fit on the Feynman panel about five times slower (about 0.2 s to
 1.1 s per equation). Fitted expressions also take beam slots, so enabling
-them can change what else a depth keeps: a constant-free candidate is never
-dropped as a near-duplicate of a fitted one, but it can be out-ranked. And
+them can change what else a depth keeps: within a depth, a constant-free
+candidate is never dropped as a near-duplicate of a fitted one, but it can be
+out-ranked, and at the end of the search it takes a fitted expression's place
+only as described under *Near copies*. And
 constants are fitted one at a time, greedily: a law needs its constant-free
 parts to be among a depth's best candidates first.
 

@@ -1817,7 +1817,10 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             as they are for the search itself. A fitted constant is part of
             the expression: ``transform`` and ``predict`` reuse it, and the
             formulas and :meth:`to_sympy` show it, as an exact fraction when
-            it was snapped to one.
+            it was snapped to one. A law the plain operators can write keeps
+            its plain form unless the snapping test, on the search rows,
+            rejects the null that the plain form fits as well: ``log(x0)``,
+            not a fitted near copy such as ``(x0)^(-0.02)``.
         certify_test: The test the ``parsimony_holdout`` re-test applies to
             each returned term on the held-back rows. ``"marginal"``
             (default) re-runs the configured selector, whose null is that the

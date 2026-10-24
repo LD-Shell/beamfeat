@@ -43,8 +43,17 @@ as a rider such as `(a*b/c) * x7` does.
   constant snaps to a simple value (0, ±1, ±2, ±3, ±1/2, ±3/2, ±1/3, ±1/4)
   when a likelihood-ratio test at level 0.001 fails to reject the null that
   it takes that value, never past the margin, and is exact in `to_sympy()`
-  and `latex()`. The screen sees
-  fixed expressions, so its guarantee is unchanged. `Node.const`,
+  and `latex()`. At the end of the search, a kept feature with fitted
+  constants gives way to a near copy with fewer (correlation at
+  `redundancy_threshold`, and no near copy of another kept feature) when the
+  same test, on the same rows, fails to reject the null that the copy fits
+  the target as well; the simplest such copy is taken. Without that step, a
+  constant fitted on the search rows bends an expression into a near copy of
+  a simple law that outscores the law there, and the equation prints
+  `(x0)^(-0.02)` for `log(x0)`: at 10% noise, `log(x0)`, `sqrt(x0)`, `1/x0`
+  and `x0^2` were printed as themselves in 0, 0, 2 and 2 of 10 fits, and
+  with it in 10, 7, 10 and 8 (10, 9, 10 and 8 with `fitted_ops=()`). The
+  screen sees fixed expressions, so its guarantee is unchanged. `Node.const`,
   `Node.n_constants`, `transform(..., const=...)`,
   `OperatorSpec.constant_grid`, `pole_margins`, `SearchTrace.n_fitted` and
   `beamfeat.parametric` support it.
@@ -213,13 +222,13 @@ as a rider such as `(a*b/c) * x7` does.
   exact form of the Gaussian, `exp(-0.5*(x0)^2)`, and of relativistic
   velocity addition, `(x0 + x1)/((x0*x1) + 1)`, which it previously
   approximated; the core suite recovers the same 10/10, Friedman #1 rises
-  from 0.745 to 0.766 and the other problems move by at most 0.0002; the
+  from 0.745 to 0.765 and the other problems move by at most 0.0004; the
   robustness suite recovers the same 5/5 with R² lower by at most 0.004; the
   end-to-end calibration gives no false discovery in 200 replicates (power
   1.000) and no selection in 60 global-null replicates, as before; the
   pure-noise pipeline stress is unchanged (BH 6/100, BY 1/100). On five
   high-dimensional sets (communities, superconductivity, tecator, eyedata,
-  riboflavin; 3 splits) the mean R² is 0.668 against 0.670, within noise.
+  riboflavin; 3 splits) the mean R² is 0.669 against 0.670, within noise.
   Fits take about 1.9 times as long on small data and 1.3 times on
   california housing. The benchmark scripts build their estimators at the
   defaults; `benchmarks/search_stress/with_options.py` with

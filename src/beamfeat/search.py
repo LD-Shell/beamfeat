@@ -71,7 +71,7 @@ from beamfeat.expression import (
     parametric_operators,
     transform,
 )
-from beamfeat.parametric import fit_constants_many
+from beamfeat.parametric import SNAP_LR, _correlation_rows, _statistic, fit_constants_many
 from beamfeat.scoring import (
     ColumnStats,
     CorrelationScorer,
@@ -101,6 +101,11 @@ SCORE_TIE_TOL = 1e-6
 # threshold, so that ``redundancy_threshold=1.0`` drops exact copies
 # consistently rather than according to how the rounding fell.
 EXACT_COPY_TOL = 1e-9
+
+# The 99.9% points of chi-squared variables with 1 to 8 degrees of freedom:
+# the level at which a fitted constant snaps to a simple value (SNAP_LR, one
+# degree), for a difference of that many fitted constants.
+_LR_CRITICAL = (SNAP_LR, 13.82, 16.27, 18.47, 20.52, 22.46, 24.32, 26.12)
 
 DEFAULT_UNARY = ("log", "sqrt", "reciprocal", "square", "abs")
 DEFAULT_BINARY = ("mul", "div", "add", "sub")
@@ -339,8 +344,11 @@ class BeamSearch:
             fitted pole keeps a margin from the data, and ``pow`` fits a
             negative power, whose pole is at 0, only where the operand stays
             more than that margin above 0 (see
-            :func:`~beamfeat.expression.pole_margins`). The fit sees only the
-            rows the search is given.
+            :func:`~beamfeat.expression.pole_margins`). At the end, a kept
+            expression with fitted constants gives way to a near copy with
+            fewer when the snapping test fails to reject the null that the
+            copy fits as well, so that ``log(x0)`` is returned rather than
+            ``(x0)^(-0.02)``. The fit sees only the rows the search is given.
         magnitude_slots: Beam slots added at each depth for candidates
             ranked by how well their magnitude tracks the target's, for
             laws whose parts do not correlate with the target. ``0``
@@ -1301,7 +1309,7 @@ class BeamSearch:
             if selected_values.shape[1]
             else np.asarray(selected_scores, dtype=np.float64)
         )
-        result = self._finalise(selected, selected_values, final_scores, evaluator, trace, started)
+        result = self._finalise(selected, selected_values, final_scores, evaluator, trace, started, fit_target)
         result.n_proposed_total = n_proposed_total
         result.n_evaluated_total = n_evaluated_total
         self.result_ = result
@@ -1326,13 +1334,22 @@ class BeamSearch:
         evaluator: Evaluator,
         trace: list[SearchTrace],
         started: float,
+        fit_target: np.ndarray | None = None,
     ) -> SearchResult:
-        """Rank, deduplicate, and truncate the accumulated selection."""
+        """Rank, deduplicate, and truncate the accumulated selection.
+
+        With ``fitted_ops``, a kept feature with fitted constants then gives
+        way to a near copy with fewer that fits as well; see
+        :meth:`_constant_free_copies`.
+        """
         limit = self.max_features if self.max_features is not None else self.beam_width
 
         n_redundant = 0
         if nodes:
-            nodes, _, scores, n_redundant = self._prune_redundant(nodes, values, scores, limit)
+            kept, _, kept_scores, n_redundant = self._prune_redundant(nodes, values, scores, limit)
+            if self.fitted_ops and fit_target is not None:
+                kept, kept_scores = self._constant_free_copies(nodes, values, scores, kept, fit_target)
+            nodes, scores = kept, kept_scores
         else:  # pragma: no cover - defensive
             scores = np.empty(0)
 
@@ -1344,6 +1361,80 @@ class BeamSearch:
             n_rejected_redundant_final=n_redundant,
             elapsed=time.perf_counter() - started,
         )
+
+    def _constant_free_copies(
+        self,
+        nodes: list[Node],
+        values: np.ndarray,
+        scores: np.ndarray,
+        kept: list[Node],
+        fit_target: np.ndarray,
+    ) -> tuple[list[Node], np.ndarray]:
+        """The final set, each feature with fitted constants swapped for a simpler near copy that fits as well.
+
+        A constant fitted on these rows bends an expression into a near copy
+        of whatever smooth law the target follows, such as ``(x0)^(-0.02)``
+        of ``log(x0)``. It outscores the law here by fitting the noise, so
+        the redundancy check keeps it and drops the law, and the equation
+        prints the near copy. Each kept feature that carries fitted
+        constants is therefore compared with the features the search
+        accumulated that are near copies of it (correlation at
+        ``redundancy_threshold``), carry fewer constants and are not kept.
+        The likelihood-ratio test that snaps a fitted constant to a simple
+        value decides, on the same rows and at the same level: the null is
+        that the copy fits the target as well, the statistic is
+        ``n * log(L_copy / L_kept)`` with ``L = 1 - r^2``, and it is
+        rejected above the 99.9% point of a chi-squared variable with one
+        degree of freedom per constant the copy does without. Of the copies
+        whose null the test fails to reject, the simplest takes the
+        feature's place, as the simplest snapped value does: the fewest
+        constants, then the fewest operators, then the best fit, so that
+        ``log(x0)`` is preferred to its exact copy ``log(sqrt(x0))``. A copy
+        that is a near-duplicate of another member is passed over, as the
+        redundancy check would pass it over. The set keeps its size and
+        every other member, and is ranked again.
+        """
+        position = {id(node): index for index, node in enumerate(nodes)}
+        chosen = [position[id(node)] for node in kept]
+        memo: dict[str, tuple[int, int]] = {}
+        sizes = [_counts(node, memo) for node in nodes]
+        constants = np.array([size[1] for size in sizes])
+        if not constants[chosen].any():
+            return kept, scores[chosen]
+        n_rows = values.shape[0]
+        standardised = _standardise_columns(values)
+        fits = _correlation_rows(values.T, fit_target)
+        cutoff = min(self.redundancy_threshold, 1.0 - EXACT_COPY_TOL)
+        taken = set(chosen)
+        for slot, index in enumerate(list(chosen)):
+            if constants[index] == 0 or not math.isfinite(fits[index]):
+                continue
+            copies = np.abs(standardised.T @ standardised[:, index]) / n_rows >= cutoff
+            others = [chosen[i] for i in range(len(chosen)) if i != slot]
+            best = None
+            for other in np.flatnonzero(copies & (constants < constants[index])):
+                other = int(other)
+                if other in taken or not math.isfinite(fits[other]):
+                    continue
+                # The set admits no near-duplicates; neither may the copy.
+                if others and float(np.max(np.abs(standardised[:, others].T @ standardised[:, other]))) / n_rows >= cutoff:
+                    continue
+                fewer = int(constants[index] - constants[other])
+                if _statistic(fits[other], fits[index], n_rows) > _LR_CRITICAL[min(fewer, len(_LR_CRITICAL)) - 1]:
+                    continue
+                if best is None or (sizes[other][1], sizes[other][0], -fits[other]) < (
+                    sizes[best][1], sizes[best][0], -fits[best]
+                ):
+                    best = other
+            if best is not None:
+                taken.discard(index)
+                taken.add(best)
+                chosen[slot] = best
+        if taken == {position[id(node)] for node in kept}:
+            return kept, scores[chosen]
+        swapped = [nodes[index] for index in chosen]
+        order = _rank(swapped, scores[chosen])
+        return [swapped[i] for i in order], scores[chosen][order]
 
     def __repr__(self) -> str:  # pragma: no cover - display only
         return (

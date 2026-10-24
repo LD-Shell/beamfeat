@@ -639,6 +639,62 @@ class TestSearch:
         assert np.array_equal(runs[0].scores, runs[1].scores)
 
 
+class TestConstantFreeCopies:
+    """A fitted near copy of a law gives way to the law unless the data reject it.
+
+    The swap at the end of the search uses the snapping test: the null that
+    the copy with fewer constants fits as well, on the search rows, at level
+    0.001."""
+
+    @staticmethod
+    def _final(x, y, nodes, kept):
+        values = np.column_stack([Evaluator({"x0": x}).evaluate(node) for node in nodes])
+        search = BeamSearch(fitted_ops=FITTED)
+        final, _ = search._constant_free_copies(nodes, values, np.zeros(len(nodes)), kept, _standardised(y))
+        return [node.name for node in final]
+
+    def test_a_fitted_copy_gives_way_to_the_law(self, rng):
+        x = rng.uniform(1, 3, 300)
+        y = np.log(x) + 0.03 * rng.standard_normal(300)
+        copy, law = transform("pow", leaf("x0"), const=-0.02), transform("log", leaf("x0"))
+        assert self._final(x, y, [copy, law], [copy]) == ["log(x0)"]
+
+    def test_the_fitted_law_stays_when_the_data_reject_the_copy(self, rng):
+        x = rng.uniform(1, 3, 300)
+        y = np.exp(-0.5 * x) + 1e-3 * rng.standard_normal(300)
+        law, copy = transform("exp_scaled", leaf("x0"), const=-0.5), transform("reciprocal", leaf("x0"))
+        assert abs(np.corrcoef(np.exp(-0.5 * x), 1 / x)[0, 1]) > 0.95   # a near copy, so the test decides
+        assert self._final(x, y, [law, copy], [law]) == ["exp(-0.5*x0)"]
+
+    def test_the_simplest_copy_is_taken(self, rng):
+        x = rng.uniform(1, 3, 300)
+        y = np.log(x) + 0.03 * rng.standard_normal(300)
+        copy = transform("pow", leaf("x0"), const=-0.02)
+        nested, law = transform("log", transform("sqrt", leaf("x0"))), transform("log", leaf("x0"))
+        assert self._final(x, y, [copy, nested, law], [copy]) == ["log(x0)"]
+
+    def test_a_copy_already_kept_is_not_taken_twice(self, rng):
+        x = rng.uniform(1, 3, 300)
+        y = np.log(x) + 0.03 * rng.standard_normal(300)
+        copy, law = transform("pow", leaf("x0"), const=-0.02), transform("log", leaf("x0"))
+        assert self._final(x, y, [copy, law], [copy, law]) == ["(x0)^(-0.02)", "log(x0)"]
+
+    def test_a_copy_that_duplicates_another_member_is_passed_over(self, rng):
+        x = rng.uniform(1, 3, 300)
+        y = np.log(x) + 0.03 * rng.standard_normal(300)
+        copy, law = transform("pow", leaf("x0"), const=-0.02), transform("log", leaf("x0"))
+        twin = transform("log", transform("sqrt", leaf("x0")))   # log(x0) / 2, kept already
+        assert self._final(x, y, [copy, law, twin], [copy, twin]) == ["(x0)^(-0.02)", "log(sqrt(x0))"]
+
+    def test_not_consulted_without_fitted_ops(self, rng, monkeypatch):
+        def consulted(*args, **kwargs):
+            raise AssertionError("consulted")
+
+        monkeypatch.setattr(BeamSearch, "_constant_free_copies", consulted)
+        X = rng.uniform(1, 3, (200, 3))
+        BeamSearch(max_depth=2, beam_width=10).run(X, np.log(X[:, 0]))
+
+
 # --------------------------------------------------------------------------- #
 # Estimators
 # --------------------------------------------------------------------------- #
@@ -682,6 +738,23 @@ class TestEstimators:
         y = (np.exp(-0.5 * X[:, 0] ** 2) > 0.3 * X[:, 1]).astype(int)
         model = BeamFeatClassifier(max_depth=2, beam_width=15, fitted_ops=FITTED).fit(X, y)
         assert model.score(X, y) > 0.9
+
+    @pytest.mark.parametrize(
+        ("law", "printed"),
+        [(np.log, "log(x0)"), (np.sqrt, "sqrt(x0)"), (np.reciprocal, "1/(x0)"), (np.square, "(x0)^2")],
+    )
+    def test_a_simple_law_prints_as_itself(self, law, printed):
+        # At 10% noise a fitted near copy, such as (x0)^(-0.02) for log(x0),
+        # fits the search rows a little better than the law; it used to
+        # displace the law and be printed.
+        rng = np.random.default_rng(0)
+        X = rng.uniform(1, 3, (300, 3))
+        signal = law(X[:, 0])
+        y = signal + 0.1 * signal.std() * rng.standard_normal(300)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = BeamFeatRegressor(random_state=0).fit(X, y)
+        assert model.formulas() == [printed]
 
 
 class TestRecovery:

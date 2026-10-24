@@ -22,8 +22,8 @@ BEAMFEAT_OPTIONS='{"fitted_ops": []}' \
 
 This reproduces the archived core-suite R² of every synthetic problem to
 within 1e-10. At the 0.6.0 defaults, the core suite recovers the same 10/10
-formulas, Friedman #1 rises from 0.745 to 0.766 and the other problems move
-by at most 0.0002; the robustness suite recovers the same 5/5, with R² lower
+formulas, Friedman #1 rises from 0.745 to 0.765 and the other problems move
+by at most 0.0004; the robustness suite recovers the same 5/5, with R² lower
 by at most 0.004 (the distractors at 50% noise, 0.776 to 0.772); and the
 end-to-end calibration below is unchanged.
 
@@ -246,7 +246,7 @@ other.
 
 ## Test suite
 
-955 tests at 97% statement coverage, with a 90% floor enforced in CI,
+965 tests at 97% statement coverage, with a 90% floor enforced in CI,
 including scikit-learn's full estimator-conformance checks.
 
 ## Corrections since the paper
