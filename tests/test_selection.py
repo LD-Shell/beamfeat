@@ -9,9 +9,12 @@ stricter per-trial reading.
 
 from __future__ import annotations
 
+import gc
+
 import numpy as np
 import pytest
 
+from beamfeat.estimators import _undefined_rows
 from beamfeat.expression import combine, leaf, transform
 from beamfeat.selection import (
     KnockoffSelector,
@@ -21,6 +24,7 @@ from beamfeat.selection import (
     _benjamini_hochberg,
     _benjamini_yekutieli,
     _ConditionalPermutationSelector,
+    _evaluate_stacked,
     _InputPermutationTest,
     knockoff_threshold,
     make_selector,
@@ -1029,3 +1033,18 @@ class TestInputPermutationTest:
             self._nodes()[:1], data, labels
         )
         assert set(result.selected.tolist()) == {0, 1}
+
+    def test_evaluation_leaves_no_reference_cycle(self):
+        # A cycle would hold the intermediates of every evaluation until the
+        # garbage collector ran: over 7 GB on California housing.
+        data, _ = self._data()
+        stacked = {**data, "x1": np.tile(data["x1"], (8, 1))}
+        gc.collect()
+        gc.disable()
+        try:
+            values = _evaluate_stacked(self._nodes()[1], stacked)
+            assert values.shape == (8, 300)
+            assert _undefined_rows(self._nodes()[1], data, 300).shape == (300,)
+            assert gc.collect() == 0
+        finally:
+            gc.enable()

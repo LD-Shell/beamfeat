@@ -781,23 +781,29 @@ def _evaluate_stacked(node: Node, data: Mapping[str, np.ndarray]) -> np.ndarray:
     order. Non-finite results are returned as they are, for the caller to
     count.
     """
-    cache: dict[str, np.ndarray] = {}
-
-    def walk(current: Node) -> np.ndarray:
-        values = cache.get(current.key)
-        if values is None:
-            if current.is_leaf:
-                values = np.asarray(data[str(current.column)], dtype=np.float64)
-            else:
-                operands = [walk(child) for child in current.children]
-                if current.const is not None:
-                    operands.append(current.const)
-                values = np.asarray(OPERATORS[current.op].fn(*operands), dtype=np.float64)
-            cache[current.key] = values
-        return values
-
     with np.errstate(all="ignore"):
-        return walk(node)
+        return _walk_stacked(node, data, {})
+
+
+def _walk_stacked(current: Node, data: Mapping[str, np.ndarray], cache: dict[str, np.ndarray]) -> np.ndarray:
+    """:func:`_evaluate_stacked` below ``current``, each subexpression once.
+
+    A module-level function rather than a closure: a nested function that
+    calls itself is a reference cycle, which kept every intermediate in
+    ``cache`` alive until the garbage collector ran, over 7 GB in the input
+    test on 7,000 selection rows.
+    """
+    values = cache.get(current.key)
+    if values is None:
+        if current.is_leaf:
+            values = np.asarray(data[str(current.column)], dtype=np.float64)
+        else:
+            operands = [_walk_stacked(child, data, cache) for child in current.children]
+            if current.const is not None:
+                operands.append(current.const)
+            values = np.asarray(OPERATORS[current.op].fn(*operands), dtype=np.float64)
+        cache[current.key] = values
+    return values
 
 
 class _InputPermutationTest(PermutationSelector):

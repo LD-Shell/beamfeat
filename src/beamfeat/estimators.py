@@ -103,22 +103,30 @@ def _undefined_rows(node: Node, data: Mapping[str, np.ndarray], n_rows: int) -> 
     one failure this pass cannot see, since it leaves finite values behind;
     :func:`_evaluate_by_row` checks the remaining rows for it.
     """
-    def walk(current: Node) -> tuple[np.ndarray, np.ndarray]:
-        if current.is_leaf:
-            values = np.asarray(data[str(current.column)], dtype=np.float64)
-            return values, ~np.isfinite(values)
-        operands, undefined = [], np.zeros(n_rows, dtype=bool)
-        for child in current.children:
-            values, child_undefined = walk(child)
-            operands.append(values)
-            undefined |= child_undefined
-        if current.const is not None:
-            operands.append(current.const)
-        with np.errstate(all="ignore"):
-            values = np.asarray(OPERATORS[current.op].fn(*operands), dtype=np.float64)
-        return values, undefined | ~np.isfinite(values)
+    return _walk_undefined(node, data, n_rows)[1]
 
-    return walk(node)[1]
+
+def _walk_undefined(
+    current: Node, data: Mapping[str, np.ndarray], n_rows: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Values of ``current`` and its undefined-row mask, for :func:`_undefined_rows`.
+
+    Module-level, not a closure that calls itself, which would be a
+    reference cycle holding ``data`` until the garbage collector ran.
+    """
+    if current.is_leaf:
+        values = np.asarray(data[str(current.column)], dtype=np.float64)
+        return values, ~np.isfinite(values)
+    operands, undefined = [], np.zeros(n_rows, dtype=bool)
+    for child in current.children:
+        values, child_undefined = _walk_undefined(child, data, n_rows)
+        operands.append(values)
+        undefined |= child_undefined
+    if current.const is not None:
+        operands.append(current.const)
+    with np.errstate(all="ignore"):
+        values = np.asarray(OPERATORS[current.op].fn(*operands), dtype=np.float64)
+    return values, undefined | ~np.isfinite(values)
 
 
 def _evaluate_by_row(node: Node, data: Mapping[str, np.ndarray], units, n_rows: int) -> np.ndarray:

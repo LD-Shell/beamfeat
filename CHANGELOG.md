@@ -36,6 +36,16 @@ Notable changes to `beamfeat`. Format follows
   re-test's fallback to the screened set (92% of fits at signal to noise 1,
   under 1% with the check).
 
+### Fixed
+
+- Memory of `input_test`. The expression evaluation behind it was a nested
+  function that called itself, a reference cycle that kept the
+  intermediates of every evaluation alive until Python's garbage collector
+  happened to run. On California housing (7,224 selection rows, 133
+  term-column pairs) a fit passed 7 GB without finishing; it now finishes in
+  80 s using 0.55 GB, with the same terms. The undefined-row pass behind
+  `predict` had the same cycle, holding its input until collected.
+
 ## [0.6.0] - 2026-10-24
 
 0.5.1 was prepared but not released; its options are part of this release
