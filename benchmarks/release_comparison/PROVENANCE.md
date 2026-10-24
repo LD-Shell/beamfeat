@@ -11,7 +11,7 @@ from `REPORT.md` or `TABLES.md`.
 | 0.4.2 | the release the TMLR paper describes, from its tag |
 | 0.5.0 | from its tag |
 | 0.6.0 | from its tag |
-| 0.6.1 | this repository, at the commit that adds this folder |
+| 0.6.1 | this repository: the studies ran before the input_test memory fix and the rest after it, which changes no fit; later commits change documentation and the version only |
 
 Each release has its own environment with the same stack: Python 3.12,
 numpy 2.5.4, scipy 1.18.1, scikit-learn 1.9.1, pandas 3.1.0, sympy 1.14.0.

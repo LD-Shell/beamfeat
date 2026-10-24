@@ -4,7 +4,12 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.6.1] - 2026-10-24
+
+Default fits are those of 0.6.0, feature for feature. This release fixes the
+memory of `input_test`, adds two options that are off by default
+(`parsimony_alpha` and `KnockoffSelector(s_method="ci")`), and adds a
+comparison of the releases since the paper's.
 
 ### Added
 
@@ -51,6 +56,27 @@ Notable changes to `beamfeat`. Format follows
   term-column pairs) a fit passed 7 GB without finishing; it now finishes in
   80 s using 0.55 GB, with the same terms. The undefined-row pass behind
   `predict` had the same cycle, holding its input until collected.
+
+### Benchmarks
+
+- `release_comparison/` runs the same benchmarks, data, splits and seeds
+  through 0.4.2 (the paper's release), 0.5.0, 0.6.0 and 0.6.1 on one
+  software stack, at their defaults and with the options of 0.6.0 and 0.6.1:
+  about 16,000 fits, with speed and memory. 0.5.0 gives 0.4.2's fits on 1,415
+  of 1,430 items, 3.2 times faster with a fifth of the memory; 0.6.0 with
+  `fitted_ops=()` gives 0.5.0's on all 1,430, and 0.6.1's defaults give
+  0.6.0's. `archive_check.py` refits 0.4.2 with the paper scripts' own
+  settings: it reproduces the archived Feynman panel and 19 of the 25
+  `run_benchmarks.py` datasets exactly.
+
+### Documentation
+
+- The Benchmarks page's "Corrections since the paper" is now "Reading the
+  paper today", with the two bugs, the figures from runs made under an
+  earlier release (riboflavin, the independent comparison and, newly noted,
+  threshold_step: 0.808 in the paper, 0.843 from 0.4.2) and speed kept apart.
+  The old link still leads there.
+- The Benchmarks page and the README link the release comparison.
 
 ## [0.6.0] - 2026-10-24
 

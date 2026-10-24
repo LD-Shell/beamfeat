@@ -1,7 +1,7 @@
 # beamfeat
 
 [![CI](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml/badge.svg)](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-965%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-988%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
 [![PyPI](https://img.shields.io/pypi/v/beamfeat)](https://pypi.org/project/beamfeat/)
 [![Python](https://img.shields.io/badge/python-3.10%E2%80%933.15-blue)](https://github.com/LD-Shell/beamfeat)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE)
@@ -61,7 +61,7 @@ pip install "beamfeat[display]"   # + sympy, for to_sympy() and latex()
 pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
-Python 3.10 or newer, with no upper version pins: the 965 tests pass on
+Python 3.10 or newer, with no upper version pins: the 988 tests pass on
 Python 3.10 to 3.15 with the newest releases each supports, and the suite runs
 on the oldest supported stack too.
 [Installation](https://ld-shell.github.io/beamfeat/installation/) lists the
