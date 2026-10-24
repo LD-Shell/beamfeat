@@ -169,7 +169,7 @@ five seeds each so that every cell holds ten fits, each in an isolated
 subprocess. Left block independent columns, right block
 equicorrelated.
 
-| p | sec | MB | recov | false | sec | MB | recov | false |
+| p | independent: time (s) | memory (MB) | recovered | false | equicorrelated: time (s) | memory (MB) | recovered | false |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: |
 | 10 | 1.0 | 293 | 1.00 | 0.00 | 1.1 | 296 | 1.00 | 0.00 |
 | 30 | 1.9 | 340 | 1.00 | 0.00 | 1.9 | 343 | 1.00 | 0.00 |

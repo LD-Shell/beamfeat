@@ -22,7 +22,7 @@ BEAMFEAT_OPTIONS='{"fitted_ops": []}' \
 ```
 
 This reproduces the archived core-suite R² of every synthetic problem to
-within 1e-10. At the 0.6.0 defaults, the core suite recovers the same 10/10
+within 1e-10. At the current defaults (since 0.6.0), the core suite recovers the same 10/10
 formulas, Friedman #1 rises from 0.745 to 0.765 and the other problems move
 by at most 0.0004; the robustness suite recovers the same 5/5, with R² lower
 by at most 0.004 (the distractors at 50% noise, 0.776 to 0.772); and the
@@ -258,8 +258,8 @@ defaults:
 | Feynman panel, solved of 60 | 47 | 47 | 50 | 50 |
 | Riders at signal to noise 1 (conditional FDR) | 0.736 | 0.736 | 0.720 | 0.720 |
 | 7 real datasets, mean held-out score | 0.725 | 0.726 | 0.726 | 0.726 |
-| Fit time, x 0.5.0 | 3.18 | 1.00 | 1.53 | 1.54 |
-| Peak fit memory, x 0.5.0 | 5.27 | 1.00 | 1.08 | 1.10 |
+| Fit time (× 0.5.0) | 3.18 | 1.00 | 1.53 | 1.54 |
+| Peak fit memory (× 0.5.0) | 5.27 | 1.00 | 1.08 | 1.10 |
 
 0.5.0 gives 0.4.2's fits on 1,415 of 1,430 items in a third of the time.
 0.6.0's changes to the fits all come from `fitted_ops`, and 0.6.1's default

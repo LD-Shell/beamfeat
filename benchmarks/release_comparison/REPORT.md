@@ -54,8 +54,8 @@ paper's numbers).
 | Suite, 7 real datasets: mean score | 0.7246 | 0.7259 | 0.7263 | 0.7263 |
 | High-dimensional, 5 datasets: mean R² | 0.609 | 0.585 | 0.600 | 0.600 |
 | Junk-column equations (of 40) | 21 | 21 | 23 | 23 |
-| Fit time, x 0.5.0 (geometric mean of 8 items) | 3.18 | 1.00 | 1.53 | 1.54 |
-| Peak fit memory, x 0.5.0 | 5.27 | 1.00 | 1.08 | 1.10 |
+| Fit time (× 0.5.0, geometric mean of 8 items) | 3.18 | 1.00 | 1.53 | 1.54 |
+| Peak fit memory (× 0.5.0) | 5.27 | 1.00 | 1.08 | 1.10 |
 
 The high-dimensional means differ through riboflavin alone, whose five
 splits swing by up to 0.35 between near-tied fits (0.526, 0.405, 0.506 and
@@ -90,7 +90,7 @@ Each fit in a fresh process on one core, median of 3; memory is the peak
 added by the fit. 0.4.2 was timed in a second pass beside 0.5.0, whose times
 there matched the main pass to within 0.02 s.
 
-| item | 0.4.2 s | 0.5.0 s | 0.6.0 s | 0.6.1 s | 0.4.2 MB | 0.5.0 MB | 0.6.0 MB | 0.6.1 MB |
+| item | 0.4.2 (s) | 0.5.0 (s) | 0.6.0 (s) | 0.6.1 (s) | 0.4.2 (MB) | 0.5.0 (MB) | 0.6.0 (MB) | 0.6.1 (MB) |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: |
 | planted design, n = 1,000 | 0.99 | 0.28 | 0.61 | 0.62 | 260 | 50 | 52 | 52 |
 | stress law, p = 100 | 3.92 | 0.75 | 1.00 | 1.01 | 315 | 57 | 66 | 66 |
@@ -108,15 +108,15 @@ other than friedman1 and threshold_step; "better / same / worse" means the
 mean held-out score moved by more than 0.005. Time and memory are geometric
 means over the 8 items.
 
-| option | real: better / same / worse | worst real change | terms on real data | riders at snr 1 | time | memory |
+| option | real datasets: better / same / worse | worst real change (R²) | mean terms on real data | riders at snr 1 (Δ conditional FDR) | time (× default) | memory (× default) |
 | :-- | --: | :-- | --: | --: | --: | --: |
-| `fitted_ops=()` (0.5.0's search) | 1 / 8 / 3 | riboflavin -0.101 | 13.3 → 13.9 | +0.016 | x0.66 | x0.93 |
-| `magnitude_slots=10` | 0 / 10 / 1 | superconduct -0.006 | 13.3 → 12.4 | +0.002 | x1.21 | x1.09 |
-| `input_test=True` (0.6.1) | 0 / 5 / 7 | riboflavin -0.065 | 13.3 → 10.5 | -0.541 | x5.2 | x1.6 |
-| conditional re-test | 1 / 4 / 6 | riboflavin -1.428 | 13.3 → 23.9 | -0.025 | x1.02 | x0.99 |
-| `selection_correction="bh"` | 1 / 11 / 0 | none | 13.3 → 13.3 | 0.000 | x0.97 | x0.98 |
-| `parsimony_alpha=0.05` | 1 / 3 / 8 | riboflavin -0.200 | 13.3 → 3.4 | -0.657 | x1.00 | x0.99 |
-| `parsimony_alpha` + `input_test` | 1 / 1 / 10 | riboflavin -0.226 | 13.3 → 3.4 | -0.673 | x5.2 | x1.6 |
+| `fitted_ops=()` (0.5.0's search) | 1 / 8 / 3 | riboflavin -0.101 | 13.3 → 13.9 | +0.016 | 0.66 | 0.93 |
+| `magnitude_slots=10` | 0 / 10 / 1 | superconduct -0.006 | 13.3 → 12.4 | +0.002 | 1.21 | 1.09 |
+| `input_test=True` (0.6.1) | 0 / 5 / 7 | riboflavin -0.065 | 13.3 → 10.5 | -0.541 | 5.2 | 1.6 |
+| conditional re-test | 1 / 4 / 6 | riboflavin -1.428 | 13.3 → 23.9 | -0.025 | 1.02 | 0.99 |
+| `selection_correction="bh"` | 1 / 11 / 0 | none | 13.3 → 13.3 | 0.000 | 0.97 | 0.98 |
+| `parsimony_alpha=0.05` | 1 / 3 / 8 | riboflavin -0.200 | 13.3 → 3.4 | -0.657 | 1.00 | 0.99 |
+| `parsimony_alpha` + `input_test` | 1 / 1 / 10 | riboflavin -0.226 | 13.3 → 3.4 | -0.673 | 5.2 | 1.6 |
 
 What they are for, as these results show it:
 

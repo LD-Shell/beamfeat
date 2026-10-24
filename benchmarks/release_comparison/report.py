@@ -360,7 +360,7 @@ def releases_summary(d):
             ("Suite, 18 synthetic datasets: mean score", "synthetic"), ("Suite, 7 real datasets: mean score", "real"),
             ("Known formulas: recovered / false-feature rate", "recovered"),
             ("High-dimensional, 5 datasets: mean R²", "highdim"), ("Junk-column equations (of 40)", "junk"),
-            ("Fit time, x 0.5.0 (geometric mean, 8 items)", "seconds"), ("Peak fit memory, x 0.5.0", "fit_mb")]
+            ("Fit time (× 0.5.0, geometric mean of 8 items)", "seconds"), ("Peak fit memory (× 0.5.0)", "fit_mb")]
     out = ["## 0. The releases at their defaults", "",
            "Means over the items of each study (sections 1-9 below). Designs pool the planted and proxy designs, "
            "200 fits per signal-to-noise ratio, q = 0.1.", "",
@@ -435,7 +435,7 @@ def scorecard(d):
            "datasets; better / same / worse = mean held-out score over the 5 splits differs by more than 0.005. "
            "Time and memory: geometric-mean ratio over the perf items both settings finished.", "",
            "| option | real: better / same / worse | real: median Δ | real: worst Δ | synthetic: better / same / worse | "
-           "terms (real, mean) | designs Δ cond. FDR, snr 1 | time × | memory × |",
+           "mean terms (real) | designs Δ cond. FDR, snr 1 | time (× default) | memory (× default) |",
            "| :-- | --: | --: | :-- | --: | --: | --: | --: | --: |"]
     for v, c in [(("0.4.2", "default"), ("0.5.0", "default")), (("0.5.0", "default"), ("0.6.0", "default"))] + \
             [((v, "default"), (v, c)) for v, c in OPTIONS]:
@@ -469,8 +469,9 @@ def perf():
     out = ["## 9. Speed and memory (each fit in a fresh process, one core, settings interleaved; median of 3)", "",
            "Seconds of wall time for the fit; memory = peak RSS during the fit minus RSS just before it (MB). "
            "\"> 3 GB\" = stopped by the 3 GB guard (0.6.0 `input_test` on California, before the fix).", ""]
-    for metric, title, fmt in (("seconds", "Fit time (s)", "{:.2f}"), ("fit_mb", "Peak memory added by the fit (MB)", "{:.0f}")):
-        out += [f"### {title}", "", "| item | " + " | ".join(label(v, c) for v, c in settings) + " |",
+    for metric, title, unit, fmt in (("seconds", "Fit time", "s", "{:.2f}"),
+                                     ("fit_mb", "Peak memory added by the fit", "MB", "{:.0f}")):
+        out += [f"### {title} ({unit})", "", "| item | " + " | ".join(f"{label(v, c)} ({unit})" for v, c in settings) + " |",
                 "| :-- |" + " --: |" * len(settings)]
         for item in items:
             vals = []
@@ -481,7 +482,7 @@ def perf():
         out.append("")
     # Geometric-mean ratio to 0.5.0 default over items.
     out += ["### Ratio to 0.5.0 default (geometric mean over the items each setting finished)", "",
-            "| setting | time × | memory × | items |", "| :-- | --: | --: | --: |"]
+            "| setting | time (× 0.5.0) | memory (× 0.5.0) | items |", "| :-- | --: | --: | --: |"]
     for v, c in settings:
         rt, rm = [], []
         for item in items:
@@ -501,15 +502,15 @@ def perf():
                 "0.4.2 was added after the main pass and timed in a pass of its own, alternating with 0.5.0 by the same "
                 "protocol. Its ratios are taken against the 0.5.0 of that pass; the last column checks that pass "
                 "against the main one.", "",
-                "| item | 0.4.2 s | 0.5.0 s | 0.4.2 MB | 0.5.0 MB | 0.5.0 s, main pass |", "| :-- | --: | --: | --: | --: | --: |"]
+                "| item | 0.4.2 (s) | 0.5.0 (s) | 0.4.2 (MB) | 0.5.0 (MB) | 0.5.0, main pass (s) |", "| :-- | --: | --: | --: | --: | --: |"]
         for item in dict.fromkeys(r["item"] for r in second):
             med = lambda src, v, m: np.median([r[m] for r in src if r["item"] == item and r["version"] == v  # noqa: E731
                                                and r["config"] == "default" and "error" not in r])
             out.append(f"| {item} | {med(second, '0.4.2', 'seconds'):.2f} | {med(second, '0.5.0', 'seconds'):.2f} | "
                        f"{med(second, '0.4.2', 'fit_mb'):.0f} | {med(second, '0.5.0', 'fit_mb'):.0f} | "
                        f"{med(rows, '0.5.0', 'seconds'):.2f} |")
-        out += ["", f"0.4.2 against 0.5.0: time x{perf_ratio(('0.5.0', 'default'), ('0.4.2', 'default'), 'seconds'):.2f}, "
-                f"memory x{perf_ratio(('0.5.0', 'default'), ('0.4.2', 'default'), 'fit_mb'):.2f}.", ""]
+        out += ["", f"0.4.2 against 0.5.0: time × {perf_ratio(('0.5.0', 'default'), ('0.4.2', 'default'), 'seconds'):.2f}, "
+                f"memory × {perf_ratio(('0.5.0', 'default'), ('0.4.2', 'default'), 'fit_mb'):.2f}.", ""]
     return "\n".join(out)
 
 

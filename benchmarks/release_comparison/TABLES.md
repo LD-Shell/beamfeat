@@ -21,8 +21,8 @@ Means over the items of each study (sections 1-9 below). Designs pool the plante
 | Known formulas: recovered / false-feature rate | 1.000 / 0.000 | 1.000 / 0.000 | 1.000 / 0.000 | 1.000 / 0.000 |
 | High-dimensional, 5 datasets: mean R² | 0.609 | 0.585 | 0.600 | 0.600 |
 | Junk-column equations (of 40) | 21/40 | 21/40 | 23/40 | 23/40 |
-| Fit time, x 0.5.0 (geometric mean, 8 items) | 3.18 | 1.00 | 1.53 | 1.54 |
-| Peak fit memory, x 0.5.0 | 5.27 | 1.00 | 1.08 | 1.10 |
+| Fit time (× 0.5.0, geometric mean of 8 items) | 3.18 | 1.00 | 1.53 | 1.54 |
+| Peak fit memory (× 0.5.0) | 5.27 | 1.00 | 1.08 | 1.10 |
 
 ## 1. Calibration designs (`parsimony_holdout` designs; q = 0.1; 20 cells x 50 seeds)
 
@@ -296,7 +296,7 @@ Seconds of wall time for the fit; memory = peak RSS during the fit minus RSS jus
 
 ### Fit time (s)
 
-| item | **0.5.0** | **0.6.0** | **0.6.1** | 0.6.0 no_fitted_ops | 0.6.0 magnitude_slots | 0.6.0 input_test | 0.6.0 conditional_retest | 0.6.0 bh | 0.6.1 parsimony_alpha | 0.6.1 alpha_input_test | 0.6.1 input_test |
+| item | **0.5.0** (s) | **0.6.0** (s) | **0.6.1** (s) | 0.6.0 no_fitted_ops (s) | 0.6.0 magnitude_slots (s) | 0.6.0 input_test (s) | 0.6.0 conditional_retest (s) | 0.6.0 bh (s) | 0.6.1 parsimony_alpha (s) | 0.6.1 alpha_input_test (s) | 0.6.1 input_test (s) |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
 | designs/planted_snr3_n1000_k20:0 | 0.28 | 0.61 | 0.62 | 0.29 | 0.72 | 8.50 | 0.63 | 0.59 | 0.60 | 6.34 | 6.39 |
 | stress/triple_unif_p100:0 | 0.75 | 1.00 | 1.01 | 0.80 | 1.33 | 1.02 | 1.01 | 1.00 | 1.02 | 1.01 | 1.02 |
@@ -309,7 +309,7 @@ Seconds of wall time for the fit; memory = peak RSS during the fit minus RSS jus
 
 ### Peak memory added by the fit (MB)
 
-| item | **0.5.0** | **0.6.0** | **0.6.1** | 0.6.0 no_fitted_ops | 0.6.0 magnitude_slots | 0.6.0 input_test | 0.6.0 conditional_retest | 0.6.0 bh | 0.6.1 parsimony_alpha | 0.6.1 alpha_input_test | 0.6.1 input_test |
+| item | **0.5.0** (MB) | **0.6.0** (MB) | **0.6.1** (MB) | 0.6.0 no_fitted_ops (MB) | 0.6.0 magnitude_slots (MB) | 0.6.0 input_test (MB) | 0.6.0 conditional_retest (MB) | 0.6.0 bh (MB) | 0.6.1 parsimony_alpha (MB) | 0.6.1 alpha_input_test (MB) | 0.6.1 input_test (MB) |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
 | designs/planted_snr3_n1000_k20:0 | 50 | 52 | 52 | 50 | 53 | 598 | 51 | 52 | 52 | 51 | 52 |
 | stress/triple_unif_p100:0 | 57 | 66 | 66 | 58 | 69 | 66 | 58 | 58 | 58 | 65 | 66 |
@@ -322,7 +322,7 @@ Seconds of wall time for the fit; memory = peak RSS during the fit minus RSS jus
 
 ### Ratio to 0.5.0 default (geometric mean over the items each setting finished)
 
-| setting | time × | memory × | items |
+| setting | time (× 0.5.0) | memory (× 0.5.0) | items |
 | :-- | --: | --: | --: |
 | **0.5.0** | 1.00 | 1.00 | 8/8 |
 | **0.6.0** | 1.53 | 1.08 | 8/8 |
@@ -340,7 +340,7 @@ Seconds of wall time for the fit; memory = peak RSS during the fit minus RSS jus
 
 0.4.2 was added after the main pass and timed in a pass of its own, alternating with 0.5.0 by the same protocol. Its ratios are taken against the 0.5.0 of that pass; the last column checks that pass against the main one.
 
-| item | 0.4.2 s | 0.5.0 s | 0.4.2 MB | 0.5.0 MB | 0.5.0 s, main pass |
+| item | 0.4.2 (s) | 0.5.0 (s) | 0.4.2 (MB) | 0.5.0 (MB) | 0.5.0, main pass (s) |
 | :-- | --: | --: | --: | --: | --: |
 | designs/planted_snr3_n1000_k20:0 | 0.99 | 0.28 | 260 | 50 | 0.28 |
 | stress/triple_unif_p100:0 | 3.92 | 0.74 | 315 | 57 | 0.75 |
@@ -351,13 +351,13 @@ Seconds of wall time for the fit; memory = peak RSS during the fit minus RSS jus
 | highdim/superconduct:0 | 5.00 | 1.37 | 1462 | 62 | 1.36 |
 | highdim/riboflavin:0 | 19.57 | 4.86 | 338 | 167 | 4.87 |
 
-0.4.2 against 0.5.0: time x3.18, memory x5.27.
+0.4.2 against 0.5.0: time × 3.18, memory × 5.27.
 
 ## 10. Option scorecard (each option against its own release's default)
 
 Datasets: the 7 real suite datasets and the 5 high-dimensional ones (12), and the 18 synthetic suite datasets; better / same / worse = mean held-out score over the 5 splits differs by more than 0.005. Time and memory: geometric-mean ratio over the perf items both settings finished.
 
-| option | real: better / same / worse | real: median Δ | real: worst Δ | synthetic: better / same / worse | terms (real, mean) | designs Δ cond. FDR, snr 1 | time × | memory × |
+| option | real: better / same / worse | real: median Δ | real: worst Δ | synthetic: better / same / worse | mean terms (real) | designs Δ cond. FDR, snr 1 | time (× default) | memory (× default) |
 | :-- | --: | --: | :-- | --: | --: | --: | --: | --: |
 | **0.5.0** vs **0.4.2** | 1 / 10 / 1 | +0.0000 | riboflavin -0.121 | 0 / 18 / 0 | 13.6 → 13.9 | 0.000 ± 0.000 | 0.31 | 0.19 |
 | **0.6.0** vs **0.5.0** | 3 / 8 / 1 | +0.0008 | eyedata -0.036 | 1 / 16 / 1 | 13.9 → 13.3 | -0.016 ± 0.004 | 1.53 | 1.08 |
