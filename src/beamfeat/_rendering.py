@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 from sklearn.utils.validation import check_is_fitted
 
-from beamfeat.expression import Node
+from beamfeat.expression import Node, _import_sympy
 
 
 def _label(value: Any) -> str:
@@ -178,7 +178,7 @@ def _render_linear_latex(
     its sympy form in ``expressions``, and parenthesised when it is a sum or
     starts with a sign, so the coefficient multiplies all of it.
     """
-    import sympy
+    sympy = _import_sympy()
 
     terms, offset = _linear_terms(coefficients, intercept, scaler, max_terms)
     parts = []

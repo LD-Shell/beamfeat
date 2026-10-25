@@ -543,11 +543,13 @@ class TestLatex:
         monkeypatch.setitem(sys.modules, "sympy", None)
         with pytest.raises(ImportError) as from_to_sympy:
             model.to_sympy()
+        # The message names the extra that installs it.
+        assert "pip install 'beamfeat[display]'" in str(from_to_sympy.value)
         for method in (model.latex, model.latex_formulas):
             with pytest.raises(ImportError) as raised:
                 method()
             assert type(raised.value) is type(from_to_sympy.value)
-            assert "sympy" in str(raised.value)
+            assert str(raised.value) == str(from_to_sympy.value)
 
 
 class TestLambdifyExport:

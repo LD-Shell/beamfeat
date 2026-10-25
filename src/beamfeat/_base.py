@@ -21,7 +21,7 @@ from sklearn.utils.validation import check_is_fitted
 from beamfeat._forward import forward_path
 from beamfeat._prediction import _evaluate_by_row
 from beamfeat._rendering import _equation_list, _EquationsMixin
-from beamfeat.expression import Evaluator, Node, _sympy_symbols
+from beamfeat.expression import Evaluator, Node, _import_sympy, _sympy_symbols
 from beamfeat.scoring import Scorer, is_constant
 from beamfeat.search import DEFAULT_BINARY, DEFAULT_FITTED, DEFAULT_UNARY, BeamSearch, report
 from beamfeat.selection import (
@@ -1270,7 +1270,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         required, as it is there; the formulas are in the order of
         :attr:`feature_formulas_`.
         """
-        import sympy
+        sympy = _import_sympy()
 
         return [sympy.latex(expression) for expression in self.to_sympy()]
 

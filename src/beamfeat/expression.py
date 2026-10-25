@@ -387,7 +387,7 @@ class Node:
             args.append(_sympy_constant(self.const))
         builder = _SYMPY_BUILDERS.get(self.op)
         if builder is None:  # pragma: no cover - defensive
-            import sympy
+            sympy = _import_sympy()
 
             return sympy.Function(self.op)(*args)
         return builder(*args)
@@ -512,9 +512,21 @@ def _const_factor(const: float) -> str:
     return f"({text})" if "/" in text else text
 
 
+def _import_sympy() -> Any:
+    """Import sympy, an optional dependency, or name the extra that installs it."""
+    try:
+        import sympy
+    except ImportError:
+        raise ImportError(
+            "to_sympy(), latex() and latex_formulas() render with sympy, which is "
+            "not installed. Install it with pip install 'beamfeat[display]'."
+        ) from None
+    return sympy
+
+
 def _sympy_constant(const: float) -> Any:
     """A fitted constant as a sympy number: exact when it is a simple fraction."""
-    import sympy
+    sympy = _import_sympy()
 
     fraction = _simple_fraction(const)
     if fraction is not None:
@@ -563,7 +575,7 @@ def _sympy_symbols(columns: Iterable[str]) -> dict[str, Any]:
     and a sanitised name that is already taken gets a numeric suffix, so two
     columns never share a symbol.
     """
-    import sympy
+    sympy = _import_sympy()
 
     ordered = sorted(set(columns))
     names = {column: column for column in ordered if _sympy_safe(column) == column}
@@ -788,7 +800,7 @@ def _read_only(values: np.ndarray) -> np.ndarray:
 
 def _sympy_builders() -> dict[str, Callable[..., Any]]:
     """Lazily construct sympy builders so sympy is imported only on demand."""
-    import sympy
+    sympy = _import_sympy()
 
     return {
         "reciprocal": lambda x: 1 / x,

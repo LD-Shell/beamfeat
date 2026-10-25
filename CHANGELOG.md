@@ -76,6 +76,9 @@ forward step without `parsimony_alpha` is deprecated.
 - The `parsimony_holdout` re-test's warnings name the line of `fit` that
   raised them, as every other fit-time warning does, rather than a line
   inside the fit's internals.
+- `to_sympy()`, `latex()` and `latex_formulas()` without sympy raise an
+  `ImportError` that says to install `beamfeat[display]`, rather than a bare
+  `No module named 'sympy'`.
 
 ## [0.6.1] - 2026-10-24
 
