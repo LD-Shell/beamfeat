@@ -101,6 +101,12 @@ config:
     wrappingWidth: 600
 ---
 flowchart LR
+    %% scoring's arrows come first so that it sits top right, clear of GitHub's zoom buttons
+    expression --> scoring
+    search --> scoring
+    _base --> scoring
+    estimators --> scoring
+    stability --> scoring
     estimators --> _base
     estimators --> _rendering
     estimators --> search
@@ -119,11 +125,6 @@ flowchart LR
     _rendering --> expression
     _prediction --> expression
     _operators -->|"registers the<br/>built-in operators"| expression
-    expression --> scoring
-    search --> scoring
-    _base --> scoring
-    estimators --> scoring
-    stability --> scoring
     stability --> search
 ```
 
