@@ -15,12 +15,11 @@ model = BeamFeatRegressor(max_depth=2, beam_width=25, random_state=0).fit(X, y)
 
 ## Columns that carry no data
 
-A column with no variation cannot be selected — it standardises to zeros, so
-its association with the target is zero wherever it appears. That is the right
-outcome and costs nothing, but in the output it looks the same as a column
-that simply does not matter, so it is reported. Real tables have such columns
-more often than one would think: in the UJIIndoorLoc Wi-Fi fingerprints,
-dozens of access points never register at all.
+A column with no variation cannot be selected: it standardises to zeros, so
+its association with the target is zero wherever it appears. That costs
+nothing, but it looks the same as a column that does not matter, so it is
+reported. Real tables have such columns more often than one would think: in
+the UJIIndoorLoc Wi-Fi fingerprints, dozens of access points never register.
 
 ```python
 stuck = np.full((400, 1), 9.81)               # a sensor stuck at one reading
@@ -118,15 +117,13 @@ denominator can stay clear of zero on the training rows and reach it a little
 beyond them, where the quotient takes any size and either sign. Two things
 guard against it.
 
-The search rules out a quotient whose denominator comes closer to zero on the
-search rows than the margin a fitted pole keeps, or crosses it: twice the
-spread of its ten values nearest zero, and at least 1% of its range
-([Constants inside expressions](search.md#constants-inside-expressions)
-describes the margin). On the 172 training samples of tecator's own split,
-the denominator of `(x41 - x43) / (x41 - x54)` runs from -0.75 to -0.10, and
-its ten values nearest zero are spread over more than half their distance
-from it. The search sees half of those samples, and on 986 of 1,000 random
-halves it rules the formula out.
+The search rules out a quotient whose denominator crosses zero on the
+search rows, or comes closer to it than a margin: twice the spread of its
+ten values nearest zero, and at least 1% of its range. On the 172 training
+samples of tecator's own split, the denominator of
+`(x41 - x43) / (x41 - x54)` runs from -0.75 to -0.10, its ten values nearest
+zero spread over more than half their distance from it; on 986 of 1,000
+random halves of those samples, the search rules the formula out.
 
 `predict`, `transform` and the probability methods compare each feature on
 the new rows with its range on the training rows, kept in `feature_ranges_`,
@@ -163,8 +160,8 @@ denominator nears zero; check them.
 ```
 
 The predictions are returned unchanged. Here the formula is the law itself,
-so 20.0 is right; the warning cannot tell a law from a formula that only fits
-the training range, and says how many rows to check; `feature_ranges_`
-holds the ranges, to find them. A row a little beyond the
-training range does not raise it. A model saved with an earlier release has
-no `feature_ranges_`, and predicts as before, without the check.
+so 20.0 is right: the warning cannot tell a law from a formula that only
+fits the training range. It says how many rows to check, and
+`feature_ranges_` holds the ranges to find them. A row a little beyond the
+training range does not raise it, and a model saved with an earlier release
+has no `feature_ranges_` and predicts without the check.

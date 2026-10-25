@@ -43,9 +43,9 @@ On real data the check costs accuracy. Real targets tend to carry many
 modest effects, each adding little, so the step stops after a few terms
 (one to five on 10 of 12 real datasets), and held-out score fell on 9 of the
 12 (diabetes 0.433 to 0.381, tips 0.472 to 0.433). Use it to look for a short
-law, not for prediction. It is a stopping rule, not a guarantee on the terms it keeps:
-the screen and its guarantee are unchanged. The path in `equations()` is the
-same either way; only the marked line moves.
+law, not for prediction. It is a stopping rule, not a guarantee on the terms
+it keeps; the path in `equations()` is the same either way, and only the
+marked line moves.
 [Choosing a setting](../settings.md#what-was-measured) and the
 [guarantees page](../guarantees.md#parsimony-within-the-screened-set) have
 the figures.
@@ -59,9 +59,7 @@ associated with the target through `x0 * x1`, however unrelated `x6` is.
 one. The column's rows are permuted wherever it occurs in the expression,
 and its null is that it is independent of the target and of the term's
 other columns. A screened term is dropped before the forward step when the
-test fails to reject the null for any of its columns:
-
-On the same data:
+test fails to reject the null for any of its columns. On the same data:
 
 ```python
 print(BeamFeatRegressor(random_state=0, input_test=True).fit(X, y).equation())
@@ -72,14 +70,13 @@ y = 1.013*(x0 * x1) - 0.1608   [1 of 50 certified terms; parsimony=None prints a
 ```
 
 `input_report_` lists every (term, column) pair with its p- and q-value, and
-`null_rejected` marks the pairs whose null the test rejected. The screen's
-guarantee is unchanged and still covers the screened set of 50. A junk
-column that is correlated with a real one is not null in this sense, so its
-null can be rejected and the term kept; the
+`null_rejected` marks the pairs whose null the test rejected. A junk column
+correlated with a real one is not null in this sense, so its null can be
+rejected and the term kept; the
 [guarantees page](../guarantees.md#columns-inside-a-term-input_test) states
-what the test covers and what was measured. It is opt-in because it costs
-time that grows with the rows: here the fit took about four times as long,
-and `n_jobs` threads share the tests.
+what the test covers. It is opt-in because its time grows with the rows:
+here the fit took about four times as long, and `n_jobs` threads share the
+tests.
 
 ## The whole certified set (`parsimony=None`)
 
@@ -127,22 +124,16 @@ y = 2.009*x0 - 0.003251
 
 The conditional re-test is a permutation test for regression only, and its
 p-values are approximate; the guarantees page states its null and what its
-validity rests on. It works when the subset it receives is short. When the
-subset is long and its terms nearly reproduce one another, no term adds
-anything given the rest, the re-test rejects no null, and the estimator
-returns the whole screened set, which carries only the screen's marginal
-guarantee; `certification_result_.n_selected` is then 0, and a
-`NoDiscoveriesWarning` says so. In the calibration study
-(`benchmarks/parsimony_holdout/`) that happened in about nine fits in ten at
-a signal-to-noise ratio of 1, where the forward step retains 18 terms on
-average, and in about one in five at a
-ratio of 3. At that ratio, the share of printed terms using a column outside
-the generating formula was 0.42 to 0.44 at the defaults, 0.53 to 0.62 with
-the marginal re-test and 0.18 to 0.22 with the conditional one, which
-printed about one term in the fits it did not hand back to the screened
-set. That fallback is why, after the forward step, the conditional re-test
-needs `parsimony_alpha` (above), which brings it under one fit in a hundred:
-without it, the combination is deprecated since 0.7.0 and will raise from
-0.8. The example above re-tests the whole screened set (`parsimony=None`)
-and needs no `parsimony_alpha`. Both re-tests cost rows: hold back a
-fraction only when the selection rows number a few hundred or more.
+validity rests on. It works when the subset it receives is short. On a long
+subset whose terms nearly reproduce one another, no term adds anything given
+the rest, the re-test rejects no null, and the estimator returns the whole
+screened set with only the screen's marginal guarantee
+(`certification_result_.n_selected` is 0, and a `NoDiscoveriesWarning` says
+so). After the forward step that happened in about nine fits in ten at a
+signal-to-noise ratio of 1 (`benchmarks/parsimony_holdout/`). So after the
+forward step the conditional re-test needs `parsimony_alpha` (above), which
+brings the fallback under one fit in a hundred; without it the combination
+is deprecated since 0.7.0 and will raise from 0.8. The example above
+re-tests the whole screened set (`parsimony=None`) and needs no
+`parsimony_alpha`. Both re-tests cost rows: hold back a fraction only when
+the selection rows number a few hundred or more.

@@ -70,10 +70,10 @@ function than the default's (R² 0.998 against 0.981).
 
 Use it for an equation to read or report, or to look for a law. Real targets
 tend to carry many modest effects, each adding little, so the step stops
-after a few terms: one to five on 10 of 12 real datasets. Held-out score fell on 9 of 12 real datasets, by
-0.01 to 0.05, and rose a little on eyedata, where the default fits 31 terms
-to 84 training rows. It is a stopping rule, not a guarantee on the terms it
-keeps. [A short equation](guide/printed-equation.md#a-short-equation-parsimony_alpha)
+after a few terms (one to five on 10 of 12 real datasets) and costs some
+accuracy: held-out score fell on 9 of the 12, by 0.01 to 0.05, and rose a
+little on eyedata, where the default fits 31 terms to 84 training rows. It
+is a stopping rule, not a guarantee on the terms it keeps. [A short equation](guide/printed-equation.md#a-short-equation-parsimony_alpha)
 has the details.
 
 ## Every column tested: `input_test=True`
@@ -86,14 +86,13 @@ rows, and drops a certified formula when the test fails to reject the null
 that the column is independent of the target and of the formula's other
 columns.
 
-Use it when every column in the equation must be shown to matter. It costs
-time, 3.6 times the default's on the real datasets and 2.4 to 7 times across
-the benchmark's studies, and the time grows with the rows; `n_jobs` threads
-share the tests. It costs some accuracy too: held-out score stayed within 0.005 of the
-default's on 5 of 12 real datasets and fell on 7, by 0.06 at most. It does not
-remove riders built only from the target's own columns, which
-`parsimony_alpha` does, and a junk column correlated with a real one is not
-null in its sense.
+Use it when every column in the equation must be shown to matter. It takes
+2.4 to 7 times as long as the default (3.6 times on the real datasets), more
+on more rows, and `n_jobs` threads share the tests. Held-out score stayed
+within 0.005 of the default's on 5 of 12 real datasets and fell on 7, by
+0.06 at most. It does not remove riders built only from the target's own
+columns, as `parsimony_alpha` does, and a junk column correlated with a real
+one is not null in its sense.
 [Every column tested](guide/printed-equation.md#every-column-tested-input_test)
 has the details.
 

@@ -64,7 +64,7 @@ corrections saw the same 100 datasets, and the one trial on which BY selected
 is among BH's seven, so the exact paired test rejects equal rates (p = 0.03):
 under the global null BY selects less often, as a stricter correction
 should. Neither rate exceeds the nominal level, so this is no evidence that BH
-loses control here. Up to 0.6.1 the counts were 6 and 1 (p = 0.06). A selector *instance* passed to an estimator
+loses control here. A selector *instance* passed to an estimator
 keeps its own settings, so `selector=PermutationSelector()` runs BH at the
 instance's `target_fdr`; the estimator warns when its `selection_correction`
 or `target_fdr` disagrees with the instance's.
@@ -132,15 +132,14 @@ regression beamfeat uses the lasso-path signed maximum,
 column `j` enters the path, computed from those inner products alone; a
 test checks that rotating the rows, which preserves them, leaves `W`
 unchanged.
-Versions up to 0.5.0 used the difference of cross-validated lasso
-coefficients there, whose folds look at individual rows, so the guarantee
-did not strictly cover it. On Gaussian linear models at q = 0.2 (200 trials
-each) knockoff+ realised 0.180, 0.172 and 0.135 with the path statistic
-against 0.151, 0.165 and 0.155 before, with power 0.96, 0.98 and 0.48
-against 0.97, 0.99 and 0.82: both under the level, and the price of the
-valid statistic is power when columns are correlated (0.7 between
-neighbours in the third design). Model-X, which admits any statistic that
-swaps sign with the pair, keeps the cross-validated one.
+On Gaussian linear models at q = 0.2 (200 trials each), knockoff+ with this
+statistic realised 0.180, 0.172 and 0.135, under the level, with power 0.96,
+0.98 and 0.48. A difference of cross-validated lasso coefficients, whose
+folds look at individual rows and which the guarantee therefore does not
+strictly cover, had power 0.97, 0.99 and 0.82: the valid statistic costs
+power when columns are correlated (0.7 between neighbours in the third
+design). Model-X, which admits any statistic that swaps sign with the pair,
+keeps the cross-validated one.
 
 **Model-X Gaussian** (Candès et al., 2018), used only when `n ≤ 2p`: assumes
 jointly Gaussian features, which engineered features violate; a warning is
@@ -156,7 +155,6 @@ would have, the warning says so and names the trade-off.
 and realised 0.170 at nominal 0.20 over 100 trials; it is unsatisfiable with
 fewer than `1/q` features, and a warning fires on narrow designs. `offset=0`
 controls only a modified FDR and realised 0.260, above `offset=1` as expected.
-(With the cross-validated statistic used until 0.5.0, 0.159 and 0.249.)
 Both move across numeric stacks, since knockoff construction depends on matrix
 decompositions; treat the ordering and the nominal bound as the claim, not the
 second decimal. `benchmarks/selector_calibration.py` regenerates both, and the
@@ -193,10 +191,9 @@ the optimism for which the estimator already declines the claim. On
 pure-noise targets (50 seeds, 200 rows, 5 columns, defaults otherwise) the
 fraction of fits with any discovery was the same with all four fitted
 operators as without: 0/50 for regression, 2/50 for classification. The
-four are on by default since 0.6.0; at that default the end-to-end study
-above gives the same result as without them (no false discovery in 200
-replicates, power 1.000, nothing selected in 60 global-null replicates), as
-does the pure-noise pipeline stress (BH 6/100, BY 1/100).
+four are on by default, and with them the end-to-end study above gives the
+same result as without them (no false discovery in 200 replicates, power
+1.000, nothing selected in 60 global-null replicates).
 
 `magnitude_slots` changes which expressions the search keeps, not how they
 are tested. Its magnitude score is computed inside the search, on the search
@@ -209,11 +206,11 @@ the share of fits with at least one false discovery was the same with the
 option as without on four null designs, 0.015 to 0.025, among them centred and
 Gaussian inputs and 200 columns on 150 search rows; on a planted
 `x0*x1*x2` among centred distractors it was 0.025 against 0.020, one fit in
-200, with a false discovery rate of 0.005 either way. With the slots on by
-default for regression since 0.7.0, the end-to-end study gives the result
-it gave without them: no false discovery in 200 replicates, power 1.000,
-nothing selected in 60 global-null replicates. At the 0.7.0 defaults, with
-the slots and the denominator guard, the pure-noise pipeline stress gives BH
+200, with a false discovery rate of 0.005 either way. With the slots on, as
+they are by default for regression, the end-to-end study gives the result it
+gave without them: no false discovery in 200 replicates, power 1.000,
+nothing selected in 60 global-null replicates. At the defaults, with the
+slots and the denominator guard, the pure-noise pipeline stress gives BH
 7/100 and BY 1/100.
 
 ## Columns inside a term (`input_test`)
@@ -357,9 +354,9 @@ is returned, which carries the screen's marginal guarantee only. That
 happened in 87 to 92% of fits at a ratio of 1 and in 18 to 26% at 3 (37 to
 52% with 300 rows, under 1% with 1,000). `certification_result_.n_selected`
 is 0 on such a fit. With the chance check below, the fallback all but
-disappears: under 1% of fits at a ratio of 1. Since 0.7.0 the conditional
-re-test after the forward step without `parsimony_alpha` is deprecated: it
-warns with a `FutureWarning`, and will raise from 0.8. With
+disappears: under 1% of fits at a ratio of 1. The conditional re-test after
+the forward step without `parsimony_alpha` is deprecated: it warns with a
+`FutureWarning`, and will raise from 0.8. With
 `parsimony=None`, which re-tests the whole screened set, it is unchanged.
 
 **The forward step's chance check, `parsimony_alpha`.** The riders above
@@ -490,8 +487,8 @@ majority-class rate (classification) raises a visible `DegenerateFitWarning`
 naming the gap. Rank-based scoring deserves particular attention here, since
 rank transformation hides exactly the magnitudes that cause the problem.
 
-New rows can reach a pole the training rows stayed clear of. Since 0.7.0 the
-search rules out a quotient whose denominator comes within the pole margin of
+New rows can reach a pole the training rows stayed clear of. The search
+rules out a quotient whose denominator comes within the pole margin of
 zero on the search rows, and `predict` and `transform` raise
 `ExtrapolationWarning` when a new row takes a feature more than one width of
 its training range beyond it. Neither touches the screen or its guarantee;

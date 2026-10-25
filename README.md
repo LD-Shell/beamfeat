@@ -17,24 +17,27 @@ a short equation in your own column names, from a scikit-learn estimator you
 can fit, inspect and predict with. The method is described in a
 [TMLR 2026 paper](https://openreview.net/forum?id=UibXoy4h3u).
 
-**New in 0.7.0.** The search now keeps a few beam places for building
-blocks whose size tracks the target's even when they do not correlate with it
-(`magnitude_slots`, on by default for regression), so every `x0*x1*x2` stress
-law is recovered. It rules out quotients whose denominator comes near zero,
-which on tecator's high-fat extrapolation samples had produced predictions
-of up to 507% fat, and `predict` warns when a new row takes a feature far
-beyond its training range. Against 0.6.1, the held-out score rose on 3 of 12 real
-datasets and fell on none, and fits take a quarter longer. The conditional
-re-test after the forward step now asks for `parsimony_alpha`, and the code
-is split into smaller modules, mapped in
-[`ARCHITECTURE.md`](https://github.com/LD-Shell/beamfeat/blob/main/ARCHITECTURE.md).
-The documentation has a new
-[Choosing a setting](https://ld-shell.github.io/beamfeat/settings/) page:
-when to keep the default, and when to ask for a short equation or for every
-column to be tested.
-How 0.4.2 (the paper's release) through 0.7.0 compare on accuracy, speed and
-memory:
-[release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md).
+**New in 0.7.0**
+
+- The search finds laws whose parts do not correlate with the target, such
+  as `x0*x1*x2` with centred inputs (`magnitude_slots`, on by default for
+  regression).
+- It rules out quotients whose denominator comes near zero, which on
+  tecator's high-fat samples had predicted up to 507% fat, and `predict`
+  warns when a new row takes a feature far beyond its training range.
+- A new [Choosing a setting](https://ld-shell.github.io/beamfeat/settings/)
+  page: when to keep the default, and when to ask for a short equation or
+  for every column to be tested.
+- `certify_test="conditional"` after the forward step now needs
+  `parsimony_alpha`; without it, it warns, and it will raise from 0.8.
+- The code is split into smaller modules, mapped in
+  [`ARCHITECTURE.md`](https://github.com/LD-Shell/beamfeat/blob/main/ARCHITECTURE.md).
+
+On real data the held-out score rose on 3 of 12 datasets and fell on none,
+and fits take a quarter longer than in the previous release. The
+[release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md)
+compares the paper's release with the later ones on accuracy, speed and
+memory.
 
 ## An example: fat content from a spectrum
 
@@ -132,7 +135,7 @@ measurements.
 - **Hidden building blocks.** `magnitude_slots` keeps a few beam places for
   parts whose size tracks the target's even when they do not correlate with
   it, such as `x0` and `x1` in `y = x0*x1` with centred inputs. On by default
-  for regression since 0.7.0; `magnitude_slots=0` turns it off.
+  for regression; `magnitude_slots=0` turns it off.
 - **Every column in a formula tested, opt in.** `input_test=True` tests each
   column inside each formula, and drops a formula when the test fails to
   reject the null for one of its columns, such as `x6` in
@@ -178,6 +181,8 @@ gives each procedure's assumptions and what was measured.
   the API mapping and the differences to expect.
 - [API reference](https://ld-shell.github.io/beamfeat/api/) and
   [changelog](https://ld-shell.github.io/beamfeat/changelog/).
+- [Citing beamfeat](https://ld-shell.github.io/beamfeat/citing/): the paper,
+  the software archive, and the statistical methods behind each option.
 
 ## Citing
 
@@ -208,12 +213,9 @@ Later releases correct two of the paper's results, detailed on the
 page: a harness bug understated featuretools, and fixing a search bug takes
 the datasets where beamfeat leads both tree ensembles from five to four.
 
-If you use the selection procedures, please also cite the underlying
-statistics: [Benjamini & Hochberg (1995)](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x),
-[Benjamini & Yekutieli (2001)](https://doi.org/10.1214/aos/1013699998),
-[Barber & Candès (2015)](https://doi.org/10.1214/15-AOS1337),
-[Candès et al. (2018)](https://doi.org/10.1111/rssb.12265), and
-[Phipson & Smyth (2010)](https://doi.org/10.2202/1544-6115.1585).
+Please also cite the statistical methods behind the options you use:
+[Citing beamfeat](https://ld-shell.github.io/beamfeat/citing/#the-statistical-methods)
+lists which work goes with which option, with BibTeX.
 
 ## License
 

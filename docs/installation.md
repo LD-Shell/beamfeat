@@ -79,6 +79,17 @@ three settings (`benchmarks/three_settings/`) and the chemometrics baselines
 on tecator (`benchmarks/tecator_chemometrics/`). Each folder's
 `PROVENANCE.md` gives its commands and the versions it pinned.
 
+The scripts build their estimators at the current defaults. To run one at
+the defaults of the archived runs, set them through the options launcher:
+
+```bash
+BEAMFEAT_OPTIONS='{"fitted_ops": [], "magnitude_slots": 0}' \
+    python benchmarks/search_stress/with_options.py benchmarks/run_benchmarks.py
+```
+
+The guard against quotients near zero has no switch, so an exact
+reproduction of a run made before 0.7.0 needs the release that made it.
+
 `reproduce_all.ipynb` also builds a throwaway virtual environment with the
 newest numpy and scikit-learn and runs the suite there, so the pinned kernel
 does not become the only evidence that the package works on current releases.

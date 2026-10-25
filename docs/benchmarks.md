@@ -1,41 +1,20 @@
 # Benchmarks
 
-The results on this page come from scripts in the repository and their
-archived runs, from the paper (TMLR 2026, which describes release 0.4.2), or
-from the [changelog](changelog.md).
-Results with a random component carry Monte Carlo error from a finite number
-of trials, so read them at the precision given. Some of the paper's results
-have moved since: two bugs fixed in 0.5.0 change a few, and some figures come
-from runs made under an earlier release. They are marked where they apply and
-described under [Reading the paper today](#reading-the-paper-today).
-[Installation](installation.md#reproduce-the-benchmarks) describes the
-environment the comparisons need.
+Every result here comes from a script in the repository and its archived
+run, or from the paper (TMLR 2026), which describes release 0.4.2. Results
+with a random component carry Monte Carlo error, so read them at the
+precision given.
 
-Unless a result says otherwise, it was measured with constants inside
-expressions off (`fitted_ops=()`), the default before 0.6.0, without
-magnitude slots (`magnitude_slots=0`), the default before 0.7.0, and without
-0.7.0's guard against quotients whose denominator comes near zero. To
-reproduce an archived result exactly, install the release that produced it;
-the [release comparison](#release-comparison) runs five releases side by
-side. The scripts build their estimators at the current defaults, and the
-options launcher sets the old ones:
-
-```bash
-BEAMFEAT_OPTIONS='{"fitted_ops": [], "magnitude_slots": 0}' \
-    python benchmarks/search_stress/with_options.py benchmarks/run_benchmarks.py
-```
-
-On 0.7.0 this reproduces the archived core-suite R² of 11 of the 12
-synthetic problems to within 1e-10; on log_linear the guard rules out a
-quotient the archived fit used, and R² rises from 0.9982 to 0.9994. With the
-fitted constants of 0.6.0, the core suite recovers the
-same 10/10 formulas, Friedman #1 rises from 0.745 to 0.765 and the other
-problems move by at most 0.0004; the robustness suite recovers the same 5/5,
-with R² lower by at most 0.004 (the distractors at 50% noise, 0.776 to 0.772).
-The 0.7.0 defaults, which add the magnitude slots and the guard, keep both
-recoveries, with Friedman #1 at 0.770, the distractors at 50% noise at 0.774
-and threshold_step at 0.845. At the 0.7.0 defaults the end-to-end calibration
-below is unchanged.
+Most archived runs were made before 0.6.0 and 0.7.0 changed the search's
+defaults: constants inside expressions (`fitted_ops`), magnitude slots and
+the guard against quotients whose denominator comes near zero. Unless a
+result says otherwise, it was measured without them. Rerun at 0.7.0's
+defaults, the formula-recovery suites recover the same formulas, the
+end-to-end calibration gives the same result, and Friedman #1 rises from
+0.745 to 0.770. To reproduce an archived run exactly, install the release
+that made it ([Installation](installation.md#reproduce-the-benchmarks)).
+Where the paper's own numbers have moved,
+[Reading the paper today](#reading-the-paper-today) says why.
 
 ## High-dimensional data
 
@@ -90,8 +69,7 @@ shows how to run the same check on other data.
 
 ### Tecator and the methods of chemometrics
 
-The study above compares beamfeat with general-purpose baselines. On
-spectra, chemometrics uses partial least squares (PLS) on preprocessed
+On spectra, chemometrics uses partial least squares (PLS) on preprocessed
 spectra, and kernel methods on derivative spectra are among the most
 accurate. [`benchmarks/tecator_chemometrics/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/tecator_chemometrics),
 added after the paper, fits them on the same five splits, each tuned by
@@ -109,39 +87,31 @@ cross-validation on its training rows:
 | ridge | 0.957 | 2.94 | all 100 channels |
 | PLS | 0.951 | 3.14 | 17 to 18 components |
 
-With 0.7.0, beamfeat's error is 46 to 62% of that of PLS, the field's
-standard, and the kernel methods' is 46 to 59% of beamfeat's, from all 100
-channels and with no formula to read. On derivative spectra beamfeat narrows
-that gap with one to three terms, so it works with the field's preprocessing
-rather than in place of it. Its formulas are mostly ratios of differences
-between nearby channels, much like a derivative followed by a normalisation,
-and the channels it uses most lie at 920 to 946 nm, near the band around
-930 nm usually attributed to fat; which channels a fit picks still varies
-from split to split.
+beamfeat's error is about half that of PLS, the field's standard (46 to 62%
+of it). The kernel methods' error is about half of beamfeat's (46 to 59%),
+from all 100 channels and with no formula to read; on derivative spectra
+beamfeat comes close to them with one to three terms. Its formulas are mostly
+ratios of differences between nearby channels, and the channels it uses most
+lie at 920 to 946 nm, near the band around 930 nm usually attributed to fat.
 
-The data's documentation also defines a split of its own: samples 1 to 172
-to train, 173 to 215 to test, and two extrapolation sets, E1 (eight samples
-with more fat than any training sample) and E2 (more protein). beamfeat is
-averaged over five seeds there, as the documentation asks of a model with an
-element of randomness:
+The data's documentation defines a split of its own: samples 1 to 172 to
+train, 173 to 215 to test, and two extrapolation sets, E1 (eight samples with
+more fat than any training sample) and E2 (more protein). beamfeat is
+averaged over five seeds:
 
 | method | test RMSE | E1 RMSE | E2 RMSE |
 | :-- | --: | --: | --: |
 | kernel ridge, SVR, Gaussian process (derivative) | 0.54 to 0.55 | 2.69 to 3.76 | 0.41 to 0.44 |
 | beamfeat, second-derivative spectra | 0.64 | 1.74 | 0.43 |
 | beamfeat | 1.33 | 1.99 | 1.17 |
-| beamfeat 0.6.1 | 1.23 | 47.70 | 1.00 |
 | PLS (raw, SNV, derivative) and ridge | 1.98 to 2.20 | 8.08 to 8.47 | 1.66 to 2.19 |
 
-beamfeat had the lowest errors on E1, on derivative spectra and on the raw
-channels, though on eight samples that is a hint rather than a measurement.
-0.6.1 shows what 0.7.0 guards against. In three of its five fits a ratio of
-channel differences, whose denominator came near zero beyond the training
-samples, went 2 to 24 times its training range beyond that range on E1,
-and one fit predicted fat contents from -299% to 507%. 0.7.0 rules such
-quotients out in the search, and warns when a new row takes a feature that
-far ([New rows beyond the training data](guide/data.md#new-rows-beyond-the-training-data));
-`benchmarks/tecator_chemometrics/REPORT.md` has every fit.
+beamfeat had the lowest errors on E1, though eight samples make that a hint
+rather than a measurement. The previous release missed E1 badly (RMSE 47.7)
+with a ratio whose denominator came near zero beyond the training samples;
+0.7.0 rules such ratios out, and warns when a new row takes a feature far
+beyond its training range
+([New rows beyond the training data](guide/data.md#new-rows-beyond-the-training-data)).
 
 ## Selection calibration
 
@@ -163,14 +133,12 @@ far ([New rows beyond the training data](guide/data.md#new-rows-beyond-the-train
   global-null replicates, nothing was selected.
 - **Pure noise**
   ([`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py)).
-  Over 100 global-null pipelines, where every rejection is a false rejection
-  by construction, BH returned features in 7 trials and BY in 1, false
-  discovery proportions of 0.07 and 0.01, both under the nominal 0.10. Both
-  corrections saw the same 100 datasets, and the one trial on which BY
-  selected is among BH's seven, so the exact paired test rejects equal rates
-  (p = 0.03). BY is the estimator default because it is valid under
-  arbitrary dependence, and this result is consistent with that choice. Up
-  to 0.6.1, as in the paper, the counts were 6 and 1 (p = 0.06).
+  Over 100 global-null pipelines, where every selection is false by
+  construction, BH returned features in 7 trials and BY in 1: false
+  discovery proportions of 0.07 and 0.01, both under the nominal 0.10. On
+  the same 100 datasets, BY's one selecting trial is among BH's seven, and
+  an exact paired test rejects equal rates (p = 0.03). BY, valid under any
+  dependence, is the default. The paper, on 0.4.2, reports 6 and 1.
 
 The [guarantees page](guarantees.md) states what each procedure guarantees and
 under which assumptions.
@@ -179,7 +147,7 @@ under which assumptions.
 
 - **Known formulas**
   ([`benchmarks/run_benchmarks.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/run_benchmarks.py),
-  70/30 splits). Mean R² over the ten core-suite problems, and recovery of
+  one 70/30 split per dataset). Mean R² over the ten core-suite problems, and recovery of
   the generating columns over the ten synthetic problems that declare them;
   the two sets differ by one dataset each. beamfeat: mean R² 0.9989, fits of
   about 0.2 s, 10/10 recovered. autofeat: 0.9970, about 12 s, 8/10. LightGBM
@@ -187,15 +155,15 @@ under which assumptions.
   construction has nothing to add, ridge ties beamfeat.
 - **Feynman equations**
   ([`benchmarks/feynman_panel.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/feynman_panel.py),
-  12 physics laws, 0.1% noise). 10/12 solved at the SRBench criterion, and
-  the exact symbolic form on 8 of the 9 laws that have one, at 0.9 s per
-  equation in the archived run, which predates the 0.5.0 search speed-up.
-  The misses there are known limits of the search space: a depth-3 rational,
-  a literal constant, depth-4 nesting and the Gaussian's exponential. With
-  `fitted_ops`, on by default since 0.6.0, the last two are within reach:
-  the Gaussian comes out as `exp(-0.5*(x0)^2)` and relativistic velocity
-  addition as `(x0 + x1)/((x0*x1) + 1)`, the exact form on 10 of the 11 laws
-  that have one within the depth, still 10/12 solved, at 0.4 s per equation.
+  12 physics laws, 0.1% noise). In the archived run, 10/12 solved at the
+  SRBench criterion, and the exact symbolic form on 8 of the 9 laws that
+  have one. The misses are limits of the search space: a depth-3 rational, a
+  literal constant, depth-4 nesting and the Gaussian's exponential. With
+  constants inside expressions (`fitted_ops`, the default since 0.6.0), the
+  last two are found, the Gaussian as `exp(-0.5*(x0)^2)` and relativistic
+  velocity addition as `(x0 + x1)/((x0*x1) + 1)`: the exact form on 10 of
+  the 11 laws that have one within the depth, still 10/12 solved, at 0.4 s
+  per equation.
 - **Heavy-tailed noise** (Student t(2), infinite variance). The exact formula
   is recovered, at R² 0.956 against LightGBM's 0.866. The permutation test is
   distribution-free, so heavy tails do not affect its validity.
@@ -255,11 +223,11 @@ beamfeat adds none.
   inputs uniform on (-1, 1), `x0*x1*x2` is recovered exactly in every fit
   with 5 columns but in 0.54, 0.18 and 0.10 of them with 20, 100 and 300,
   and `x0*x1` in 0.32 with 1,000 columns; on shifted inputs the same laws are recovered in every fit.
-  A wider beam does not close the gap. `magnitude_slots=10`, opt-in then and
-  the regression default since 0.7.0, recovered every lost cell but one
-  crowded sum law (0.88), at 1.2 to 1.7 times the fit time, and left the
-  real-data suites and the false-discovery rates essentially unchanged; the
-  [guide](guide/search.md#laws-whose-parts-the-score-cannot-see) shows how to use it.
+  A wider beam does not close the gap. The magnitude slots, on by default
+  for regression, recovered every lost cell but one crowded sum law (0.88),
+  at 1.2 to 1.7 times the fit time, and left the real-data suites and the
+  false-discovery rates essentially unchanged
+  ([guide](guide/search.md#laws-whose-parts-the-score-cannot-see)).
 - **Friedman #1**
   ([`benchmarks/friedman_decomposition.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/friedman_decomposition.py)).
   Over six draws, a representation oracle reaches 0.960 ± 0.003, a
@@ -327,28 +295,22 @@ comparison study's mean R² is 0.803 at the default, 0.784 with
 ## Release comparison
 
 [`benchmarks/release_comparison/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/release_comparison)
-runs the same benchmarks, data, splits and seeds through 0.4.2 (the paper's
-release), 0.5.0, 0.6.0, 0.6.1 and 0.7.0 on one software stack, at their
-defaults and with the options the later releases add: about 23,000 fits. At
-the defaults:
+runs the same benchmarks, data, splits and seeds through five releases, from
+0.4.2, the paper's, to 0.7.0, on one software stack: about 23,000 fits. The
+paper's release against the current one, at their defaults:
 
-| measure | 0.4.2 | 0.5.0 | 0.6.0 | 0.6.1 | 0.7.0 |
-| :-- | --: | --: | --: | --: | --: |
-| Feynman panel, solved of 60 | 47 | 47 | 50 | 50 | 50 |
-| Search stress laws, exact | 0.883 | 0.883 | 0.883 | 0.883 | 1.000 |
-| Riders at signal to noise 1 (conditional FDR) | 0.736 | 0.736 | 0.720 | 0.720 | 0.722 |
-| 7 real datasets, mean held-out score | 0.725 | 0.726 | 0.726 | 0.726 | 0.727 |
-| Fit time (× 0.5.0) | 3.18 | 1.00 | 1.53 | 1.54 | 1.93 |
-| Peak fit memory (× 0.5.0) | 5.27 | 1.00 | 1.08 | 1.10 | 1.07 |
+| measure | 0.4.2 (the paper's) | 0.7.0 |
+| :-- | --: | --: |
+| Feynman panel, fits solved of 60 | 47 | 50 |
+| search stress laws, exact recovery | 0.883 | 1.000 |
+| riders at signal to noise 1 (conditional FDR) | 0.736 | 0.722 |
+| 7 real datasets, mean held-out score | 0.725 | 0.727 |
+| fit time, relative to 0.4.2 | 1 | 0.6 |
+| peak fit memory, relative to 0.4.2 | 1 | 0.2 |
 
-0.5.0 gives 0.4.2's fits on 1,415 of 1,430 items in a third of the time.
-0.6.0's changes to the fits all come from `fitted_ops`, and 0.6.1's default
-fits are 0.6.0's. 0.7.0's come from the magnitude slots and the guard
-against quotients near their pole: with `magnitude_slots=0` it gives 0.6.1's
-fit on 1,243 of 1,430 items, and the guard raised the held-out score on 3 of
-12 real datasets and lowered it on none by more than 0.005. The
-[report](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md)
-also measures each option against its release's default.
+The [report](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md)
+has the releases in between, and measures each option against its release's
+default.
 
 ## Test suite
 
@@ -420,11 +382,8 @@ move little:
 Later releases are faster, so the paper's timings and memory figures
 describe 0.4.2. 0.5.0 runs the high-dimensional study 2 to 28 times faster per
 dataset without changing any feature, p-value or prediction, and a default
-fit on 1000 columns and 600 rows that peaked at 2.6 GB of memory now peaks at
-0.35 GB. Over the eight timing items of the
+fit on 1000 columns and 600 rows that peaked at 2.6 GB of memory peaks at
+0.35 GB in 0.5.0. Over the eight timing items of the
 [release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md),
-0.5.0 fits 3.2 times faster than 0.4.2 with a fifth of its memory; 0.6.0 and
-0.6.1 take 1.5 times 0.5.0's time, and 0.7.0, with its magnitude slots and
-denominator guard, 1.9 times. The
-[changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md)
-lists every change.
+0.7.0 fits in about 0.6 of 0.4.2's time with a fifth of its memory. The
+[changelog](changelog.md) lists every change.

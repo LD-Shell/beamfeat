@@ -1,0 +1,10 @@
+/* Links in the page text are underlined, so they read as links in any colour scheme. */
+.md-typeset a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.md-typeset a.headerlink,
+.md-typeset .md-button {
+  text-decoration: none;
+}

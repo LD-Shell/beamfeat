@@ -119,7 +119,11 @@ re-test after the forward step without `parsimony_alpha` is deprecated.
   equation, Search options, Data and prediction), with a quickstart before
   them and a table that finds the section for each parameter. The site's
   navigation groups the pages under Get started, User guide, Tutorials and
-  Reference, and the changelog is on the site.
+  Reference and API, and the changelog is on the site. Links in the text are
+  underlined, and the mechanics behind an option fold away under it.
+- A "Citing beamfeat" page gives the paper, the software archive and, for
+  each option, the statistical method to cite, with BibTeX checked against
+  the publishers' records.
 - Every example in the quickstart and the guide was run again at 0.7.0, and
   the outputs that the magnitude slots and the guard changed are updated.
 

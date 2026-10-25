@@ -17,17 +17,15 @@ model = BeamFeatRegressor(max_depth=2, beam_width=25, random_state=0).fit(X, y)
 ## Why the equation says "1 of 25"
 
 The screen rejected the null for twenty-five formulas, the certified set.
-Each formula's null is that it is independent of the target, and on a strong
+Each formula's null is that it is independent of the target. On a strong
 signal every near-duplicate of the true feature really is associated with
-the target, so rejecting its null is correct and twenty-five is the honest
-size of the certified set. A parsimony step then selects the compact
-predictive subset and fits that, because an equation of dozens of
-near-duplicate terms defeats the interpretability the library exists for.
+the target, so rejecting its null is correct. A forward step then picks the
+compact subset that predicts best, since an equation of dozens of
+near-duplicates would be unreadable.
 
-The subset is chosen on the rows selection already used, so the q-level
-guarantee covers the twenty-five it came from and not the one the forward
-step retained.
-That is what the suffix records, and `fdp_inflation_` prices it:
+The subset is chosen on the rows the screen already used, so the guarantee
+covers the twenty-five, not the one term printed. The suffix records that,
+and `fdp_inflation_` prices it:
 
 ```python
 print(model.fdp_inflation_)
@@ -37,10 +35,10 @@ print(model.fdp_inflation_)
 25.0
 ```
 
-|S|/|S'|, the factor by which pruning can inflate the realised false
-discovery proportion, since the denominator shrinks faster than the numerator
-can. Set `parsimony=None` to fit the screened set entire, at which point the
-printed equation *is* the certified object and the suffix disappears:
+That is |S|/|S'|, the factor by which pruning can inflate the realised false
+discovery proportion. With `parsimony=None` the model fits the whole
+screened set, the printed equation *is* the certified set, and the suffix
+disappears:
 
 ```python
 full = BeamFeatRegressor(max_depth=2, beam_width=25, random_state=0,
@@ -58,14 +56,11 @@ y = 0.077*(x1 * (x0 * x1)) + 0.4333*(x0 * x1) - 0.0842*((x0 * x1) / (1/(x1 - 8.1
 held at their training mean, and their average contribution moves into the
 constant, which is why it differs from the full equation's.
 
-What the default costs you in fit is small, and measured rather than asserted:
-about a thousandth of R² across 308 paired fits (held out in every study but
-the end-to-end calibration, which scores in-sample), for an equation some
-twenty-five times shorter, with no case where pruning inflated the realised
-false discovery proportion. The measurement is
-`benchmarks/PARSIMONY_COST.md`. Short *and* certified costs rows instead of
-the guarantee: see `parsimony_holdout` on the
-[guarantees page](../guarantees.md), and
+The short equation costs little: about a thousandth of R² over 308 paired
+fits, for an equation about twenty-five times shorter, and pruning never
+inflated the realised false discovery proportion
+(`benchmarks/PARSIMONY_COST.md`). For an equation both short and certified,
+spend rows instead:
 [Re-testing the printed terms](printed-equation.md#re-testing-the-printed-terms-parsimony_holdout).
 
 ## The equation at every size
@@ -103,17 +98,12 @@ marked one has been fitted; `equation()` prints its coefficients. For a
 classifier the R² is that of the integer-coded labels, the heuristic the
 forward step ranks by, not a classification metric.
 
-The last line of the output is the one to keep in mind. Every line is a subset of the
-screened set chosen on the rows screening used, so picking line 3 because it
-looks better is the same kind of choice the forward step makes, and the
-guarantee covers it no more than it covers the fitted line. Recording the path
-changes nothing that is fitted, and it is recorded at `parsimony=None` as
-well, where the marked line is the last.
-
-The records behind the text are in `equations_`, one dict per line with
-`n_terms`, `complexity`, `r2`, `formulas`, the `features` as expression
-nodes, and `model`, which marks the fitted line. It is `None` without a
-selector and empty when the screen rejected no null.
+Keep the output's last line in mind: every line is chosen on the rows the
+screen used, so picking line 3 because it looks better is the same kind of
+choice the forward step makes, and the guarantee covers it no more than the
+marked line. The records behind the text are in `equations_`, one dict per
+line (`n_terms`, `complexity`, `r2`, `formulas`, `features`, and `model`,
+which marks the fitted line).
 
 ## Audit what selection did
 
@@ -190,50 +180,44 @@ Features, most frequent first:
 Features whose values on the rows of X correlate above 0.999 in absolute value are counted as one; an equation is the set of its features, whatever its coefficients.
 ```
 
-No two of the thirty splits printed the same equation, and their held-out
-R² ranges from 0.395 to 0.575, a spread that one fit's score would hide. An
-equation fitted to these data is one draw among many that predict about as
-well. What recurs is a
-family of sums and differences of `bmi`, `s5`, `bp` and `s3`, the commonest
-member in 12 of the 30 splits. Report that family, with its frequencies,
-rather than one equation.
+No two of the thirty splits printed the same equation, and held-out R²
+ranges from 0.395 to 0.575, a spread one fit's score would hide. What
+recurs is a family of sums and differences of `bmi`, `s5`, `bp` and `s3`.
+Report that family, with its frequencies, rather than one equation.
 
-Two formulas count as one feature when their values on the rows of `X`
-correlate above 0.999 in absolute value. A rewriting such as `(x1 - x0)` for
-`(x0 - x1)` is then not counted twice, and neither is a rescaling or a
-near-duplicate. An equation is the set of its features, whatever its
-coefficients. The report keeps everything behind the summary:
+??? note "What the report holds, and how it scores"
 
-- `report.splits[i]` has the rows split `i` was fitted and scored on, its
-  formulas, its `equation()`, its score and the fitted clone;
-- `report.features` and `report.equations` hold the classes, most frequent
-  first, each with the splits it appeared in;
-- `report.scores` holds the held-out scores.
+    Two formulas count as one feature when their values on the rows of `X`
+    correlate above 0.999 in absolute value. A rewriting such as `(x1 - x0)` for
+    `(x0 - x1)` is then not counted twice, and neither is a rescaling or a
+    near-duplicate. An equation is the set of its features, whatever its
+    coefficients. The report keeps everything behind the summary:
 
-The splits and the clones' seeds come from `random_state` (default 0), so a
-report is reproducible, and `n_jobs` fits splits in parallel processes
-without changing it. The regressor is scored by R² and the classifier by
-accuracy, as their `score` methods are. A transformer has no score of its
-own, so it is scored by a ridge regression on its features, or by a logistic
-regression for classification. When a test row is outside a selected
-formula's [domain](data.md#rows-outside-a-formulas-domain), the classifier predicts
-its most frequent training class there, as its `predict` does. A regressor or
-transformer has no score on such a test part, so that split goes unscored,
-and the summary counts it.
+    - `report.splits[i]` has the rows split `i` was fitted and scored on, its
+      formulas, its `equation()`, its score and the fitted clone;
+    - `report.features` and `report.equations` hold the classes, most frequent
+      first, each with the splits it appeared in;
+    - `report.scores` holds the held-out scores.
 
-`resample` chooses what varies. The default, `"splits"`, draws new training
-and test rows as well as a new seed for every split. It measures
-split-to-split variability: how far the equation and its score move with
-another sample of the data. `resample="seeds"` keeps the first split's rows
-and varies only the seed, and with it the search/selection split inside each
-fit. That design, the one in the paper's stability study (Appendix E),
-measures seed-to-seed variability on fixed data: how much the printed
-equation owes to one random draw, the draw the FDR guarantee is conditional
-on. Run on diabetes as above with `resample="seeds"`, it still prints 30
-distinct equations in 30 fits, with 82 distinct features and the commonest
-in 11. The standard deviation of R² falls from 0.052 to 0.009, though, so
-most of the default's spread comes from the test parts, while the turnover of
-equations persists with the rows held fixed.
+    The splits and the clones' seeds come from `random_state` (default 0), so a
+    report is reproducible, and `n_jobs` fits splits in parallel processes
+    without changing it. The regressor is scored by R² and the classifier by
+    accuracy, as their `score` methods are. A transformer has no score of its
+    own, so it is scored by a ridge regression on its features, or by a logistic
+    regression for classification. When a test row is outside a selected
+    formula's [domain](data.md#rows-outside-a-formulas-domain), the classifier predicts
+    its most frequent training class there, as its `predict` does. A regressor or
+    transformer has no score on such a test part, so that split goes unscored,
+    and the summary counts it.
+
+`resample` chooses what varies. The default, `"splits"`, draws new
+training and test rows and a new seed for every split: how far the equation
+and its score move with another sample of the data. `resample="seeds"`
+keeps the first split's rows and varies only the seed, as in the paper's
+stability study (Appendix E): how much the equation owes to one random draw.
+On diabetes it still prints 30 distinct equations in 30 fits, but the
+standard deviation of R² falls from 0.052 to 0.009, so most of the score's
+spread comes from the test rows, while the turnover of equations remains.
 
 ## When no null is rejected
 

@@ -25,6 +25,8 @@ theme:
       toggle: {icon: material/brightness-7, name: dark mode}
     - scheme: slate
       toggle: {icon: material/brightness-4, name: light mode}
+extra_css:
+  - stylesheets/extra.css
 exclude_docs: |
   sphinx_roles.py
 validation:
@@ -50,10 +52,11 @@ nav:
       - Search and scoring: notebooks/02_search_and_scoring.ipynb
       - Selection and units: notebooks/03_selection_and_units.ipynb
       - Reading a fit: notebooks/04_reading_a_fit.ipynb
-  - Reference:
+  - Reference and API:
+      - API reference: api.md
       - Statistical guarantees: guarantees.md
       - Benchmarks: benchmarks.md
-      - API reference: api.md
+      - Citing beamfeat: citing.md
       - Changelog: changelog.md
 plugins:
   - search
@@ -70,6 +73,7 @@ plugins:
               - docs/sphinx_roles.py:SphinxRoles
 markdown_extensions:
   - admonition
+  - pymdownx.details
   - pymdownx.highlight
   - pymdownx.inlinehilite
   - pymdownx.superfences

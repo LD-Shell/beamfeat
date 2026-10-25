@@ -34,14 +34,11 @@ print(model.formulas())
 The recovered form, kg·m/s, is exactly the target's dimension — and the
 dimensionally invalid spellings never consumed a beam slot.
 
-Cover every column. A column without a unit is dimensionally
-unconstrained, so it combines freely with the labelled ones and the check
-stops binding on exactly the columns you did not vouch for — labelling your
-real measurements and leaving the noise blank is the case worth naming,
-because it looks careful and is not. Give the genuinely unitless columns
-`"dimensionless"`; the estimator warns when coverage is partial, and raises
-when the keys match no column at all. Keys are column names, so a DataFrame
-lets you write `{"rho": "kg/m**3"}` rather than `{"x0": ...}`.
+Give every column a unit. A column without one combines freely with the
+others, so the check stops binding on exactly the columns you left out. Give
+unitless columns `"dimensionless"`; the estimator warns when coverage is
+partial, and raises when no key matches a column. Keys are column names, so
+with a DataFrame you can write `{"rho": "kg/m**3"}`.
 
 ## Constants inside expressions
 
@@ -49,10 +46,10 @@ The linear model supplies the coefficients outside the expressions. That
 alone cannot write `exp(-x²/2)`, `x^1.5` or `(x0 + x1)/(1 + x0·x1)`, where the
 constant sits inside a nonlinearity, so the estimators also use operators that
 carry one fitted constant each, listed in `fitted_ops`. All four are on by
-default (since 0.6.0); `fitted_ops=()` keeps every expression free of
-constants, as the default did before, and fits about twice as fast on small
-data. They are a list of their own: restricting `unary_ops` leaves them on,
-so `unary_ops=()` still allows `log(x + a)` unless `fitted_ops=()` too.
+default; `fitted_ops=()` keeps every expression free of constants and fits
+about twice as fast on small data. They are a list of their own: restricting
+`unary_ops` leaves them on, so `unary_ops=()` still allows `log(x + a)`
+unless `fitted_ops=()` too.
 
 | name | expression | operand |
 |---|---|---|
@@ -76,86 +73,83 @@ print(model.formulas(), model.to_sympy())
 With `fitted_ops=()` the same data give `(x0 + (x0)^2)` and `log(x0)`, a
 surrogate that scores well on this range and says nothing about the law.
 
-How the constants are chosen:
+??? note "How the constants are chosen"
 
-- **Where.** At each depth, every listed operator is fitted to every
-  expression in the previous depth's beam (at the first depth, the
-  `beam_width` best input columns), and to the previous depth's
-  `beam_width` best candidates that the beam dropped as near-duplicates:
-  two expressions that correlate at 0.95 need not stay alike under
-  `1/(x + a)` or `exp(a·x)`. The results join that depth's candidates, to
-  be scored, pruned and kept like any other. The ceiling
-  `max_candidates_per_depth` counts the operator proposals only.
-- **How.** Each constant maximises the absolute correlation with the target:
-  a coarse grid scaled to the operand (for `exp_scaled`, `|a|` up to
-  10/max|x|; for `pow`, `a` from -4 to 4; for the shifts, poles kept off the
-  observed range), then a golden-section refinement. A fit that runs to the
-  edge of its grid is discarded, and so is one for which the likelihood-ratio
-  test of the snapping step below does not reject the null that the operand
-  on its own fits as well (each operator becomes linear in `x` at one end of
-  its range). Correlation is used whatever the `scorer`; the scorer then
-  ranks the result.
-- **Poles.** `inv_shift` and `log_shift` keep their pole away from the
-  data they were fitted on: at least twice the spread of the operand's ten
-  most extreme values at that end, and at least 1% of its range. A pole
-  just past the edge of the data is shaped by the few rows next to it, and
-  the first new row a little further out falls beyond it: NaN for the
-  logarithm, a value of the wrong sign and any size for the reciprocal.
-  A fit that wants its pole closer runs into the bound and is discarded,
-  and snapping never moves a constant past it. The margin widens where the
-  data thin out towards the edge and narrows where they are dense. On 18
-  real datasets, poles inside it were crossed by a row the fit had not
-  seen in 14% of fits, and poles outside it in 0.3%. A negative power has
-  its pole at 0, so `pow` fits one only when the operand stays more than
-  the same margin above 0. Otherwise `a` runs from 0.1 to 4, and a fit that
-  wants less is discarded, since `x^a` then takes the shape of `log(x)`,
-  which has the same pole. Since 0.7.0 the denominator of every quotient
-  and reciprocal in the search keeps the same margin from zero, fitted
-  constant or not; see
-  [New rows beyond the training data](data.md#new-rows-beyond-the-training-data).
-- **In context.** `1/(x0·x1 + a)` on its own correlates best with the target
-  as `a` runs to the pole; only as the denominator of `(x0 + x1)` is `a = 1`
-  identifiable. While the depth limit leaves room, each constant is also
-  fitted as a factor of a beam member, and that product joins the next
-  depth's candidates.
-- **Snapping.** The constant is replaced by the simplest of 0, ±1, ±2, ±3,
-  ±1/2, ±3/2, ±1/3, ±1/4 for which a likelihood-ratio test at level 0.001
-  fails to reject the null that the constant takes that value, so
-  `exp(-0.49991·x²)` is reported as `exp(-x²/2)`. If the test rejects every
-  one of them, the constant is rounded to the fewest significant digits that
-  cost nothing measurable. A snapped constant is exact in `to_sympy()`,
-  `latex()` and the printed formulas.
-- **Near copies.** A fitted constant can also bend an expression into a near
-  copy of a simple law. With 10% noise on `log(x0)`, `(x0)^(-0.02)`
-  correlates with `log(x0)` at 0.99999, and since its constant was fitted on
-  the search rows it fits them a little better. So at the end of the search,
-  each kept expression with fitted constants is compared with its near copies
-  among everything the search found (correlation at `redundancy_threshold`)
-  that carry fewer constants and are not near copies of another kept
-  expression. The snapping test decides, on the same rows: if it fails to
-  reject the null that a copy fits the target as well, the simplest such copy
-  takes the expression's place. Without this step, `log(x0)`, `sqrt(x0)`,
-  `1/x0` and `x0²` at that noise were printed as themselves in 0, 0, 2 and 2
-  of 10 fits; with it, in 10, 7, 10 and 8, against 10, 9, 10 and 8 with
-  `fitted_ops=()`. A law that needs its constant keeps it while the data
-  reject the simpler forms, as the Gaussian and relativistic velocity
-  addition of the physics panel do at 0.1% noise.
-- **Stored.** The constant is part of the expression: `transform`,
-  `predict` and a pickled model reuse it on new data without refitting.
+    - **Where.** At each depth, every listed operator is fitted to every
+      expression in the previous depth's beam (at the first depth, the
+      `beam_width` best input columns), and to the previous depth's
+      `beam_width` best candidates that the beam dropped as near-duplicates:
+      two expressions that correlate at 0.95 need not stay alike under
+      `1/(x + a)` or `exp(a·x)`. The results join that depth's candidates, to
+      be scored, pruned and kept like any other. The ceiling
+      `max_candidates_per_depth` counts the operator proposals only.
+    - **How.** Each constant maximises the absolute correlation with the target:
+      a coarse grid scaled to the operand (for `exp_scaled`, `|a|` up to
+      10/max|x|; for `pow`, `a` from -4 to 4; for the shifts, poles kept off the
+      observed range), then a golden-section refinement. A fit that runs to the
+      edge of its grid is discarded, and so is one for which the likelihood-ratio
+      test of the snapping step below does not reject the null that the operand
+      on its own fits as well (each operator becomes linear in `x` at one end of
+      its range). Correlation is used whatever the `scorer`; the scorer then
+      ranks the result.
+    - **Poles.** `inv_shift` and `log_shift` keep their pole away from the
+      data they were fitted on: at least twice the spread of the operand's ten
+      most extreme values at that end, and at least 1% of its range. A pole
+      just past the edge of the data is shaped by the few rows next to it, and
+      the first new row a little further out falls beyond it: NaN for the
+      logarithm, a value of the wrong sign and any size for the reciprocal.
+      A fit that wants its pole closer runs into the bound and is discarded,
+      and snapping never moves a constant past it. The margin widens where the
+      data thin out towards the edge and narrows where they are dense. On 18
+      real datasets, poles inside it were crossed by a row the fit had not
+      seen in 14% of fits, and poles outside it in 0.3%. A negative power has
+      its pole at 0, so `pow` fits one only when the operand stays more than
+      the same margin above 0. Otherwise `a` runs from 0.1 to 4, and a fit that
+      wants less is discarded, since `x^a` then takes the shape of `log(x)`,
+      which has the same pole. The denominator of every quotient and
+      reciprocal in the search keeps the same margin from zero, fitted constant
+      or not; see
+      [New rows beyond the training data](data.md#new-rows-beyond-the-training-data).
+    - **In context.** `1/(x0·x1 + a)` on its own correlates best with the target
+      as `a` runs to the pole; only as the denominator of `(x0 + x1)` is `a = 1`
+      identifiable. While the depth limit leaves room, each constant is also
+      fitted as a factor of a beam member, and that product joins the next
+      depth's candidates.
+    - **Snapping.** The constant is replaced by the simplest of 0, ±1, ±2, ±3,
+      ±1/2, ±3/2, ±1/3, ±1/4 for which a likelihood-ratio test at level 0.001
+      fails to reject the null that the constant takes that value, so
+      `exp(-0.49991·x²)` is reported as `exp(-x²/2)`. If the test rejects every
+      one of them, the constant is rounded to the fewest significant digits that
+      cost nothing measurable. A snapped constant is exact in `to_sympy()`,
+      `latex()` and the printed formulas.
+    - **Near copies.** A fitted constant can also bend an expression into a near
+      copy of a simple law. With 10% noise on `log(x0)`, `(x0)^(-0.02)`
+      correlates with `log(x0)` at 0.99999, and since its constant was fitted on
+      the search rows it fits them a little better. So at the end of the search,
+      each kept expression with fitted constants is compared with its near copies
+      among everything the search found (correlation at `redundancy_threshold`)
+      that carry fewer constants and are not near copies of another kept
+      expression. The snapping test decides, on the same rows: if it fails to
+      reject the null that a copy fits the target as well, the simplest such copy
+      takes the expression's place. Without this step, `log(x0)`, `sqrt(x0)`,
+      `1/x0` and `x0²` at that noise were printed as themselves in 0, 0, 2 and 2
+      of 10 fits; with it, in 10, 7, 10 and 8, against 10, 9, 10 and 8 with
+      `fitted_ops=()`. A law that needs its constant keeps it while the data
+      reject the simpler forms, as the Gaussian and relativistic velocity
+      addition of the physics panel do at 0.1% noise.
+    - **Stored.** The constant is part of the expression: `transform`,
+      `predict` and a pickled model reuse it on new data without refitting.
 
 The constants are fitted inside the search, on the search rows only, so the
 screen on the selection rows sees fixed expressions and its guarantee is
 unchanged; see the [guarantees page](../guarantees.md#selective-inference-why-the-estimators-split-their-data).
 
-What it costs. Fitting adds a few candidates per parent and operator, and
-makes a fit on the Feynman panel about five times slower (about 0.2 s to
-1.1 s per equation). Fitted expressions also take beam slots, so enabling
-them can change what else a depth keeps: within a depth, a constant-free
-candidate is never dropped as a near-duplicate of a fitted one, but it can be
-out-ranked, and at the end of the search it takes a fitted expression's place
-only as described under *Near copies*. And
-constants are fitted one at a time, greedily: a law needs its constant-free
-parts to be among a depth's best candidates first.
+**What it costs.** A fit on the Feynman panel takes about five times as
+long (0.2 s to 1.1 s per equation). Fitted expressions also take beam
+places, so they can change what else a depth keeps: a constant-free
+candidate can be out-ranked by a fitted one, though never dropped as its
+near-duplicate. And constants are fitted one at a time, greedily, so a law
+needs its constant-free parts among a depth's best candidates first.
 
 ## Laws whose parts the score cannot see
 
@@ -169,17 +163,13 @@ in most physical tables, each factor of a product correlates with it, and
 the problem does not arise.
 
 [`benchmarks/search_stress/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/search_stress)
-measures what it costs. Without magnitude slots (below), with 500 rows and
-10% noise, the search recovered `x0*x1*x2` on centred uniform inputs in 54% of fits with 20
-columns, 18% with 100 and 10% with 300, and in every fit on positive inputs;
-each miss was the first depth's beam dropping the pairwise products. A beam
-of 200 lifted the 20-column figure to 96% at about nine times the fit time,
-but the 100-column one only to 26%. Past the proposal ceiling, from about 258
-columns at the default beam, a centred pair can be lost before it is scored:
-with 1,000 columns `x0*x1` was recovered in 32% of fits, because neither
-input scored well enough for the pair to be proposed. A miss mostly ends in
-no equation and a `NoDiscoveriesWarning`, sometimes in terms that ride on
-one of the law's columns.
+measures the cost. Without magnitude slots, on 500 rows with 10% noise,
+`x0*x1*x2` on centred inputs was recovered in 54% of fits with 20 columns,
+18% with 100 and 10% with 300 (in every fit on positive inputs), and `x0*x1`
+in 32% with 1,000 columns. A wider beam barely helps: 200 places lifted the
+20-column figure to 96% at about nine times the fit time, and the 100-column
+one only to 26%. A miss mostly ends in no equation and a
+`NoDiscoveriesWarning`.
 
 `magnitude_slots` adds beam slots for candidates whose magnitude tracks the
 target's. Its default, `"auto"`, adds 10 for regression; `0` turns them off,
@@ -201,55 +191,51 @@ for slots in (0, 3):
 
 The first fit finds nothing and warns `NoDiscoveriesWarning`.
 
-How it works:
+??? note "How the magnitude slots work"
 
-- **The score.** A candidate `c` is scored by the absolute correlation of
-  `log(1 + |c|/rms(c))` with the same transform of the centred target, where
-  `rms` is the root mean square. The logarithm turns a product into a sum,
-  so a factor's magnitude tracks the product's even where the factor itself
-  does not correlate with it. The 1 keeps the rows where a product nears
-  zero, and the noise there, from dominating, and it compresses a heavy
-  tail, so that a ratio with a denominator near zero does not score by
-  accident. On more than 1,000 search rows the score is computed on 1,000
-  of them, evenly spaced, which is plenty to rank a few slots and keeps its
-  cost from growing with the table.
-- **The slots.** After the `beam_width` candidates the score keeps, up to
-  `magnitude_slots` more are kept from the rest, best magnitude score first,
-  under the same redundancy check. They are kept at every depth but the
-  last, since they are there to be built on.
-- **The proposals.** When the first depth cannot propose every pair of
-  inputs, the inputs are proposed in an order that interleaves their
-  magnitude ranking with their score ranking. The magnitude ranking takes
-  the first place and `magnitude_slots / (beam_width + magnitude_slots)` of
-  those after it.
-- **A part behind a visible term.** In `x0*x1 + x2` the product does
-  correlate with the target, but hundreds of sums of `x2` with another column
-  can outrank it. The search then relies on scoring candidates against the
-  residual left by the inputs, and with more inputs than search rows that
-  residual is empty. The magnitude score is also taken against the residual
-  on the best-scoring columns, at most a quarter as many as the rows, which
-  keeps `x0*x1` in view.
+    - **The score.** A candidate `c` is scored by the absolute correlation of
+      `log(1 + |c|/rms(c))` with the same transform of the centred target, where
+      `rms` is the root mean square. The logarithm turns a product into a sum,
+      so a factor's magnitude tracks the product's even where the factor itself
+      does not correlate with it. The 1 keeps the rows where a product nears
+      zero, and the noise there, from dominating, and it compresses a heavy
+      tail, so that a ratio with a denominator near zero does not score by
+      accident. On more than 1,000 search rows the score is computed on 1,000
+      of them, evenly spaced, which is plenty to rank a few slots and keeps its
+      cost from growing with the table.
+    - **The slots.** After the `beam_width` candidates the score keeps, up to
+      `magnitude_slots` more are kept from the rest, best magnitude score first,
+      under the same redundancy check. They are kept at every depth but the
+      last, since they are there to be built on.
+    - **The proposals.** When the first depth cannot propose every pair of
+      inputs, the inputs are proposed in an order that interleaves their
+      magnitude ranking with their score ranking. The magnitude ranking takes
+      the first place and `magnitude_slots / (beam_width + magnitude_slots)` of
+      those after it.
+    - **A part behind a visible term.** In `x0*x1 + x2` the product does
+      correlate with the target, but hundreds of sums of `x2` with another column
+      can outrank it. The search then relies on scoring candidates against the
+      residual left by the inputs, and with more inputs than search rows that
+      residual is empty. The magnitude score is also taken against the residual
+      on the best-scoring columns, at most a quarter as many as the rows, which
+      keeps `x0*x1` in view.
 
-Measured at 10 slots on the stress test, it recovered `x0*x1*x2` on
-centred inputs in every fit with 20, 100 and 300 columns, the centred pair
-in every fit with 1,000 columns, and `x0*x1 + x2` with 300 columns and 250
-search rows in 88% of fits, where the search without slots recovered none; in
-no setting did it lose a law the search without them found. Fits took 1.2 to 1.7 times as long
-there, and 1.4 times on the high-dimensional study's three 10,000-row
-tables. Where no such law is hidden it changes little either way: the main
-suite's mean held-out score over 24 regression datasets went from 0.885 to
-0.884, with diabetes and california housing about 0.01 lower, and the
-high-dimensional study's mean from 0.647 to 0.649. On that evidence it is
-on by default for regression since 0.7.0; `benchmarks/release_comparison/`
-has its effect on every benchmark there.
+With 10 slots the search recovered `x0*x1*x2` on centred inputs in every fit
+with 20, 100 and 300 columns, the centred pair in every fit with 1,000
+columns, and `x0*x1 + x2` with 300 columns on 250 search rows in 88% of
+fits, against none without them; it lost no law the search without them
+found. Fits took 1.2 to 1.7 times as long. Where no such law is hidden it
+changes little: the main suite's mean held-out score over 24 regression
+datasets went from 0.885 to 0.884, and the high-dimensional study's from
+0.647 to 0.649.
 
 It is for regression only, since a class label has no magnitude to track:
-`"auto"` adds no slot for classification, and a positive number raises.
-The ranking runs inside the search, on the search rows only, so the screen on
-the selection rows sees fixed expressions and its guarantee is unchanged;
-see the [guarantees page](../guarantees.md#selective-inference-why-the-estimators-split-their-data).
-It was measured on products and on a product beside a visible term, and a
-law whose parts the magnitude score cannot see either is still out of reach.
+`"auto"` adds no slot for classification, and a positive number raises. The
+ranking runs inside the search, on the search rows only, so the screen's
+guarantee is unchanged (see the
+[guarantees page](../guarantees.md#selective-inference-why-the-estimators-split-their-data)).
+A law whose parts the magnitude score cannot see either is still out of
+reach.
 
 ## Search constraints
 

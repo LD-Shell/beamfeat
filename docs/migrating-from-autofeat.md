@@ -116,8 +116,8 @@ a lower ceiling as the price of a guarantee and a floor. Quantified in
   before its own internal seeding applies, so each process starts from
   different entropy. Six runs of one identical split returned R² from +0.952
   to −109.8.
-- **Constants inside expressions.** autofeat fits none. Since 0.6.0
-  `beamfeat` fits one constant inside an expression by default, such as
+- **Constants inside expressions.** autofeat fits none. `beamfeat` fits one
+  constant inside an expression by default, such as
   `exp(-3.2 x)` or `1/(x + a)` (`fitted_ops`; `fitted_ops=()` turns it off).
   If a law needs several constants fitted jointly, a symbolic regressor such
   as PySR is the right instrument.
