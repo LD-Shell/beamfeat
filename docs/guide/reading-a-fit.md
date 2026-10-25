@@ -51,7 +51,7 @@ print(full.equation(max_terms=3))
 
 ```text
 25
-y = 0.07702*(x1 * (x0 * x1)) + 0.4337*(x0 * x1) - 0.08449*((x0 * x1) / (1/(x1 - 8.17))) - 1.147
+y = 0.077*(x1 * (x0 * x1)) + 0.4333*(x0 * x1) - 0.0842*((x0 * x1) / (1/(x1 - 8.17))) - 1.127
 ```
 
 `max_terms` shortens the display, not the model: the terms it leaves out are
@@ -177,15 +177,15 @@ print(report.summary(max_rows=3))
 ```text
 BeamFeatRegressor refitted on 30 random splits (random_state=0), each fitted on 331 rows and scored on the other 111.
 
-Held-out R^2: mean 0.490, sd 0.051, min 0.395, max 0.575.
+Held-out R^2: mean 0.491, sd 0.052, min 0.395, max 0.575.
 30 distinct equations in 30 splits; none recurs.
-97 distinct features; the most frequent in 12 of the 30 splits.
+98 distinct features; the most frequent in 12 of the 30 splits.
 
 Features, most frequent first:
   12/30  ((bmi + s5) + (bp - s3))
-   9/30  ((bmi + s5) - (s3 + sex))
-   7/30  ((bmi + s5) - (sex - bp))
-  ... and 94 more features
+  10/30  ((bmi + s5) - (s3 + sex))
+   7/30  ((bmi + s5) + (age * sex))
+  ... and 95 more features
 
 Features whose values on the rows of X correlate above 0.999 in absolute value are counted as one; an equation is the set of its features, whatever its coefficients.
 ```
@@ -230,8 +230,8 @@ fit. That design, the one in the paper's stability study (Appendix E),
 measures seed-to-seed variability on fixed data: how much the printed
 equation owes to one random draw, the draw the FDR guarantee is conditional
 on. Run on diabetes as above with `resample="seeds"`, it still prints 30
-distinct equations in 30 fits, with 84 distinct features and the commonest
-in 11. The standard deviation of R² falls from 0.051 to 0.008, though, so
+distinct equations in 30 fits, with 82 distinct features and the commonest
+in 11. The standard deviation of R² falls from 0.052 to 0.009, though, so
 most of the default's spread comes from the test parts, while the turnover of
 equations persists with the rows held fixed.
 

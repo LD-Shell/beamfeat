@@ -6,11 +6,25 @@ Notable changes to `beamfeat`. Format follows
 
 ## [0.7.0] - 2026-10-24
 
-One default changes: `magnitude_slots="auto"`, 10 beam slots for regression
-(under "Changed"). With `magnitude_slots=0` a fit gives the features,
-p-values and predictions of 0.6.1. The code is split into smaller modules,
-with every fit of 0.6.1 reproduced, and the conditional re-test after the
-forward step without `parsimony_alpha` is deprecated.
+Two changes to fits, under "Changed": `magnitude_slots="auto"`, 10 beam
+slots for regression, and a guard in the search against quotients whose
+denominator comes near zero. With `magnitude_slots=0` a fit gives 0.6.1's
+features, p-values and predictions on 1,243 of the release comparison's
+1,430 items; the others are fits whose search met such a quotient.
+Predictions warn when a new row takes a feature far beyond its training range
+(under "Added"). The code is split into smaller modules, and the conditional
+re-test after the forward step without `parsimony_alpha` is deprecated.
+
+### Added
+
+- `ExtrapolationWarning`: `predict`, `transform` and the probability methods
+  warn when a new row takes a feature more than one width of its training
+  range beyond that range, and say on how many rows, which features and how
+  far; the predictions are unchanged. `feature_ranges_` holds each
+  feature's range on the training rows. A model saved with an earlier release
+  has no ranges and predicts as before, without the check. On tecator's own
+  split it was raised only where a fit missed the high-fat extrapolation set
+  by far, and on no row of the test set.
 
 ### Changed
 
@@ -19,16 +33,33 @@ forward step without `parsimony_alpha` is deprecated.
   magnitude. The slots keep candidates whose magnitude tracks the target's,
   so that the search recovers laws whose parts do not correlate with the
   target, such as `x0*x1*x2` with centred inputs. In
-  `benchmarks/release_comparison/` they recovered every such stress law
-  (exact recovery 0.40 and 0.55 without them, 1.00 with), left the held-out
-  score of 11 of 12 real datasets within 0.005 (superconduct 0.746 to
-  0.740), added a junk column to a few more equations (26 of 40 against 23),
-  and cost 1.19 times 0.6.1's fit time and 1.06 times its memory. The
-  end-to-end calibration and the pure-noise pipeline stress give the results
-  they gave without them. For regression, a fit at the 0.7.0 defaults is the
-  earlier fit with `magnitude_slots=10`, field for field (0.6.0's, whose fits
-  0.6.1 shares, on all 1,425 regression items of the comparison);
-  `magnitude_slots=0` gives the 0.6.1 fit (all 1,430).
+  `benchmarks/release_comparison/`, against 0.7.0 with the slots off, they
+  recovered every such stress law (exact recovery 0.40 and 0.55 without
+  them, 1.00 with), moved the held-out score of 10 of 12 real datasets by
+  less than 0.005 (riboflavin fell by 0.011 and eyedata rose by 0.009), added a junk column to two more
+  equations (27 of 40 against 25), and cost 1.19 times the fit time and 1.07
+  times the memory. The end-to-end calibration gives the result it gave
+  without them.
+- **The search rules out a quotient whose denominator comes near zero.** A
+  quotient or reciprocal whose denominator comes within the pole margin of
+  zero on the search rows, or crosses it, is excluded as a value outside an
+  operator's domain is. The margin is the one fitted poles keep since 0.6.0:
+  twice the spread of the ten values nearest zero, and at least 1% of the
+  range. Such a denominator can cross zero on a new row a little beyond the
+  training data, where the quotient takes any size and either sign. On
+  tecator's own split, one 0.6.1 fit predicted fat contents from -299% to
+  507% on the eight high-fat extrapolation samples, and 0.6.1's error there
+  averaged 47.7 over five seeds, against 2.0 with the guard
+  (`benchmarks/tecator_chemometrics/`). In `benchmarks/release_comparison/`
+  the guard changed the fit on 187 of 1,430 items, raised the held-out score
+  on 3 of 12 real datasets (eyedata 0.110 to 0.312, riboflavin 0.506 to
+  0.527, tips 0.461 to 0.472) and lowered none by more than 0.005, left the
+  riders on the calibration designs and exact recovery on the stress laws and
+  the Feynman panel within two standard errors of 0.6.1's, and cost 5% of the
+  fit time. In the pure-noise
+  pipeline stress Benjamini-Hochberg now selects in 7 of 100 trials, against
+  6, and Benjamini-Yekutieli in 1. The guard is always on, so a fit that
+  0.6.1 made with such a quotient is reproduced only by 0.6.1.
 - The largest modules are split into smaller private ones, so that each
   stage of a fit can be read on its own. `estimators.py` keeps the three
   public classes; the fitting machinery they share is in `_base.py`, with
@@ -39,10 +70,10 @@ forward step without `parsimony_alpha` is deprecated.
   `_prediction.py`. The built-in operators are defined in `_operators.py`,
   the place to add one. `BeamSearch.run` runs one method per depth instead
   of a loop of 264 lines. The public API and its import paths are
-  unchanged. Fits, predictions, p-values, LaTeX, the verbose output and the
-  warnings are those of 0.6.1, compared field by field on 327 fits across the
-  benchmark datasets and options, and so are the printed equations, apart
-  from the brackets described under "Fixed"; models saved with 0.6.1 load and
+  unchanged. The split itself changed nothing that is fitted or printed:
+  compared field by field on 327 fits across the benchmark datasets and
+  options, its fits, predictions, p-values, equations, LaTeX, verbose output
+  and warnings were those of 0.6.1, and models saved with 0.6.1 load and
   predict identically. Private helpers imported
   from `beamfeat.estimators` by name, such as `_chance_p_value`, now live in
   those modules. `ARCHITECTURE.md` maps the modules and a fit's stages.
@@ -68,9 +99,12 @@ forward step without `parsimony_alpha` is deprecated.
   SNV-corrected and derivative spectra, and kernel ridge, SVR and a Gaussian
   process on derivative spectra, on the paper's random splits and on the
   split of the data's documentation with its extrapolation sets. beamfeat's
-  error is under 60% of that of PLS and about twice that of the kernel
-  methods; on derivative spectra it is close to them and had the lowest error
-  on the high-fat extrapolation set.
+  error is 46 to 62% of that of PLS and about twice that of the kernel
+  methods; on derivative spectra it is close to them, and on the high-fat
+  extrapolation set its errors were the lowest.
+- `selector_calibration.py` prints the exact paired test behind the
+  pure-noise comparison of Benjamini-Hochberg and Benjamini-Yekutieli: both
+  fit the same 100 problems, and it tests the trials where only one selected.
 - `tecator.csv` now carries Tecator's permission note
   (`additional_experiments/data/TECATOR_PERMISSION.txt`), which its
   redistribution requires.
@@ -87,17 +121,17 @@ forward step without `parsimony_alpha` is deprecated.
   navigation groups the pages under Get started, User guide, Tutorials and
   Reference, and the changelog is on the site.
 - Every example in the quickstart and the guide was run again at 0.7.0, and
-  the outputs the magnitude slots had changed are updated.
+  the outputs that the magnitude slots and the guard changed are updated.
 
 ### Deprecated
 
 - `certify_test="conditional"` after the forward step without
-  `parsimony_alpha`. On a noisy target the forward step passes the re-test
+  `parsimony_alpha`. On a noisy target the forward step hands the re-test
   riders it cannot certify, the re-test rejects no null, and the whole
   screened set is returned: in `benchmarks/release_comparison/` 40 terms on
   diabetes and mpg, and 46 on the calibration designs at signal to noise 1,
   where the default prints 18 and the same re-test with
-  `parsimony_alpha=0.05` 1.0 to 1.3. It warns with a `FutureWarning` and will
+  `parsimony_alpha=0.05` 1.0 to 1.5. It warns with a `FutureWarning` and will
   raise from 0.8. With `parsimony_alpha`, or with `parsimony=None`, which
   re-tests the whole screened set, the conditional re-test is unchanged.
 

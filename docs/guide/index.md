@@ -10,7 +10,7 @@ up the data the rest of the page uses. New to beamfeat? Start with the
 | [Reading a fit](reading-a-fit.md) | what the printed equation and its note mean, the equation at every size, the selection report, refits on other splits, an empty fit, LaTeX and export |
 | [The printed equation](printed-equation.md) | how the equation is chosen from the certified set, and the options that shorten it, test the columns inside it or re-test it |
 | [Search options](search.md) | units, fitted constants, laws whose parts the score cannot see, limits on the search, speed and memory |
-| [Data and prediction](data.md) | constant columns, missing values and categoricals, rows outside a formula's domain, predicting with the original columns as well |
+| [Data and prediction](data.md) | constant columns, missing values and categoricals, rows outside a formula's domain, predicting with the original columns as well, new rows beyond the training data |
 
 ## Find a parameter
 
@@ -33,6 +33,7 @@ up the data the rest of the page uses. New to beamfeat? Start with the
 | `magnitude_slots` | [Laws whose parts the score cannot see](search.md#laws-whose-parts-the-score-cannot-see) |
 | `max_inputs` | [Search constraints](search.md#search-constraints) |
 | `n_jobs` | [Speed and memory on wide data](search.md#speed-and-memory-on-wide-data) |
+| `feature_ranges_`, `ExtrapolationWarning` | [New rows beyond the training data](data.md#new-rows-beyond-the-training-data) |
 
 `max_depth`, `beam_width` and the scorers are covered in the
 [Search and scoring](../notebooks/02_search_and_scoring.ipynb) tutorial, and

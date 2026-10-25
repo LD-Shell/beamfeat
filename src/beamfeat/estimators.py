@@ -248,8 +248,9 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             the selection rows sees fixed expressions and its guarantee is
             unchanged. In ``benchmarks/release_comparison/`` the slots
             recovered every ``x0*x1*x2`` stress law (exact recovery 0.40 and
-            0.55 without them, 1.00 with), left the held-out score of 11 of 12
-            real datasets within 0.005, and cost a fifth more fit time. A
+            0.55 without them, 1.00 with), left the held-out score of 10 of 12
+            real datasets within 0.005 (riboflavin fell by 0.011, eyedata rose
+            by 0.009), and cost a fifth more fit time. A
             positive value is for regression only.
         input_test: Whether to test, on the selection rows, each column
             inside each candidate that reads more than one, and drop a
@@ -286,8 +287,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             whose guarantee is unchanged; it is a stopping rule, not a
             guarantee on the subset. It suits a target of a few strong
             terms: on real data, whose many modest effects each add little,
-            it stopped after one to four terms and lowered held-out score
-            on 8 of 12 datasets in ``benchmarks/three_settings/``.
+            it stopped after one to five terms on 10 of 12 datasets in
+            ``benchmarks/three_settings/`` and lowered held-out score on 9.
             Ignored when ``parsimony`` is ``None``.
 
     Attributes:

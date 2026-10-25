@@ -57,13 +57,14 @@ valid under arbitrary dependence; `PermutationSelector` used directly defaults
 to Benjamini–Hochberg, valid under positive regression dependence (PRDS).
 Engineered candidates share parents and are mutually correlated by
 construction, so PRDS cannot be taken for granted and the estimators take the
-conservative option. Over 100 pure-noise pipelines BH returned features in 6
-trials against BY's 1 (FDP 0.06 and 0.01,
-`benchmarks/selector_calibration.py`), both under the nominal 0.10. At this
-trial count the exact paired test does not reject equal rates (p = 0.06):
-both corrections saw the same 100 datasets, and the one trial on which BY
-selected is among BH's six. Read it as a consistency check rather than as
-evidence that BH loses control here. A selector *instance* passed to an estimator
+conservative option. Over 100 pure-noise pipelines BH returned features in 7
+trials against BY's 1 (FDP 0.07 and 0.01,
+`benchmarks/selector_calibration.py`), both under the nominal 0.10. Both
+corrections saw the same 100 datasets, and the one trial on which BY selected
+is among BH's seven, so the exact paired test rejects equal rates (p = 0.03):
+under the global null BY selects less often, as a stricter correction
+should. Neither rate exceeds the nominal level, so this is no evidence that BH
+loses control here. Up to 0.6.1 the counts were 6 and 1 (p = 0.06). A selector *instance* passed to an estimator
 keeps its own settings, so `selector=PermutationSelector()` runs BH at the
 instance's `target_fdr`; the estimator warns when its `selection_correction`
 or `target_fdr` disagrees with the instance's.
@@ -209,10 +210,11 @@ option as without on four null designs, 0.015 to 0.025, among them centred and
 Gaussian inputs and 200 columns on 150 search rows; on a planted
 `x0*x1*x2` among centred distractors it was 0.025 against 0.020, one fit in
 200, with a false discovery rate of 0.005 either way. With the slots on by
-default for regression since 0.7.0, the end-to-end study and the pure-noise
-pipeline stress above give the results they gave without them: no false
-discovery in 200 replicates, power 1.000, nothing selected in 60 global-null
-replicates; BH 6/100 and BY 1/100.
+default for regression since 0.7.0, the end-to-end study gives the result
+it gave without them: no false discovery in 200 replicates, power 1.000,
+nothing selected in 60 global-null replicates. At the 0.7.0 defaults, with
+the slots and the denominator guard, the pure-noise pipeline stress gives BH
+7/100 and BY 1/100.
 
 ## Columns inside a term (`input_test`)
 
@@ -245,7 +247,7 @@ a junk column 14 → 1, printed terms with one 23/45 → 1/28, held-out R² 0.94
 → 0.9416. With the junk `x8` correlated 0.82 with `x1`, 10 → 3. On pure-noise
 targets the screen rejects no null with the option or without it, and the
 physics panel is unchanged. On the release comparison's 12 real datasets
-(`benchmarks/three_settings/`) held-out score fell on 7, by 0.04 at most, and
+(`benchmarks/three_settings/`) held-out score fell on 7, by 0.06 at most, and
 fits took 3.6 times as long.
 
 ## Parsimony within the screened set
@@ -404,31 +406,31 @@ signal to noise 1 and 20 to 24% at 3 to under 1%, and the conditional rate was
 On real data the check costs accuracy. These designs have one strong term
 and noise; real targets tend to carry many modest effects, each of which adds
 little on its own, often less than the best of the remaining terms reaches
-against noise, so the step stops after one to four terms. In
+against noise, so the step stops after a few terms: one to five on 10 of
+these 12 datasets. In
 `benchmarks/three_settings/`, on the datasets and splits of
 `benchmarks/release_comparison/` (5 splits each, 70/30), held-out score fell
-by more than 0.005 on 8 of 12 real datasets, was within 0.005 on 3, and rose
+by more than 0.005 on 9 of 12 real datasets, was within 0.005 on 2, and rose
 on one:
 
 | dataset | rows (train) | default | `parsimony_alpha=0.05` |
 | :-- | --: | --: | --: |
-| diabetes | 309 | 0.431 (5.4 terms) | 0.381 (1.4) |
-| tips | 170 | 0.461 (12.0) | 0.397 (1.0) |
+| diabetes | 309 | 0.433 (6.6 terms) | 0.381 (1.4) |
+| tips | 170 | 0.472 (8.6) | 0.433 (1.0) |
 | penguins | 239 | 0.803 (7.8) | 0.768 (1.4) |
-| breast_cancer (accuracy) | 398 | 0.974 (20.8) | 0.961 (3.8) |
-| mpg | 274 | 0.868 (12.0) | 0.858 (1.6) |
-| communities | 1,395 | 0.645 (11.0) | 0.629 (2.4) |
-| superconduct | 3,500 | 0.740 (18.6) | 0.717 (8.6) |
-| riboflavin | 49 | 0.502 (18.2) | 0.306 (1.0) |
-| diamonds | 980 | 0.853 (3.8) | 0.851 (1.0) |
-| california_housing | 14,448 | 0.697 (13.2) | 0.695 (11.8) |
-| tecator | 168 | 0.991 (3.4) | 0.989 (2.0) |
-| eyedata | 84 | 0.105 (31.0) | 0.330 (1.0) |
+| riboflavin | 49 | 0.516 (18.6) | 0.489 (1.0) |
+| breast_cancer (accuracy) | 398 | 0.971 (25.8) | 0.952 (2.8) |
+| communities | 1,395 | 0.647 (11.6) | 0.629 (2.4) |
+| mpg | 274 | 0.868 (9.4) | 0.858 (1.6) |
+| superconduct | 3,500 | 0.747 (18.8) | 0.737 (12.6) |
+| california_housing | 14,448 | 0.690 (21.2) | 0.681 (13.4) |
+| diamonds | 980 | 0.852 (3.4) | 0.851 (1.0) |
+| tecator | 168 | 0.992 (3.0) | 0.991 (2.2) |
+| eyedata | 84 | 0.321 (30.6) | 0.330 (1.0) |
 
-The one gain, eyedata, is a default that overfits: 31 terms on 84 training
-rows, with held-out R² of -1.0 on one split. Two synthetic targets built from
-many terms behaved like the real ones (friedman1 0.797 to 0.759,
-threshold_step 0.838 to 0.808). The check suits a search for a short law,
+The one gain is on eyedata, where the default fits 31 terms to 84 training
+rows. Two synthetic targets built from many terms behaved like the real ones
+(friedman1 0.796 to 0.759, threshold_step 0.841 to 0.808). The check suits a search for a short law,
 where the target is a few strong terms; for prediction, leave it off.
 
 **The equation list.** `equations()` and `equations_` record the forward path
@@ -487,6 +489,14 @@ negative held-out R² (regression) or held-out accuracy below the
 majority-class rate (classification) raises a visible `DegenerateFitWarning`
 naming the gap. Rank-based scoring deserves particular attention here, since
 rank transformation hides exactly the magnitudes that cause the problem.
+
+New rows can reach a pole the training rows stayed clear of. Since 0.7.0 the
+search rules out a quotient whose denominator comes within the pole margin of
+zero on the search rows, and `predict` and `transform` raise
+`ExtrapolationWarning` when a new row takes a feature more than one width of
+its training range beyond it. Neither touches the screen or its guarantee;
+[New rows beyond the training data](guide/data.md#new-rows-beyond-the-training-data)
+describes both.
 
 ## When no null is rejected
 

@@ -33,13 +33,13 @@ for options in ({}, {"parsimony_alpha": 0.05}, {"input_test": True}):
 ```
 
 ```text
-y = 1.047*(x0 * x1) - 0.4562*((x0 * x1) / (x0 + x6)) - 0.07509*((x3 / x0) - x1) + 0.06757   [3 of 50 certified terms; parsimony=None prints all 50]
+y = 1.052*(x0 * x1) - 0.4088*((x0 * x1) / (x0 + x6)) - 0.1452*((x3 / x0) - x1) + 0.1295*((x5 / x0) - x1) + 0.04642   [4 of 50 certified terms; parsimony=None prints all 50]
 y = 1.013*(x0 * x1) - 0.1608   [1 of 50 certified terms; parsimony=None prints all 50]
 y = 1.013*(x0 * x1) - 0.1608   [1 of 50 certified terms; parsimony=None prints all 8; input_test dropped 42]
 ```
 
-The default adds two terms to the product, and each brings in a column the
-target does not use, `x6` or `x3`. Each adds a little to R² on the rows the
+The default adds three terms to the product, and each brings in a column the
+target does not use: `x6`, `x3` or `x5`. Each adds a little to R² on the rows the
 equation was chosen on, by fitting noise. `parsimony_alpha` stops before
 them. `input_test` drops 42 of the 50 certified formulas, those with a column
 whose null the test fails to reject, and the forward step then stops at the
@@ -70,10 +70,9 @@ function than the default's (R² 0.998 against 0.981).
 
 Use it for an equation to read or report, or to look for a law. Real targets
 tend to carry many modest effects, each adding little, so the step stops
-after one to four terms. Held-out score fell on 8 of 12 real datasets, by
-0.01 to 0.06 on seven of them and by 0.20 on riboflavin, which has 49
-training rows; it rose on eyedata, where the default overfits 84 training
-rows with 31 terms. It is a stopping rule, not a guarantee on the terms it
+after a few terms: one to five on 10 of 12 real datasets. Held-out score fell on 9 of 12 real datasets, by
+0.01 to 0.05, and rose a little on eyedata, where the default fits 31 terms
+to 84 training rows. It is a stopping rule, not a guarantee on the terms it
 keeps. [A short equation](guide/printed-equation.md#a-short-equation-parsimony_alpha)
 has the details.
 
@@ -91,7 +90,7 @@ Use it when every column in the equation must be shown to matter. It costs
 time, 3.6 times the default's on the real datasets and 2.4 to 7 times across
 the benchmark's studies, and the time grows with the rows; `n_jobs` threads
 share the tests. It costs some accuracy too: held-out score stayed within 0.005 of the
-default's on 5 of 12 real datasets and fell on 7, by 0.04 at most. It does not
+default's on 5 of 12 real datasets and fell on 7, by 0.06 at most. It does not
 remove riders built only from the target's own columns, which
 `parsimony_alpha` does, and a junk column correlated with a real one is not
 null in its sense.
@@ -114,12 +113,12 @@ fits the four settings on the same data with the same seeds:
 | noise sweep, noise as large as the signal: median terms | 9.5 | 1 | 2 | 1 |
 | … terms reading an unrelated column | 78 of 92 | 0 of 10 | 3 of 21 | 0 of 10 |
 | … R² against the true function | 0.981 | 0.998 | 0.995 | 0.998 |
-| 12 real datasets: mean held-out score | 0.673 | 0.657 | 0.659 | 0.653 |
-| … mean terms | 13.1 | 3.1 | 10.3 | 2.8 |
-| … better / same / worse than the default | — | 1 / 3 / 8 | 0 / 5 / 7 | 1 / 1 / 10 |
-| 18 synthetic datasets: within 0.005 of the default | — | 16 | 17 | 16 |
+| 12 real datasets: mean held-out score | 0.693 | 0.675 | 0.675 | 0.667 |
+| … mean terms | 13.8 | 3.5 | 10.5 | 3.1 |
+| … better / same / worse than the default | — | 1 / 2 / 9 | 0 / 5 / 7 | 1 / 1 / 10 |
+| 18 synthetic datasets: within 0.005 of the default | — | 15 | 17 | 16 |
 | fit time, × the default's | 1 | 1.0 | 3.6 | 3.6 |
-| the paper's comparison study: mean R² (paper 0.803) | 0.804 | 0.784 | 0.801 | 0.784 |
+| the paper's comparison study: mean R² (paper 0.803) | 0.803 | 0.784 | 0.803 | 0.786 |
 
 The noise sweep is ten fits of `y = x0/x1` among ten unrelated columns; the
 real and synthetic datasets are those of the release comparison, five splits

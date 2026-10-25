@@ -30,20 +30,20 @@ print(BeamFeatRegressor(random_state=0, parsimony_alpha=0.05).fit(X, y).equation
 ```
 
 ```text
-y = 1.047*(x0 * x1) - 0.4562*((x0 * x1) / (x0 + x6)) - 0.07509*((x3 / x0) - x1) + 0.06757   [3 of 50 certified terms; parsimony=None prints all 50]
+y = 1.052*(x0 * x1) - 0.4088*((x0 * x1) / (x0 + x6)) - 0.1452*((x3 / x0) - x1) + 0.1295*((x5 / x0) - x1) + 0.04642   [4 of 50 certified terms; parsimony=None prints all 50]
 y = 1.013*(x0 * x1) - 0.1608   [1 of 50 certified terms; parsimony=None prints all 50]
 ```
 
-The default's second and third terms attach unrelated columns, `x6` and
-`x3`, to the product. At a signal-to-noise ratio of 1 the default kept 18
+The default's other three terms attach unrelated columns, `x6`, `x3` and
+`x5`, to the product. At a signal-to-noise ratio of 1 the default printed 18
 terms on average where one was true, and the check printed 1.1, with held-out
 R² slightly higher on average and a little lower in a few fits.
 
 On real data the check costs accuracy. Real targets tend to carry many
-modest effects, each adding little, so the step stops after one to four
-terms, and held-out score fell on 8 of 12 real datasets (tips 0.461 to 0.397,
-diabetes 0.431 to 0.381). Use it to look for a short law, not for
-prediction. It is a stopping rule, not a guarantee on the terms it keeps:
+modest effects, each adding little, so the step stops after a few terms
+(one to five on 10 of 12 real datasets), and held-out score fell on 9 of the
+12 (diabetes 0.433 to 0.381, tips 0.472 to 0.433). Use it to look for a short
+law, not for prediction. It is a stopping rule, not a guarantee on the terms it keeps:
 the screen and its guarantee are unchanged. The path in `equations()` is the
 same either way; only the marked line moves.
 [Choosing a setting](../settings.md#what-was-measured) and the

@@ -1,7 +1,7 @@
 # beamfeat
 
 [![CI](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml/badge.svg)](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-995%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-1004%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
 [![PyPI](https://img.shields.io/pypi/v/beamfeat)](https://pypi.org/project/beamfeat/)
 [![Python](https://img.shields.io/badge/python-3.10%E2%80%933.15-blue)](https://github.com/LD-Shell/beamfeat)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE)
@@ -19,11 +19,14 @@ can fit, inspect and predict with. The method is described in a
 
 **New in 0.7.0.** The search now keeps a few beam places for building
 blocks whose size tracks the target's even when they do not correlate with it
-(`magnitude_slots`, on by default for regression): every `x0*x1*x2` stress law
-is recovered, the held-out score of 11 of 12 real datasets stays within 0.005
-of 0.6.1's, and fits take a fifth longer. The conditional re-test after the
-forward step now asks for `parsimony_alpha`, and the code is split into
-smaller modules, mapped in
+(`magnitude_slots`, on by default for regression), so every `x0*x1*x2` stress
+law is recovered. It rules out quotients whose denominator comes near zero,
+which on tecator's high-fat extrapolation samples had produced predictions
+of up to 507% fat, and `predict` warns when a new row takes a feature far
+beyond its training range. Against 0.6.1, the held-out score rose on 3 of 12 real
+datasets and fell on none, and fits take a quarter longer. The conditional
+re-test after the forward step now asks for `parsimony_alpha`, and the code
+is split into smaller modules, mapped in
 [`ARCHITECTURE.md`](https://github.com/LD-Shell/beamfeat/blob/main/ARCHITECTURE.md).
 The documentation has a new
 [Choosing a setting](https://ld-shell.github.io/beamfeat/settings/) page:
@@ -41,13 +44,13 @@ In the tecator data, the task is to predict the fat content of meat samples
 from 100 near-infrared absorbance channels. Over five random 75/25 splits,
 beamfeat's equation uses three or four formulas, mostly ratios of channel
 differences such as `((x35 - x42) / (x37 - x39))`, and reaches a mean
-held-out R² of 0.991. On all 100 channels, ridge regression reaches 0.957, a
+held-out R² of 0.991 in the paper (0.990 with 0.7.0). On all 100 channels, ridge regression reaches 0.957, a
 random forest 0.717 and LightGBM 0.756. A random forest given the formulas in
 place of the raw channels goes from 0.739 to 0.992, on three of the five
 splits. Against the methods of chemometrics, compared since the paper,
-beamfeat's error is 44 to 59% of that of partial least squares (R² 0.951 to
+0.7.0's error is 46 to 62% of that of partial least squares (R² 0.951 to
 0.971), and the error of kernel methods on second-derivative spectra (R²
-0.996 to 0.998) is 48 to 62% of beamfeat's, from every channel and with no
+0.996 to 0.998) is 46 to 59% of beamfeat's, from every channel and with no
 formula to read.
 
 The accuracy is stable from split to split; which ratios are picked is not.
@@ -74,7 +77,7 @@ pip install "beamfeat[display]"   # + sympy, for to_sympy() and latex()
 pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
-Python 3.10 or newer, with no upper version pins: the 995 tests pass on
+Python 3.10 or newer, with no upper version pins: the 1,004 tests pass on
 Python 3.10 to 3.15 with the newest releases each supports, and the suite runs
 on the oldest supported stack too.
 [Installation](https://ld-shell.github.io/beamfeat/installation/) lists the
@@ -136,6 +139,10 @@ measurements.
   `(x0 * x1) / (x0 + x6)`.
 - **Stability.** `stability_report` refits on many splits and shows whether
   the equation is the only good one or one of many.
+- **A warning beyond the training data.** `predict` and `transform` warn
+  when a new row takes a feature far beyond its range on the training rows,
+  and the search rules out quotients whose denominator comes close to zero
+  there.
 
 ## The guarantee
 

@@ -109,3 +109,62 @@ columns misses. Two things change:
 
 If the combined model scores no better than ridge on the original columns
 alone, the certified features are adding nothing to prediction on that data.
+
+## New rows beyond the training data
+
+A formula is fitted where the training rows lie, and beyond them it can
+behave unlike anything the fit saw. A ratio is the usual case: its
+denominator can stay clear of zero on the training rows and reach it a little
+beyond them, where the quotient takes any size and either sign. Two things
+guard against it.
+
+The search rules out a quotient whose denominator comes closer to zero on the
+search rows than the margin a fitted pole keeps, or crosses it: twice the
+spread of its ten values nearest zero, and at least 1% of its range
+([Constants inside expressions](search.md#constants-inside-expressions)
+describes the margin). On the 172 training samples of tecator's own split,
+the denominator of `(x41 - x43) / (x41 - x54)` runs from -0.75 to -0.10, and
+its ten values nearest zero are spread over more than half their distance
+from it. The search sees half of those samples, and on 986 of 1,000 random
+halves it rules the formula out.
+
+`predict`, `transform` and the probability methods compare each feature on
+the new rows with its range on the training rows, kept in `feature_ranges_`,
+and raise `ExtrapolationWarning` when a row takes a feature more than one
+width of that range beyond it:
+
+```python
+import numpy as np
+from beamfeat import BeamFeatRegressor
+
+rng = np.random.default_rng(0)
+X = rng.uniform(1.0, 3.0, (400, 3))
+y = X[:, 0] / X[:, 1] + rng.normal(0, 0.01, 400)
+model = BeamFeatRegressor(max_depth=1, beam_width=8, random_state=0).fit(X, y)
+print(model.formulas(), model.feature_ranges_)
+```
+
+```text
+['(x0 / x1)'] [[0.35937791 2.7401815 ]]
+```
+
+```python
+new_rows = np.array([[2.0, 2.0, 2.0], [2.0, 0.1, 2.0]])
+print(model.predict(new_rows))
+```
+
+```text
+ExtrapolationWarning: beamfeat: on 1 of 2 rows, a feature lies beyond its
+training range by more than 1 width of that range: '(x0 / x1)' by up to 7.25
+widths. The predictions on those rows extrapolate the equation, where a
+formula can behave unlike anything the fit saw, such as a ratio whose
+denominator nears zero; check them.
+[ 1.00053387 19.99928935]
+```
+
+The predictions are returned unchanged. Here the formula is the law itself,
+so 20.0 is right; the warning cannot tell a law from a formula that only fits
+the training range, and says how many rows to check; `feature_ranges_`
+holds the ranges, to find them. A row a little beyond the
+training range does not raise it. A model saved with an earlier release has
+no `feature_ranges_`, and predicts as before, without the check.

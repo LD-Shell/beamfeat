@@ -12,25 +12,30 @@ described under [Reading the paper today](#reading-the-paper-today).
 environment the comparisons need.
 
 Unless a result says otherwise, it was measured with constants inside
-expressions off (`fitted_ops=()`), the default before 0.6.0, and without
-magnitude slots (`magnitude_slots=0`), the default before 0.7.0. The scripts
-build their estimators at the current defaults, so to reproduce an archived
-result, run the script through the options launcher with the old defaults:
+expressions off (`fitted_ops=()`), the default before 0.6.0, without
+magnitude slots (`magnitude_slots=0`), the default before 0.7.0, and without
+0.7.0's guard against quotients whose denominator comes near zero. To
+reproduce an archived result exactly, install the release that produced it;
+the [release comparison](#release-comparison) runs five releases side by
+side. The scripts build their estimators at the current defaults, and the
+options launcher sets the old ones:
 
 ```bash
 BEAMFEAT_OPTIONS='{"fitted_ops": [], "magnitude_slots": 0}' \
     python benchmarks/search_stress/with_options.py benchmarks/run_benchmarks.py
 ```
 
-This reproduces the archived core-suite R² of every synthetic problem to
-within 1e-10. With the fitted constants of 0.6.0, the core suite recovers the
+On 0.7.0 this reproduces the archived core-suite R² of 11 of the 12
+synthetic problems to within 1e-10; on log_linear the guard rules out a
+quotient the archived fit used, and R² rises from 0.9982 to 0.9994. With the
+fitted constants of 0.6.0, the core suite recovers the
 same 10/10 formulas, Friedman #1 rises from 0.745 to 0.765 and the other
 problems move by at most 0.0004; the robustness suite recovers the same 5/5,
 with R² lower by at most 0.004 (the distractors at 50% noise, 0.776 to 0.772).
-The magnitude slots of 0.7.0 keep both recoveries and raise three R²: Friedman
-#1 to 0.777, the distractors at 50% noise to 0.777 and threshold_step from
-0.844 to 0.845. At the 0.7.0 defaults the end-to-end calibration below is
-unchanged.
+The 0.7.0 defaults, which add the magnitude slots and the guard, keep both
+recoveries, with Friedman #1 at 0.770, the distractors at 50% noise at 0.774
+and threshold_step at 0.845. At the 0.7.0 defaults the end-to-end calibration
+below is unchanged.
 
 ## High-dimensional data
 
@@ -97,21 +102,22 @@ cross-validation on its training rows:
 | SVR, second-derivative spectra | 0.998 | 0.66 | all 100 channels |
 | kernel ridge, second-derivative spectra | 0.997 | 0.79 | all 100 channels |
 | Gaussian process, second-derivative spectra | 0.996 | 0.85 | all 100 channels |
-| beamfeat, second-derivative spectra | 0.995 | 1.01 | 1 to 2 terms |
-| beamfeat | 0.991 | 1.37 | 2 to 4 terms |
+| beamfeat, second-derivative spectra | 0.996 | 0.89 | 1 to 3 terms |
+| beamfeat | 0.990 | 1.44 | 3 to 4 terms |
 | PLS, after the standard normal variate | 0.971 | 2.33 | 5 to 18 components |
 | PLS, derivative spectra | 0.958 | 2.89 | 12 to 20 components |
 | ridge | 0.957 | 2.94 | all 100 channels |
 | PLS | 0.951 | 3.14 | 17 to 18 components |
 
-beamfeat's error is 44 to 59% of that of PLS, the field's standard, and the
-kernel methods' is 48 to 62% of beamfeat's, from all 100 channels and with no
-formula to read. On derivative spectra beamfeat narrows that gap with one or
-two terms, so it works with the field's preprocessing rather than in place of
-it. Its formulas are mostly ratios of differences between nearby channels,
-much like a derivative followed by a normalisation, and the channels it uses
-most lie at 926 to 946 nm, near the band around 930 nm usually attributed to
-fat; which channels a fit picks still varies from split to split.
+With 0.7.0, beamfeat's error is 46 to 62% of that of PLS, the field's
+standard, and the kernel methods' is 46 to 59% of beamfeat's, from all 100
+channels and with no formula to read. On derivative spectra beamfeat narrows
+that gap with one to three terms, so it works with the field's preprocessing
+rather than in place of it. Its formulas are mostly ratios of differences
+between nearby channels, much like a derivative followed by a normalisation,
+and the channels it uses most lie at 920 to 946 nm, near the band around
+930 nm usually attributed to fat; which channels a fit picks still varies
+from split to split.
 
 The data's documentation also defines a split of its own: samples 1 to 172
 to train, 173 to 215 to test, and two extrapolation sets, E1 (eight samples
@@ -122,17 +128,19 @@ element of randomness:
 | method | test RMSE | E1 RMSE | E2 RMSE |
 | :-- | --: | --: | --: |
 | kernel ridge, SVR, Gaussian process (derivative) | 0.54 to 0.55 | 2.69 to 3.76 | 0.41 to 0.44 |
-| beamfeat, second-derivative spectra | 0.62 | 1.79 | 0.50 |
-| beamfeat | 1.21 | 4.09 | 1.19 |
+| beamfeat, second-derivative spectra | 0.64 | 1.74 | 0.43 |
+| beamfeat | 1.33 | 1.99 | 1.17 |
+| beamfeat 0.6.1 | 1.23 | 47.70 | 1.00 |
 | PLS (raw, SNV, derivative) and ridge | 1.98 to 2.20 | 8.08 to 8.47 | 1.66 to 2.19 |
 
-On derivative spectra beamfeat had the lowest error on E1, though on eight
-samples that is a hint rather than a measurement. On the raw channels one
-seed in five missed E1 by 13: one of its ratios of channel differences went
-twice its training range beyond it there. With 0.6.1's default, which had no
-magnitude slots, the same happened in three seeds in five, and one fit
-predicted fat contents from -299% to 507%. A ratio whose denominator
-approaches zero beyond the training data can do this;
+beamfeat had the lowest errors on E1, on derivative spectra and on the raw
+channels, though on eight samples that is a hint rather than a measurement.
+0.6.1 shows what 0.7.0 guards against. In three of its five fits a ratio of
+channel differences, whose denominator came near zero beyond the training
+samples, went 2 to 24 times its training range beyond that range on E1,
+and one fit predicted fat contents from -299% to 507%. 0.7.0 rules such
+quotients out in the search, and warns when a new row takes a feature that
+far ([New rows beyond the training data](guide/data.md#new-rows-beyond-the-training-data));
 `benchmarks/tecator_chemometrics/REPORT.md` has every fit.
 
 ## Selection calibration
@@ -156,13 +164,13 @@ approaches zero beyond the training data can do this;
 - **Pure noise**
   ([`benchmarks/selector_calibration.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py)).
   Over 100 global-null pipelines, where every rejection is a false rejection
-  by construction, BH returned features in 6 trials and BY in 1, false
-  discovery proportions of 0.06 and 0.01, both under the nominal 0.10. At
-  this trial count the exact paired test does not reject equal rates
-  (p = 0.06): both corrections saw the same 100 datasets, and the one trial
-  on which BY selected is among BH's six. BY is the estimator default because it is
-  valid under arbitrary dependence, and this result is consistent with that
-  choice.
+  by construction, BH returned features in 7 trials and BY in 1, false
+  discovery proportions of 0.07 and 0.01, both under the nominal 0.10. Both
+  corrections saw the same 100 datasets, and the one trial on which BY
+  selected is among BH's seven, so the exact paired test rejects equal rates
+  (p = 0.03). BY is the estimator default because it is valid under
+  arbitrary dependence, and this result is consistent with that choice. Up
+  to 0.6.1, as in the paper, the counts were 6 and 1 (p = 0.06).
 
 The [guarantees page](guarantees.md) states what each procedure guarantees and
 under which assumptions.
@@ -311,10 +319,10 @@ their own settings. [Choosing a setting](settings.md) summarises it. In
 short, at noise as large as the signal the default printed a median of 9.5
 terms, most of them reading an unrelated column, and `parsimony_alpha`
 printed the one true term in every fit; on the 12 real datasets the default
-had the best mean held-out score (0.673, against 0.657 with
-`parsimony_alpha` and 0.659 with `input_test`). At the paper's settings the
-comparison study's mean R² is 0.804 at the default, 0.784 with
-`parsimony_alpha` and 0.801 with `input_test`, against the paper's 0.803.
+had the best mean held-out score (0.693, against 0.675 with
+`parsimony_alpha` and 0.675 with `input_test`). At the paper's settings the
+comparison study's mean R² is 0.803 at the default, 0.784 with
+`parsimony_alpha` and 0.803 with `input_test`, against the paper's 0.803.
 
 ## Release comparison
 
@@ -330,19 +338,21 @@ the defaults:
 | Search stress laws, exact | 0.883 | 0.883 | 0.883 | 0.883 | 1.000 |
 | Riders at signal to noise 1 (conditional FDR) | 0.736 | 0.736 | 0.720 | 0.720 | 0.722 |
 | 7 real datasets, mean held-out score | 0.725 | 0.726 | 0.726 | 0.726 | 0.727 |
-| Fit time (× 0.5.0) | 3.18 | 1.00 | 1.53 | 1.54 | 1.83 |
-| Peak fit memory (× 0.5.0) | 5.27 | 1.00 | 1.08 | 1.10 | 1.17 |
+| Fit time (× 0.5.0) | 3.18 | 1.00 | 1.53 | 1.54 | 1.93 |
+| Peak fit memory (× 0.5.0) | 5.27 | 1.00 | 1.08 | 1.10 | 1.07 |
 
 0.5.0 gives 0.4.2's fits on 1,415 of 1,430 items in a third of the time.
 0.6.0's changes to the fits all come from `fitted_ops`, and 0.6.1's default
-fits are 0.6.0's. 0.7.0's come from the magnitude slots alone: with
-`magnitude_slots=0` it gives 0.6.1's fit on all 1,430 items. The
+fits are 0.6.0's. 0.7.0's come from the magnitude slots and the guard
+against quotients near their pole: with `magnitude_slots=0` it gives 0.6.1's
+fit on 1,243 of 1,430 items, and the guard raised the held-out score on 3 of
+12 real datasets and lowered it on none by more than 0.005. The
 [report](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md)
 also measures each option against its release's default.
 
 ## Test suite
 
-995 tests at 97% statement coverage, with a 90% floor enforced in CI,
+1,004 tests at 97% statement coverage, with a 90% floor enforced in CI,
 including scikit-learn's full estimator-conformance checks.
 
 <a id="corrections-since-the-paper"></a>
@@ -414,7 +424,7 @@ fit on 1000 columns and 600 rows that peaked at 2.6 GB of memory now peaks at
 0.35 GB. Over the eight timing items of the
 [release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md),
 0.5.0 fits 3.2 times faster than 0.4.2 with a fifth of its memory; 0.6.0 and
-0.6.1 take 1.5 times 0.5.0's time, and 0.7.0, with its magnitude slots, 1.8
-times. The
+0.6.1 take 1.5 times 0.5.0's time, and 0.7.0, with its magnitude slots and
+denominator guard, 1.9 times. The
 [changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md)
 lists every change.

@@ -109,7 +109,10 @@ How the constants are chosen:
   its pole at 0, so `pow` fits one only when the operand stays more than
   the same margin above 0. Otherwise `a` runs from 0.1 to 4, and a fit that
   wants less is discarded, since `x^a` then takes the shape of `log(x)`,
-  which has the same pole.
+  which has the same pole. Since 0.7.0 the denominator of every quotient
+  and reciprocal in the search keeps the same margin from zero, fitted
+  constant or not; see
+  [New rows beyond the training data](data.md#new-rows-beyond-the-training-data).
 - **In context.** `1/(x0·x1 + a)` on its own correlates best with the target
   as `a` runs to the pole; only as the denominator of `(x0 + x1)` is `a = 1`
   identifiable. While the depth limit leaves room, each constant is also

@@ -93,13 +93,13 @@ print(clf.equation(max_terms=3))
 ```
 
 ```text
-logit P(y = 1) = - 0.1685*((x2 * x3) - (x0 * x1)) - 1.313*((x2 / x0) + (x3 / x1)) - 1.185*((x2 / x1) - (x0 / x3)) + 2.709   [20 of 50 certified terms; parsimony=None prints all 50]
+logit P(y = 1) = 1.678*((x0 / x2) - log(x3)) - 0.1561*((x2 * x3) - (x0 * x1)) - 1.014*((x2 / x1) + (x3 / x0)) + 1.101   [20 of 50 certified terms; parsimony=None prints all 50]
 ```
 
 The fitted equation has 20 terms; `max_terms=3` displays the three with the
 largest standardised coefficients and holds the rest at their training mean.
 With `parsimony_alpha=0.05` the model itself has two terms, and its accuracy
-on 2,000 new rows is the same, 0.982 against 0.9815:
+on 2,000 new rows is about the same, 0.981 against 0.979:
 
 ```python
 short = BeamFeatClassifier(max_depth=2, random_state=0, parsimony_alpha=0.05).fit(X, labels)

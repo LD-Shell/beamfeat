@@ -78,8 +78,8 @@ class ExtrapolationWarning(UserWarning):
     behave unlike anything the fit saw: a ratio whose denominator approaches
     zero there takes any size and either sign. ``predict``, ``transform`` and
     the probability methods warn when a feature's values on the new rows lie
-    more than one width of its training range beyond that range, and name
-    the features, the rows affected and the furthest distance. Predictions on
+    more than one width of its training range beyond that range, and say on
+    how many rows, which features and how far. Predictions on
     those rows extrapolate the equation; check them before relying on them.
     """
 
