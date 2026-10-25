@@ -16,6 +16,16 @@ is tuned by 5-fold cross-validation on the training rows of its split:
   parameters tuned (the Gaussian process by its marginal likelihood);
 - beamfeat at its defaults, on the raw channels and on second-derivative
   spectra (window 15, not tuned).
+
+The same methods are also fitted on the split the data's documentation
+describes: the data sets C and M (samples 1 to 172) to train, T (173 to 215)
+to test, and the extrapolation sets E1 (216 to 223, more fat than any
+training sample) and E2 (224 to 240, more protein). beamfeat is fitted with
+five seeds there, as the documentation asks of a model with an element of
+randomness, beside its settings parsimony_alpha=0.05 and magnitude_slots=0
+(0.6.1's default). For each beamfeat fit, "outside" records how far its terms
+go beyond their training range on each test set: the largest distance
+beyond the range, in widths of the range, over terms and rows.
 """
 import json
 import warnings
@@ -103,6 +113,51 @@ def size(model):
     return None, None
 
 
+DOCUMENTED = {"train": slice(0, 172), "T": slice(172, 215), "E1": slice(215, 223), "E2": slice(223, 240)}
+BEAMFEAT_DOCUMENTED = {
+    "beamfeat": lambda seed: BeamFeatRegressor(random_state=seed),
+    "beamfeat, parsimony_alpha=0.05": lambda seed: BeamFeatRegressor(random_state=seed, parsimony_alpha=0.05),
+    "beamfeat, magnitude_slots=0": lambda seed: BeamFeatRegressor(random_state=seed, magnitude_slots=0),
+    "beamfeat, derivative": lambda seed: make_pipeline(derivative(), BeamFeatRegressor(random_state=seed)),
+}
+
+
+def outside(model, X_train, X_new):
+    """The largest distance of a term's values on X_new beyond its range on X_train, in widths of that range."""
+    est = model[-1] if hasattr(model, "steps") else model
+    if hasattr(model, "steps"):
+        X_train, X_new = model[:-1].transform(X_train), model[:-1].transform(X_new)
+    if not est.features_:
+        return 0.0
+    train, new = est._apply(X_train), est._apply(X_new)
+    low, high = train.min(axis=0), train.max(axis=0)
+    width = np.where(high > low, high - low, 1.0)
+    return float(np.max(np.maximum(new - high, low - new) / width))
+
+
+def documented(X, y, out):
+    parts = {name: (X[rows], y[rows]) for name, rows in DOCUMENTED.items()}
+    X_train, y_train = parts["train"]
+    fits = [(name, None, make) for name, make in METHODS.items() if not name.startswith("beamfeat")]
+    fits += [(name, seed, make) for name, make in BEAMFEAT_DOCUMENTED.items() for seed in range(5)]
+    for name, seed, make in fits:
+        model = (make() if seed is None else make(seed)).fit(X_train, y_train)
+        record = {"protocol": "documented", "method": name, "seed": seed, "beamfeat": beamfeat.__version__}
+        for part in ("T", "E1", "E2"):
+            X_part, y_part = parts[part]
+            prediction = np.ravel(model.predict(X_part))
+            record[f"rmse_{part}"] = float(mean_squared_error(y_part, prediction) ** 0.5)
+            record[f"range_{part}"] = [float(prediction.min()), float(prediction.max())]
+            if seed is not None:
+                record[f"outside_{part}"] = outside(model, X_train, X_part)
+        record["r2_T"] = float(r2_score(parts["T"][1], np.ravel(model.predict(parts["T"][0]))))
+        record["size"], record["formulas"] = size(model)
+        out.write(json.dumps(record) + "\n")
+        out.flush()
+        print(name, seed, f"T {record['rmse_T']:.3f}", f"E1 {record['rmse_E1']:.3f}", f"E2 {record['rmse_E2']:.3f}",
+              flush=True)
+
+
 def main():
     table = pd.read_csv(DATA)
     channels = [c for c in table.columns if c.startswith("_") or c.startswith("absorbance")]
@@ -114,7 +169,7 @@ def main():
             model = make().fit(X_train, y_train)
             prediction = np.ravel(model.predict(X_test))
             n, formulas = size(model)
-            record = {"method": name, "split": split, "r2": float(r2_score(y_test, prediction)),
+            record = {"protocol": "random", "method": name, "split": split, "r2": float(r2_score(y_test, prediction)),
                       "rmse": float(mean_squared_error(y_test, prediction) ** 0.5), "size": n,
                       "formulas": formulas,
                       "params": {k: str(v) for k, v in getattr(model, "best_params_", {}).items()},
@@ -122,6 +177,7 @@ def main():
             out.write(json.dumps(record) + "\n")
             out.flush()
             print(name, split, f"R2 {record['r2']:.4f}", f"RMSE {record['rmse']:.3f}", n, flush=True)
+    documented(X, y, out)
 
 
 if __name__ == "__main__":

@@ -8,12 +8,21 @@ folder supplies them. The paper and its archived runs are unchanged.
 
 ## Data and splits
 
-`benchmarks/additional_experiments/data/tecator.csv`: 240 samples, 100
-absorbance channels from 850 to 1048 nm in 2 nm steps, fat content in
-percent. The splits are those of `benchmarks/additional_experiments/bench.py`:
-`train_test_split(test_size=0.25, random_state=split)` for splits 0 to 4,
-which gives 180 training and 60 test rows. Column `xk` of a formula is
-channel `k + 1`, at 850 + 2k nm.
+`benchmarks/additional_experiments/data/tecator.csv`: 240 samples recorded on
+a Tecator Infratec Food and Feed Analyzer, 100 absorbance channels from 850
+to 1048 nm in 2 nm steps, fat content in percent; it is redistributed under
+the permission note in `data/TECATOR_PERMISSION.txt` there. Column `xk` of a
+formula is channel `k + 1`, at 850 + 2k nm.
+
+Two protocols:
+
+- the random splits of `benchmarks/additional_experiments/bench.py`:
+  `train_test_split(test_size=0.25, random_state=split)` for splits 0 to 4,
+  which gives 180 training and 60 test rows;
+- the split of the data's documentation (StatLib), whose sample order the
+  CSV keeps: samples 1 to 172 (the sets C and M) to train, 173 to 215 (T) to
+  test, and the extrapolation sets E1 (216 to 223) and E2 (224 to 240).
+  beamfeat is fitted with seeds 0 to 4 there and quoted as their average.
 
 ## Environment
 
@@ -34,6 +43,8 @@ OPENBLAS_NUM_THREADS=1 ../../venv/bin/python run.py
 ## Limits
 
 Five splits of 240 samples, and tuning grids of this folder's choosing; a
-wider grid or another preprocessing can move a baseline. The random forest
+wider grid or another preprocessing can move a baseline. E1 has 8 samples, so
+its errors show what can happen beyond the training data rather than measure
+it precisely. The random forest
 and LightGBM rows are the paper's Table 6 figures, not rerun here. beamfeat's
 derivative window is fixed at 15, where the baselines' windows are tuned.

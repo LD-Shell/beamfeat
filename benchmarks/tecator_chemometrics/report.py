@@ -9,7 +9,9 @@ from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-R = [json.loads(line) for line in (HERE / "results.jsonl").open()]
+ALL = [json.loads(line) for line in (HERE / "results.jsonl").open()]
+R = [r for r in ALL if r["protocol"] == "random"]
+D = [r for r in ALL if r["protocol"] == "documented"]
 METHODS = list(dict.fromkeys(r["method"] for r in R))
 # Table 6 of the paper, not rerun here: the tree ensembles on all 100 channels.
 PAPER = {"random forest (Table 6)": 0.717, "LightGBM (Table 6)": 0.756}
@@ -62,3 +64,37 @@ for name in ("beamfeat", "beamfeat, derivative"):
     print(f"\nChannels used: {len(used)}, at {wavelength(used[0])} to {wavelength(used[-1])} nm; "
           "the most frequent: " +
           ", ".join(f"x{c} ({wavelength(c)} nm, {n} of 5 splits)" for c, n in columns.most_common(4)) + ".\n")
+
+print("## The split of the data's documentation\n")
+print("The documentation of the data (StatLib) divides the samples into the sets C (129), M (43), T (43), "
+      "E1 (8) and E2 (17), in file order, and asks that a model be tuned on C and M, tested on T, and that a "
+      "model with an element of randomness be quoted as the average of a handful of fits, not the best on T. "
+      "E1 holds more fat than any training sample (54.7 to 58.5% against at most 49.1%) and E2 more protein, "
+      "to test extrapolation. RMSE is in percent fat; beamfeat's figures are means over five seeds, with the "
+      "seeds' E1 errors listed.\n")
+print("| method | T: RMSE | T: R² | E1: RMSE | E2: RMSE | size |")
+print("| :-- | --: | --: | --: | --: | :-- |")
+for name in dict.fromkeys(r["method"] for r in D):
+    rows = [r for r in D if r["method"] == name]
+    e1 = st.mean(r["rmse_E1"] for r in rows)
+    seeds = " (" + ", ".join(f"{r['rmse_E1']:.1f}" for r in rows) + ")" if len(rows) > 1 else ""
+    sizes = [r["size"] for r in rows]
+    if sizes[0] is None:
+        shown = "all 100 channels"
+    else:
+        unit = "terms" if name.startswith("beamfeat") else "components"
+        shown = f"{min(sizes)} {unit}" if min(sizes) == max(sizes) else f"{min(sizes)} to {max(sizes)} {unit}"
+    print(f"| {name} | {st.mean(r['rmse_T'] for r in rows):.2f} | {st.mean(r['r2_T'] for r in rows):.3f} | "
+          f"{e1:.2f}{seeds} | {st.mean(r['rmse_E2'] for r in rows):.2f} | {shown} |")
+print("\nThe documentation quotes, for T, 0.65 to 0.36 for three neural networks of the early 1990s on the "
+      "principal components (Borggaard & Thodberg, 1992; Thodberg) and 2.78 for a linear model with 10 inputs.\n")
+print("### How far the formulas reach beyond the training data\n")
+print("For each beamfeat fit, \"outside\" is the largest distance by which one of its terms goes beyond its "
+      "range on the training samples, in widths of that range, over the rows of each set.\n")
+print("| method | seed | outside on T | outside on E1 | E1: RMSE | E1: predictions |")
+print("| :-- | --: | --: | --: | --: | :-- |")
+for r in (r for r in D if r["seed"] is not None):
+    low, high = r["range_E1"]
+    print(f"| {r['method']} | {r['seed']} | {max(r['outside_T'], 0):.2f} | {max(r['outside_E1'], 0):.2f} | "
+          f"{r['rmse_E1']:.2f} | {low:.0f} to {high:.0f} |")
+print()

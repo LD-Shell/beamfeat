@@ -40,3 +40,50 @@ Channels used: 30, at 860 to 980 nm; the most frequent: x41 (932 nm, 4 of 5 spli
 
 Channels used: 18, at 868 to 1004 nm; the most frequent: x47 (944 nm, 5 of 5 splits), x39 (928 nm, 3 of 5 splits), x38 (926 nm, 2 of 5 splits), x15 (880 nm, 2 of 5 splits).
 
+## The split of the data's documentation
+
+The documentation of the data (StatLib) divides the samples into the sets C (129), M (43), T (43), E1 (8) and E2 (17), in file order, and asks that a model be tuned on C and M, tested on T, and that a model with an element of randomness be quoted as the average of a handful of fits, not the best on T. E1 holds more fat than any training sample (54.7 to 58.5% against at most 49.1%) and E2 more protein, to test extrapolation. RMSE is in percent fat; beamfeat's figures are means over five seeds, with the seeds' E1 errors listed.
+
+| method | T: RMSE | T: R² | E1: RMSE | E2: RMSE | size |
+| :-- | --: | --: | --: | --: | :-- |
+| ridge | 2.20 | 0.971 | 8.47 | 2.19 | all 100 channels |
+| PLS | 2.10 | 0.974 | 8.43 | 1.76 | 13 components |
+| PLS, SNV | 2.10 | 0.974 | 8.08 | 1.66 | 9 components |
+| PLS, derivative | 1.98 | 0.977 | 8.22 | 2.00 | 8 components |
+| kernel ridge, derivative | 0.54 | 0.998 | 2.69 | 0.42 | all 100 channels |
+| SVR, derivative | 0.55 | 0.998 | 3.76 | 0.44 | all 100 channels |
+| Gaussian process, derivative | 0.54 | 0.998 | 3.61 | 0.41 | all 100 channels |
+| beamfeat | 1.21 | 0.991 | 4.09 (13.0, 1.8, 2.3, 1.7, 1.6) | 1.19 | 2 to 5 terms |
+| beamfeat, parsimony_alpha=0.05 | 1.28 | 0.990 | 4.02 (13.0, 1.3, 2.5, 1.6, 1.6) | 1.22 | 1 to 3 terms |
+| beamfeat, magnitude_slots=0 | 1.23 | 0.991 | 47.70 (11.0, 13.5, 211.0, 1.8, 1.2) | 1.00 | 3 to 6 terms |
+| beamfeat, derivative | 0.62 | 0.998 | 1.79 (1.2, 2.5, 1.8, 1.6, 1.9) | 0.50 | 2 terms |
+
+The documentation quotes, for T, 0.65 to 0.36 for three neural networks of the early 1990s on the principal components (Borggaard & Thodberg, 1992; Thodberg) and 2.78 for a linear model with 10 inputs.
+
+### How far the formulas reach beyond the training data
+
+For each beamfeat fit, "outside" is the largest distance by which one of its terms goes beyond its range on the training samples, in widths of that range, over the rows of each set.
+
+| method | seed | outside on T | outside on E1 | E1: RMSE | E1: predictions |
+| :-- | --: | --: | --: | --: | :-- |
+| beamfeat | 0 | 0.00 | 2.09 | 13.04 | 26 to 54 |
+| beamfeat | 1 | 0.00 | 0.27 | 1.84 | 53 to 60 |
+| beamfeat | 2 | 0.03 | 0.53 | 2.27 | 53 to 62 |
+| beamfeat | 3 | 0.00 | 0.16 | 1.72 | 54 to 60 |
+| beamfeat | 4 | 0.00 | 0.19 | 1.57 | 53 to 59 |
+| beamfeat, parsimony_alpha=0.05 | 0 | 0.00 | 2.09 | 13.04 | 26 to 54 |
+| beamfeat, parsimony_alpha=0.05 | 1 | 0.00 | 0.15 | 1.33 | 53 to 59 |
+| beamfeat, parsimony_alpha=0.05 | 2 | 0.00 | 0.53 | 2.53 | 53 to 62 |
+| beamfeat, parsimony_alpha=0.05 | 3 | 0.00 | 0.16 | 1.65 | 54 to 61 |
+| beamfeat, parsimony_alpha=0.05 | 4 | 0.00 | 0.19 | 1.57 | 53 to 59 |
+| beamfeat, magnitude_slots=0 | 0 | 0.00 | 2.09 | 10.96 | 31 to 53 |
+| beamfeat, magnitude_slots=0 | 1 | 0.00 | 3.64 | 13.50 | 56 to 84 |
+| beamfeat, magnitude_slots=0 | 2 | 0.03 | 24.45 | 211.02 | -299 to 507 |
+| beamfeat, magnitude_slots=0 | 3 | 0.00 | 0.16 | 1.79 | 55 to 61 |
+| beamfeat, magnitude_slots=0 | 4 | 0.00 | 0.16 | 1.22 | 53 to 58 |
+| beamfeat, derivative | 0 | 0.07 | 0.25 | 1.15 | 53 to 58 |
+| beamfeat, derivative | 1 | 0.00 | 0.28 | 2.46 | 54 to 63 |
+| beamfeat, derivative | 2 | 0.00 | 0.20 | 1.80 | 53 to 58 |
+| beamfeat, derivative | 3 | 0.00 | 0.20 | 1.59 | 53 to 60 |
+| beamfeat, derivative | 4 | 0.00 | 0.20 | 1.93 | 53 to 59 |
+

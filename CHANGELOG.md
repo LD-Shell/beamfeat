@@ -63,6 +63,17 @@ forward step without `parsimony_alpha` is deprecated.
   `input_test=True` and both together on the same data: a noise sweep on
   `y = x0/x1` among unrelated columns, the release comparison's datasets and
   splits, and the paper's own studies with their own settings.
+- `tecator_chemometrics/`, added after the paper, sets beamfeat beside the
+  methods of chemometrics on tecator: partial least squares on raw,
+  SNV-corrected and derivative spectra, and kernel ridge, SVR and a Gaussian
+  process on derivative spectra, on the paper's random splits and on the
+  split of the data's documentation with its extrapolation sets. beamfeat's
+  error is under 60% of that of PLS and about twice that of the kernel
+  methods; on derivative spectra it is close to them and had the lowest error
+  on the high-fat extrapolation set.
+- `tecator.csv` now carries Tecator's permission note
+  (`additional_experiments/data/TECATOR_PERMISSION.txt`), which its
+  redistribution requires.
 
 ### Documentation
 

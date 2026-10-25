@@ -113,6 +113,28 @@ much like a derivative followed by a normalisation, and the channels it uses
 most lie at 926 to 946 nm, near the band around 930 nm usually attributed to
 fat; which channels a fit picks still varies from split to split.
 
+The data's documentation also defines a split of its own: samples 1 to 172
+to train, 173 to 215 to test, and two extrapolation sets, E1 (eight samples
+with more fat than any training sample) and E2 (more protein). beamfeat is
+averaged over five seeds there, as the documentation asks of a model with an
+element of randomness:
+
+| method | test RMSE | E1 RMSE | E2 RMSE |
+| :-- | --: | --: | --: |
+| kernel ridge, SVR, Gaussian process (derivative) | 0.54 to 0.55 | 2.69 to 3.76 | 0.41 to 0.44 |
+| beamfeat, second-derivative spectra | 0.62 | 1.79 | 0.50 |
+| beamfeat | 1.21 | 4.09 | 1.19 |
+| PLS (raw, SNV, derivative) and ridge | 1.98 to 2.20 | 8.08 to 8.47 | 1.66 to 2.19 |
+
+On derivative spectra beamfeat had the lowest error on E1, though on eight
+samples that is a hint rather than a measurement. On the raw channels one
+seed in five missed E1 by 13: one of its ratios of channel differences went
+twice its training range beyond it there. With 0.6.1's default, which had no
+magnitude slots, the same happened in three seeds in five, and one fit
+predicted fat contents from -299% to 507%. A ratio whose denominator
+approaches zero beyond the training data can do this;
+`benchmarks/tecator_chemometrics/REPORT.md` has every fit.
+
 ## Selection calibration
 
 - **Selector level**
