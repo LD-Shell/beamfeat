@@ -641,6 +641,22 @@ class TestExclusion:
         assert ev.evaluate(transform("reciprocal", leaf("z"))) is None
         assert ev.log.by_reason(ExclusionReason.DOMAIN_ERROR)
 
+    @pytest.mark.parametrize("build", [lambda d: combine("div", leaf("a"), leaf(d)),
+                                       lambda d: transform("reciprocal", leaf(d))])
+    def test_denominator_near_zero_is_ruled_out_in_the_search(self, build):
+        """A denominator that comes within the pole margin of zero, or crosses
+        it, rules the quotient out; replaying the quotient on new data is not
+        filtered."""
+        columns = {"a": np.linspace(1.0, 3.0, 200), "near": np.linspace(0.001, 1.0, 200),
+                   "crossing": np.linspace(-1.0, 1.0, 199), "clear": np.linspace(1.0, 2.0, 200)}
+        columns["crossing"] = np.append(columns["crossing"], 0.5)
+        ev = Evaluator(columns)
+        assert ev.evaluate(build("near")) is None
+        assert ev.evaluate(build("crossing")) is None
+        assert len(ev.log.by_reason(ExclusionReason.DOMAIN_ERROR)) == 2
+        assert ev.evaluate(build("clear")) is not None
+        assert Evaluator(columns).transform_values(build("near")) is not None
+
     def test_overflow_is_recorded_not_silent(self):
         """The failure mode autofeat masks: overflow must surface in the log.
         The column itself is admissible; only its cube overflows."""

@@ -37,6 +37,18 @@ def _reciprocal_unit(unit: Any) -> Any:
     return None if unit is None else 1 / unit
 
 
+def _clear_of_pole(denominator: np.ndarray) -> bool:
+    """Whether ``denominator`` keeps 0 at least the pole margin from its values.
+
+    The margin is the one a fitted shift keeps (:func:`pole_margins`). A
+    denominator that comes closer to 0 on the search rows, or crosses it, can
+    cross it on a new row a little beyond them, where the quotient takes any
+    size and either sign. Applied in the search only, like every domain.
+    """
+    below, above = pole_margins(denominator)
+    return float(np.min(denominator)) >= below or -float(np.max(denominator)) >= above
+
+
 def _square_unit(unit: Any) -> Any:
     return None if unit is None else unit**2
 
@@ -106,7 +118,7 @@ register_operator(
         fn=lambda x: np.reciprocal(x),
         formula=lambda x: f"1/({x})",
         unit_fn=_reciprocal_unit,
-        domain=lambda x: bool(np.all(x != 0)),
+        domain=_clear_of_pole,
     )
 )
 
@@ -386,5 +398,6 @@ register_operator(
         formula=lambda x, y: f"({x} / {_divisor_text(y)})",
         unit_fn=_div_unit,
         commutative=False,
+        domain=lambda x, y: _clear_of_pole(y),
     )
 )
