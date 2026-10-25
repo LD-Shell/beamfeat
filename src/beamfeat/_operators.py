@@ -16,6 +16,9 @@ from typing import Any
 import numpy as np
 
 from beamfeat.expression import (
+    POLE_MARGIN_FLOOR,
+    POLE_MARGIN_ROWS,
+    POLE_MARGIN_SPREADS,
     OperatorSpec,
     UnitRegistryError,
     _add_unit,
@@ -40,13 +43,23 @@ def _reciprocal_unit(unit: Any) -> Any:
 def _clear_of_pole(denominator: np.ndarray) -> bool:
     """Whether ``denominator`` keeps 0 at least the pole margin from its values.
 
-    The margin is the one a fitted shift keeps (:func:`pole_margins`). A
-    denominator that comes closer to 0 on the search rows, or crosses it, can
-    cross it on a new row a little beyond them, where the quotient takes any
-    size and either sign. Applied in the search only, like every domain.
+    The margin is the one a fitted shift keeps (:func:`pole_margins`), on the
+    side of the values that faces 0. A denominator that comes closer to 0 on
+    the search rows, or crosses it, can cross it on a new row a little beyond
+    them, where the quotient takes any size and either sign. Applied in the
+    search only, like every domain.
     """
-    below, above = pole_margins(denominator)
-    return float(np.min(denominator)) >= below or -float(np.max(denominator)) >= above
+    low, high = float(np.min(denominator)), float(np.max(denominator))
+    if low <= 0.0 <= high:
+        return False
+    # The distance to 0 and the values nearest it, mirrored when all are negative.
+    distance, nearest = (low, denominator) if low > 0.0 else (-high, -denominator)
+    rows = min(POLE_MARGIN_ROWS, len(nearest))
+    margin = POLE_MARGIN_FLOOR * _span(denominator)
+    if rows >= 2:
+        closest = np.partition(nearest, rows - 1)[:rows]
+        margin = max(margin, POLE_MARGIN_SPREADS * float(np.max(closest) - np.min(closest)))
+    return distance >= margin
 
 
 def _square_unit(unit: Any) -> Any:
