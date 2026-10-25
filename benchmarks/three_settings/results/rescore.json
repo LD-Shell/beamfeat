@@ -1,0 +1,34 @@
+[
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "setting": "default",
+  "score": 0.692879799451334,
+  "rows": 6191,
+  "of": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "setting": "parsimony_alpha",
+  "score": 0.6931942687237131,
+  "rows": 6191,
+  "of": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "setting": "input_test",
+  "score": 0.6929744602337602,
+  "rows": 6191,
+  "of": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "setting": "both",
+  "score": 0.6929744602337602,
+  "rows": 6191,
+  "of": 6192
+ }
+]

@@ -12,7 +12,7 @@ from `REPORT.md` or `TABLES.md`.
 | 0.5.0 | from its tag |
 | 0.6.0 | from its tag |
 | 0.6.1 | its release branch: the studies ran before the input_test memory fix and the rest after it, which changes no fit |
-| 0.7.0 | its release branch, from the commit that made `magnitude_slots="auto"` the default; later commits add a deprecation warning and documentation, which change no fit |
+| 0.7.0 | its release branch, from the commit that made `magnitude_slots="auto"` the default; later commits add a deprecation warning, brackets around a divisor spelled `1/(...)` in formula text, and documentation, none of which changes a fit |
 
 Each release has its own environment with the same stack: Python 3.12,
 numpy 2.5.4, scipy 1.18.1, scikit-learn 1.9.1, pandas 3.1.0, sympy 1.14.0.
