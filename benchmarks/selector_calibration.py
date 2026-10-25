@@ -13,16 +13,18 @@ script that produces it. Three studies; the first two on Gaussian designs
    rows, six uniform inputs, a Gaussian target independent of them), fitted
    by ``BeamFeatRegressor`` at target FDR 0.10, BH against BY. Under a global null every selection is false, so the mean
    false discovery proportion equals the fraction of trials selecting
-   anything; this is the measurement behind the BY estimator default.
+   anything; this is the measurement behind the BY estimator default. Both
+   corrections fit the same 100 problems, so their rates are compared with an
+   exact paired test on the trials where only one of them selected.
 
 Every figure is reported with its standard error, which at 100 trials runs
-0.004 to 0.016 on a realised FDR. Read them at that precision; a difference of
-a few trials in study 3 is still not statistically meaningful.
+0.004 to 0.016 on a realised FDR. Read them at that precision.
 
 Run:  python benchmarks/selector_calibration.py
 """
 from __future__ import annotations
 
+import math
 import warnings
 
 import numpy as np
@@ -139,11 +141,11 @@ def pure_noise_stress() -> dict:
     """Global null on the full pipeline: BH against BY, no signal at all."""
     from beamfeat import BeamFeatRegressor
 
-    table = {}
+    table, selecting = {}, {}
     print(f"\nGlobal-null stress on the full pipeline ({N_TRIALS} trials, no signal)")
     print(f"  {'correction':>10} {'trials selecting':>17} {'mean FDP':>9}")
     for correction in ("bh", "by"):
-        selected_any = 0
+        selecting[correction] = set()
         for trial in range(N_TRIALS):
             rng = np.random.default_rng(NULL_SEED_BASE + trial)
             X = rng.uniform(1, 6, (500, 6))
@@ -153,10 +155,19 @@ def pure_noise_stress() -> dict:
                 selection_correction=correction, random_state=trial,
             ).fit(X, y)
             if model.fdr_controlled_ and model.n_features_out_ > 0:
-                selected_any += 1
+                selecting[correction].add(trial)
+        selected_any = len(selecting[correction])
         mean_fdp = selected_any / N_TRIALS
         table[correction] = (selected_any, mean_fdp)
         print(f"  {correction.upper():>10} {f'{selected_any}/{N_TRIALS}':>17} {mean_fdp:>9.2f}")
+    # Exact two-sided sign test on the discordant trials (McNemar's exact test).
+    only_bh = len(selecting["bh"] - selecting["by"])
+    only_by = len(selecting["by"] - selecting["bh"])
+    discordant = only_bh + only_by
+    tail = sum(math.comb(discordant, k) for k in range(min(only_bh, only_by) + 1))
+    p_value = min(1.0, 2 * tail / 2**discordant)
+    table["paired"] = (only_bh, only_by, p_value)
+    print(f"  selecting with BH only {only_bh}, with BY only {only_by}: exact paired p = {p_value:.3f}")
     return table
 
 

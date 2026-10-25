@@ -23,6 +23,9 @@ Two protocols:
   CSV keeps: samples 1 to 172 (the sets C and M) to train, 173 to 215 (T) to
   test, and the extrapolation sets E1 (216 to 223) and E2 (224 to 240).
   beamfeat is fitted with seeds 0 to 4 there and quoted as their average.
+  `results_0.6.1.jsonl` holds release 0.6.1 at its defaults on this split,
+  fitted by `run.py --release` in the release comparison's 0.6.1
+  environment, for what 0.7.0's denominator guard changed.
 
 ## Environment
 

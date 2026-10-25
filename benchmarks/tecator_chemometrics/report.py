@@ -10,6 +10,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ALL = [json.loads(line) for line in (HERE / "results.jsonl").open()]
+for path in sorted(HERE.glob("results_*.jsonl")):  # an earlier release, beamfeat alone on the documented split
+    ALL += [json.loads(line) for line in path.open()]
 R = [r for r in ALL if r["protocol"] == "random"]
 D = [r for r in ALL if r["protocol"] == "documented"]
 METHODS = list(dict.fromkeys(r["method"] for r in R))
@@ -71,7 +73,9 @@ print("The documentation of the data (StatLib) divides the samples into the sets
       "model with an element of randomness be quoted as the average of a handful of fits, not the best on T. "
       "E1 holds more fat than any training sample (54.7 to 58.5% against at most 49.1%) and E2 more protein, "
       "to test extrapolation. RMSE is in percent fat; beamfeat's figures are means over five seeds, with the "
-      "seeds' E1 errors listed.\n")
+      "seeds' E1 errors listed. A row \"beamfeat <version>\" is that earlier release at its defaults "
+      "(`run.py --release`); since 0.7.0 the search rules out a quotient whose denominator comes near zero "
+      "on the search rows.\n")
 print("| method | T: RMSE | T: R² | E1: RMSE | E2: RMSE | size |")
 print("| :-- | --: | --: | --: | --: | :-- |")
 for name in dict.fromkeys(r["method"] for r in D):

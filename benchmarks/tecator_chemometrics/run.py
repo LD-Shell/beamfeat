@@ -1,7 +1,12 @@
 """tecator against the baselines of chemometrics, added after the paper.
 
     python run.py            # writes results.jsonl
+    python run.py --release  # beamfeat alone on the documented split: results_<version>.jsonl
     python report.py > REPORT.md
+
+``--release`` fits the installed beamfeat at its defaults on the documented
+split, five seeds, for comparing an earlier release; REPORT.md has a row for
+each results_<version>.jsonl present.
 
 The data and the five 75/25 splits are those of the paper's high-dimensional
 study (benchmarks/additional_experiments/bench.py, Table 6). Every baseline
@@ -28,6 +33,7 @@ go beyond their training range on each test set: the largest distance
 beyond the range, in widths of the range, over terms and rows.
 """
 import json
+import sys
 import warnings
 from pathlib import Path
 
@@ -135,11 +141,14 @@ def outside(model, X_train, X_new):
     return float(np.max(np.maximum(new - high, low - new) / width))
 
 
-def documented(X, y, out):
+def documented(X, y, out, release=False):
     parts = {name: (X[rows], y[rows]) for name, rows in DOCUMENTED.items()}
     X_train, y_train = parts["train"]
-    fits = [(name, None, make) for name, make in METHODS.items() if not name.startswith("beamfeat")]
-    fits += [(name, seed, make) for name, make in BEAMFEAT_DOCUMENTED.items() for seed in range(5)]
+    if release:
+        fits = [(f"beamfeat {beamfeat.__version__}", seed, BEAMFEAT_DOCUMENTED["beamfeat"]) for seed in range(5)]
+    else:
+        fits = [(name, None, make) for name, make in METHODS.items() if not name.startswith("beamfeat")]
+        fits += [(name, seed, make) for name, make in BEAMFEAT_DOCUMENTED.items() for seed in range(5)]
     for name, seed, make in fits:
         model = (make() if seed is None else make(seed)).fit(X_train, y_train)
         record = {"protocol": "documented", "method": name, "seed": seed, "beamfeat": beamfeat.__version__}
@@ -158,10 +167,14 @@ def documented(X, y, out):
               flush=True)
 
 
-def main():
+def main(release=False):
     table = pd.read_csv(DATA)
     channels = [c for c in table.columns if c.startswith("_") or c.startswith("absorbance")]
     X, y = table[channels].to_numpy(float), table["fat"].to_numpy(float)
+    if release:
+        with (HERE / f"results_{beamfeat.__version__}.jsonl").open("w") as out:
+            documented(X, y, out, release=True)
+        return
     out = (HERE / "results.jsonl").open("w")
     for name, make in METHODS.items():
         for split in range(5):
@@ -181,4 +194,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(release=sys.argv[1:] == ["--release"])
