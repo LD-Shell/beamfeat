@@ -4,7 +4,7 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [0.7.0] - 2026-10-24
+## [0.7.0] - 2026-10-25
 
 Two changes to fits, under "Changed": `magnitude_slots="auto"`, 10 beam
 slots for regression, and a guard in the search against quotients whose

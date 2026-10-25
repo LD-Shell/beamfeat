@@ -4,7 +4,7 @@ type: software
 title: "beamfeat: beam-search feature construction with FDR-controlled selection"
 version: 0.7.0
 doi: 10.5281/zenodo.21619567
-date-released: 2026-10-24
+date-released: 2026-10-25
 license: MIT
 authors:
   - family-names: "Daramola"
