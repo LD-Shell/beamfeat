@@ -1,3 +1,7 @@
+---
+description: "API reference for beamfeat: the regressor, classifier and transformer, and the search, scorers, selectors and expressions beneath them."
+---
+
 # API reference
 
 Most code needs only the three estimators. The layers beneath them are public

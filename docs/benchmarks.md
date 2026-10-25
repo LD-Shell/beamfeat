@@ -1,3 +1,7 @@
+---
+description: "beamfeat's measured results: high-dimensional data, tecator against chemometrics, calibration, formula recovery, and comparisons with autofeat and others."
+---
+
 # Benchmarks
 
 Every result here comes from a script in the repository and its archived

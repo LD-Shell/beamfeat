@@ -1,3 +1,7 @@
+---
+description: "How beamfeat chooses the printed equation from the certified set: parsimony_alpha, input_test, parsimony=None and parsimony_holdout."
+---
+
 # The printed equation
 
 The screen certifies a set of formulas, and the equation is chosen from that

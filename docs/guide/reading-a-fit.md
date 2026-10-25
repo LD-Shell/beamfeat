@@ -1,3 +1,7 @@
+---
+description: "What a fitted beamfeat model prints, what the FDR guarantee covers, the equation at every size, and how to check whether an equation is stable."
+---
+
 # Reading a fit
 
 What a fitted model prints, what each part means, and what to check before

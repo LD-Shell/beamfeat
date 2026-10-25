@@ -1,5 +1,7 @@
 site_name: beamfeat
-site_description: Beam-search feature construction with FDR-controlled selection
+site_description: >-
+  beamfeat is a Python library that builds readable formulas from tabular data
+  and selects them with false discovery rate (FDR) control. scikit-learn compatible.
 site_author: Olanrewaju M. Daramola
 copyright: '&copy; 2026 <a href="https://orcid.org/0009-0006-3327-2047" rel="author">Olanrewaju M. Daramola</a> (ORCID)'
 repo_url: https://github.com/LD-Shell/beamfeat
@@ -81,3 +83,36 @@ markdown_extensions:
       base_path: ["."]
       check_paths: true
   - pymdownx.arithmatex
+extra:
+  home_title: "beamfeat: symbolic feature construction with FDR control"
+  social_image_alt: >-
+    Held-out R² on tecator over five splits: beamfeat 0.991 from three or four
+    formulas; ridge 0.957, LightGBM 0.756 and random forest 0.717 on all 100 channels
+  keywords:
+    - feature engineering
+    - feature construction
+    - feature selection
+    - false discovery rate
+    - Benjamini-Hochberg
+    - Benjamini-Yekutieli
+    - multiple testing
+    - permutation test
+    - knockoffs
+    - symbolic features
+    - equation discovery
+    - interpretable machine learning
+    - scikit-learn
+    - automl
+  notebook_descriptions:
+    notebooks/01_getting_started.ipynb: >-
+      Tutorial: a first beamfeat fit on a problem with a known answer, reading
+      what it found, using it in a pipeline and choosing a setting.
+    notebooks/02_search_and_scoring.ipynb: >-
+      Tutorial: how beamfeat's beam search builds candidate formulas, what beam
+      width and depth cost, and how the scorers rank candidates.
+    notebooks/03_selection_and_units.ipynb: >-
+      Tutorial: FDR-controlled selection in beamfeat, its measured calibration,
+      the knockoff selectors, and dimensional analysis with units.
+    notebooks/04_reading_a_fit.ipynb: >-
+      Tutorial: reading a beamfeat fit in detail, from the certified set and the
+      equation list to units, LaTeX, export and a checklist.

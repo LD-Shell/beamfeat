@@ -1,3 +1,7 @@
+---
+description: "How to cite beamfeat: the TMLR paper, the Zenodo software archive, and the statistical methods behind each option, with BibTeX."
+---
+
 # Citing beamfeat
 
 If you use beamfeat in published work, please cite:

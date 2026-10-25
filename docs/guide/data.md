@@ -1,3 +1,7 @@
+---
+description: "What beamfeat expects of a table, and how a fitted model handles constant columns, missing values, undefined rows and new rows beyond the training range."
+---
+
 # Data and prediction
 
 What beamfeat expects of a table, and how a fitted model behaves on new rows.

@@ -1,3 +1,7 @@
+---
+description: "A first beamfeat fit in a few lines: fit a regressor, print its equation, and read what the FDR guarantee covers."
+---
+
 # Quickstart
 
 Install beamfeat, fit a model and read what it prints. Every example runs

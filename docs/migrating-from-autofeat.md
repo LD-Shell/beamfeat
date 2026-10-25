@@ -1,3 +1,7 @@
+---
+description: "Move from autofeat to beamfeat: how the two APIs map onto each other and which differences to expect."
+---
+
 # Migrating from autofeat
 
 *Examined against autofeat 2.1.3, the current release as of July 2026,

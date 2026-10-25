@@ -1,3 +1,7 @@
+---
+description: "Install beamfeat with pip, with optional extras for units and display, run its test suite, and set up the environment that reproduces the benchmarks."
+---
+
 # Installation
 
 Three levels, depending on what you need. Most people only need the first.

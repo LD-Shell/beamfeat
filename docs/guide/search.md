@@ -1,3 +1,7 @@
+---
+description: "beamfeat's search options: units and dimensional analysis, constants inside expressions, magnitude slots, search constraints, and speed on wide data."
+---
+
 # Search options
 
 How the search builds its candidates, and the options that change what it

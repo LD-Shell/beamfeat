@@ -1,3 +1,7 @@
+---
+description: "Choose between beamfeat's default, a short equation (parsimony_alpha) and every column tested (input_test): what each prints, what it costs, what was measured."
+---
+
 # Choosing a setting
 
 Every fit runs the same search and the same screen, and the screen's FDR

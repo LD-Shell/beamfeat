@@ -124,6 +124,9 @@ re-test after the forward step without `parsimony_alpha` is deprecated.
 - A "Citing beamfeat" page gives the paper, the software archive and, for
   each option, the statistical method to cite, with BibTeX checked against
   the publishers' records.
+- Each page of the site has its own title and description, a link preview
+  (Open Graph and Twitter cards) and schema.org data: the software and its
+  paper on the home page, an article on the others.
 - Every example in the quickstart and the guide was run again at 0.7.0, and
   the outputs that the magnitude slots and the guard changed are updated.
 

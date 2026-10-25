@@ -1,31 +1,124 @@
 {% extends "base.html" %}
 
+{#- A page's description is its front matter's, a notebook's comes from
+    extra.notebook_descriptions in mkdocs.yml, and the site's is the fallback. -#}
+{% macro page_description() -%}
+  {%- set notebooks = config.extra.notebook_descriptions or {} -%}
+  {%- if page.meta and page.meta.description -%}{{ page.meta.description }}
+  {%- elif page.file and page.file.src_uri in notebooks -%}{{ notebooks[page.file.src_uri] }}
+  {%- else -%}{{ config.site_description }}{%- endif -%}
+{%- endmacro %}
+
+{#- "Citing beamfeat - beamfeat" reads as a stutter, so a title that already
+    names the site is used as it is. Tutorials are marked, since one shares
+    its title with a page of the user guide. -#}
+{% macro page_title() -%}
+  {%- set name = (page.meta.title if page.meta and page.meta.title else page.title | striptags) if page.title else "" -%}
+  {%- if page.file and page.file.src_uri.startswith("notebooks/") -%}{%- set name = name ~ " (tutorial)" -%}{%- endif -%}
+  {%- if page.is_homepage -%}{{ config.extra.home_title }}
+  {%- elif name and config.site_name in name -%}{{ name }}
+  {%- elif name -%}{{ name }} - {{ config.site_name }}
+  {%- else -%}{{ config.site_name }}{%- endif -%}
+{%- endmacro %}
+
+{% block site_meta %}
+  {%- set notebooks = config.extra.notebook_descriptions or {} -%}
+  {%- if page and page.meta is mapping and not page.meta.description and page.file and page.file.src_uri in notebooks -%}
+    {%- set _ = page.meta.update({"description": notebooks[page.file.src_uri]}) -%}
+  {%- endif -%}
+  {{ super() }}
+{% endblock %}
+
+{% block htmltitle %}
+  <title>{{ page_title() | e }}</title>
+{% endblock %}
+
 {% block extrahead %}
-  <meta name="author" content="Olanrewaju M. Daramola">
+  {%- set description = page_description() -%}
+  {%- set title = page_title() -%}
+  {%- set image = config.site_url ~ "assets/tecator.png" -%}
+  {%- set author = {
+    "@type": "Person",
+    "name": "Olanrewaju M. Daramola",
+    "@id": "https://orcid.org/0009-0006-3327-2047",
+    "url": "https://orcid.org/0009-0006-3327-2047",
+    "affiliation": {"@type": "Organization", "name": "Universiti Teknologi PETRONAS"}
+  } -%}
   <link rel="author" href="https://orcid.org/0009-0006-3327-2047">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="beamfeat">
-  <meta property="og:title" content="{{ page.title | d(config.site_name) }} — beamfeat">
-  <meta property="og:description" content="{{ config.site_description }}">
+  {%- if not (page and page.canonical_url) %}
+  {#- The 404 page: no canonical address, nothing to index or describe. #}
+  <meta name="robots" content="noindex">
+  {%- else %}
+  <meta property="og:type" content="{{ 'website' if page.is_homepage else 'article' }}">
+  <meta property="og:site_name" content="{{ config.site_name }}">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content="{{ title | e }}">
+  <meta property="og:description" content="{{ description | e }}">
   <meta property="og:url" content="{{ page.canonical_url }}">
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="{{ page.title | d(config.site_name) }} — beamfeat">
-  <meta name="twitter:description" content="{{ config.site_description }}">
+  <meta property="og:image" content="{{ image }}">
+  <meta property="og:image:width" content="1352">
+  <meta property="og:image:height" content="621">
+  <meta property="og:image:alt" content="{{ config.extra.social_image_alt | e }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ title | e }}">
+  <meta name="twitter:description" content="{{ description | e }}">
+  <meta name="twitter:image" content="{{ image }}">
+  <meta name="twitter:image:alt" content="{{ config.extra.social_image_alt | e }}">
   <script type="application/ld+json">
-  {
+  {%- if page.is_homepage %}
+  {{ {
     "@context": "https://schema.org",
-    "@type": "SoftwareSourceCode",
-    "name": "beamfeat",
-    "description": "{{ config.site_description }}",
-    "codeRepository": "https://github.com/LD-Shell/beamfeat",
-    "programmingLanguage": "Python",
-    "license": "https://opensource.org/licenses/MIT",
-    "author": {
-      "@type": "Person",
-      "name": "Olanrewaju M. Daramola",
-      "@id": "https://orcid.org/0009-0006-3327-2047",
-      "url": "https://orcid.org/0009-0006-3327-2047"
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "name": config.site_name,
+        "url": config.site_url,
+        "description": config.site_description,
+        "inLanguage": "en"
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "name": "beamfeat",
+        "description": config.site_description,
+        "url": config.site_url,
+        "codeRepository": "https://github.com/LD-Shell/beamfeat",
+        "programmingLanguage": "Python",
+        "license": "https://opensource.org/licenses/MIT",
+        "identifier": "https://doi.org/10.5281/zenodo.21619567",
+        "keywords": config.extra.keywords,
+        "author": author,
+        "citation": {
+          "@type": "ScholarlyArticle",
+          "name": "Symbolic feature construction with false discovery rate control",
+          "author": author,
+          "datePublished": "2026-10",
+          "isPartOf": {
+            "@type": "Periodical",
+            "name": "Transactions on Machine Learning Research",
+            "issn": "2835-8856"
+          },
+          "url": "https://openreview.net/forum?id=UibXoy4h3u"
+        }
+      }
+    ]
+  } | tojson }}
+  {%- else %}
+  {{ {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": title,
+    "description": description,
+    "url": page.canonical_url,
+    "inLanguage": "en",
+    "author": author,
+    "isPartOf": {"@type": "WebSite", "name": config.site_name, "url": config.site_url},
+    "about": {
+      "@type": "SoftwareSourceCode",
+      "name": "beamfeat",
+      "codeRepository": "https://github.com/LD-Shell/beamfeat"
     }
-  }
+  } | tojson }}
+  {%- endif %}
   </script>
+  {%- endif %}
 {% endblock %}

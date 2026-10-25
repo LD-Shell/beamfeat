@@ -1,3 +1,7 @@
+---
+description: "What beamfeat's false discovery rate guarantee covers, the assumptions behind each selection procedure, and what was measured."
+---
+
 # Statistical guarantees
 
 This page states, for each selection procedure, exactly what is guaranteed,

@@ -1,3 +1,7 @@
+---
+description: "The beamfeat user guide: reading a fit, the printed equation, search options, and data and prediction, with a table that finds any parameter."
+---
+
 # User guide
 
 The guide explains each part of a fit with examples you can run; the outputs
