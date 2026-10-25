@@ -11,19 +11,24 @@ guarantee and its scope are on its guarantees page.
 ## A fit, stage by stage
 
 ```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 600
+---
 flowchart TD
-    fit["fit()<br/>BeamFeatRegressor · BeamFeatClassifier · BeamFeatTransformer<br/><i>estimators.py</i>"]
+    fit["fit()<br/>BeamFeatRegressor, BeamFeatClassifier,<br/>BeamFeatTransformer · <i>estimators.py</i>"]
     fit --> pipe["_run_pipeline · <i>_base.py</i>"]
-    pipe --> rows["_split_rows<br/>search rows · selection rows · re-test rows"]
+    pipe --> rows["_split_rows<br/>search rows · selection rows<br/>· re-test rows"]
     rows --> search["_search → BeamSearch.run<br/><i>search.py</i>"]
-    search -->|"a selector (the default)"| screen["_select<br/>evaluate the candidates on the selection rows,<br/>then selector.select · <i>selection.py</i>"]
+    search -->|"a selector (the default)"| screen["_select<br/>evaluate the candidates<br/>on the selection rows,<br/>then selector.select · <i>selection.py</i>"]
     search -->|"selector=None"| finish
-    screen -->|"a null rejected"| choose["_choose_terms, within _select<br/>input test if on → forward step · <i>_forward.py</i><br/>→ re-test if parsimony_holdout"]
-    screen -->|"none rejected, or nothing testable"| nodisc["_no_discoveries, within _select<br/>on_no_discoveries: empty · fallback · raise"]
+    screen -->|"a null rejected"| choose["_choose_terms, within _select<br/>input test if on → forward step<br/>(<i>_forward.py</i>) → re-test<br/>if parsimony_holdout"]
+    screen -->|"none rejected,<br/>or nothing testable"| nodisc["_no_discoveries, within _select<br/>on_no_discoveries:<br/>empty · fallback · raise"]
     choose --> finish["_finalise<br/>evaluate the kept terms on all rows;<br/>features_, equations_, fdr_scope_"]
     nodisc --> finish
-    finish --> model["back in fit()<br/>regressor: StandardScaler + ridge · classifier: StandardScaler + logistic<br/>(the mean or the class prior when no term is kept)<br/>transformer: the columns, no model"]
-    model --> check["_holdout_fit_check, regressor and classifier<br/>DegenerateFitWarning when the model is degenerate on the selection rows"]
+    finish --> model["back in fit()<br/>regressor: StandardScaler + ridge<br/>classifier: StandardScaler + logistic<br/>(the mean or the class prior<br/>when no term is kept)<br/>transformer: the columns, no model"]
+    model --> check["_holdout_fit_check,<br/>regressor and classifier:<br/>DegenerateFitWarning when the model<br/>is degenerate on the selection rows"]
 ```
 
 - **Rows.** With a selector (the default) and `selection_holdout` (0.5 by
@@ -63,15 +68,20 @@ flowchart TD
 ## Inside the search
 
 ```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 600
+---
 flowchart TD
-    zero["_depth_zero<br/>score the input columns: the beam of depth 0"]
+    zero["_depth_zero<br/>score the input columns:<br/>the beam of depth 0"]
     zero --> depth{"_run_depth<br/>for depth 1 … max_depth"}
-    depth --> cand["_depth_candidates<br/>_propose: transforms and pairs from the beam and pool<br/>_fit: constants of fitted_ops"]
-    cand --> score["_score_round<br/>evaluate; rank on the larger of the score<br/>against the target and against the residual"]
-    score --> keep["_prune_redundant / _prune_evaluated: keep beam_width<br/>_reserve: magnitude_slots<br/>_extra_parents: more parents for the next round's fits"]
+    depth --> cand["_depth_candidates<br/>_propose: transforms and pairs<br/>from the beam and pool<br/>_fit: constants of fitted_ops"]
+    cand --> score["_score_round<br/>evaluate; rank on the larger of<br/>the score against the target<br/>and against the residual"]
+    score --> keep["_prune_redundant / _prune_evaluated:<br/>keep beam_width<br/>_reserve: magnitude_slots<br/>_extra_parents: more parents<br/>for the next round's fits"]
     keep --> record["trace and verbose report"]
     record --> depth
-    depth -->|"last depth, nothing new, nothing evaluated, or an empty beam"| fin["rescore everything kept against the target;<br/>_finalise: remove near-duplicates, keep max_features<br/>(default beam_width); _constant_free_copies"]
+    depth -->|"last depth, nothing new,<br/>nothing evaluated,<br/>or an empty beam"| fin["rescore everything kept<br/>against the target;<br/>_finalise: remove near-duplicates,<br/>keep max_features (default beam_width);<br/>_constant_free_copies"]
 ```
 
 `_SearchState` carries the beam, the pool, everything kept so far and the
@@ -85,6 +95,11 @@ objects from `expression.py`, evaluated and cached by its `Evaluator`.
 ## Modules
 
 ```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 600
+---
 flowchart LR
     estimators --> _base
     estimators --> _rendering
@@ -103,7 +118,7 @@ flowchart LR
     parametric --> expression
     _rendering --> expression
     _prediction --> expression
-    _operators -->|"registers the built-in operators"| expression
+    _operators -->|"registers the<br/>built-in operators"| expression
     expression --> scoring
     search --> scoring
     _base --> scoring
