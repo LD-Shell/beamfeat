@@ -12,7 +12,7 @@ from `REPORT.md` or `TABLES.md`.
 | 0.5.0 | from its tag |
 | 0.6.0 | from its tag |
 | 0.6.1 | its release branch: the studies ran before the input_test memory fix and the rest after it, which changes no fit |
-| 0.7.0 | its release branch, from the commit that made `magnitude_slots="auto"` the default; later commits add a deprecation warning, brackets around a divisor spelled `1/(...)` in formula text, and documentation, none of which changes a fit |
+| 0.7.0 | its release branch, from the commit that keeps a denominator's pole margin in the search, the last change to fits; later commits change documentation only |
 
 Each release has its own environment with the same stack: Python 3.12,
 numpy 2.5.4, scipy 1.18.1, scikit-learn 1.9.1, pandas 3.1.0, sympy 1.14.0.
@@ -94,12 +94,16 @@ data are loaded.
   same protocol; its time and memory ratios are taken against that pass's
   0.5.0.
 - **0.7.0** was added with its changes, with the same harness and data: its
-  default and the four settings above, on a frozen install of the branch. It
-  was timed in a third pass, alternating with 0.6.1 by the same protocol,
-  with the magnitude slots on and off; its ratios to 0.5.0 are chained
-  through that pass's 0.6.1, which matched the main pass to within 0.09 s.
-  On the three re-scored splits its undefined rows are among those the other
-  releases already left out, so the rows scored did not change.
+  default and the four settings above, on a frozen install of the branch,
+  run again after the denominator guard joined the release. It was timed in
+  a third pass, alternating with 0.6.1 by the same protocol, with the
+  magnitude slots on and off; its ratios to 0.5.0 are chained through that
+  pass's 0.6.1, which ran 7 to 12% slower than in the main pass, so its
+  seconds in REPORT.md are scaled by that ratio item by item. 0.7.0 predicts
+  every held-out row of the three re-scored splits, so it adds none to the
+  rows the other releases left out. Its formulas bracket a divisor spelled
+  `1/(...)`, which earlier releases print without; `report.py` compares
+  formulas without brackets.
 - **The shipped scripts.** The run used frozen copies of the four benchmark
   scripts above, identical to the repository's files. The shipped `harness.py`
   imports the repository's files instead. Refitted with it, 30 sampled 0.6.1

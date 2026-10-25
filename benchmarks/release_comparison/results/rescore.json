@@ -134,8 +134,8 @@
   "item": "communities:0",
   "version": "0.7.0",
   "config": "conditional_retest",
-  "score": 0.6707774671405005,
-  "own_undefined": 1,
+  "score": 0.6727852381704611,
+  "own_undefined": 0,
   "rows_dropped": 1,
   "rows": 598
  },
@@ -144,7 +144,7 @@
   "item": "communities:0",
   "version": "0.7.0",
   "config": "default",
-  "score": 0.661290372492596,
+  "score": 0.6646115408232094,
   "own_undefined": 0,
   "rows_dropped": 1,
   "rows": 598
@@ -154,8 +154,8 @@
   "item": "communities:0",
   "version": "0.7.0",
   "config": "no_magnitude_slots",
-  "score": 0.6676111333306614,
-  "own_undefined": 1,
+  "score": 0.6676479973356154,
+  "own_undefined": 0,
   "rows_dropped": 1,
   "rows": 598
  },
@@ -304,7 +304,7 @@
   "item": "communities:2",
   "version": "0.7.0",
   "config": "conditional_retest",
-  "score": 0.6180839456376259,
+  "score": 0.6802427276764211,
   "own_undefined": 0,
   "rows_dropped": 2,
   "rows": 598
@@ -314,7 +314,7 @@
   "item": "communities:2",
   "version": "0.7.0",
   "config": "default",
-  "score": 0.6841108108622483,
+  "score": 0.6876444692313597,
   "own_undefined": 0,
   "rows_dropped": 2,
   "rows": 598
@@ -454,7 +454,7 @@
   "item": "california_housing:4",
   "version": "0.7.0",
   "config": "alpha_conditional",
-  "score": 0.6907303895903829,
+  "score": 0.6682586327780586,
   "own_undefined": 0,
   "rows_dropped": 1,
   "rows": 6192
@@ -464,7 +464,7 @@
   "item": "california_housing:4",
   "version": "0.7.0",
   "config": "conditional_retest",
-  "score": 0.6907303895903829,
+  "score": 0.6602879657599845,
   "own_undefined": 0,
   "rows_dropped": 1,
   "rows": 6192
@@ -474,8 +474,8 @@
   "item": "california_housing:4",
   "version": "0.7.0",
   "config": "default",
-  "score": 0.692879799451334,
-  "own_undefined": 1,
+  "score": 0.6715823084509143,
+  "own_undefined": 0,
   "rows_dropped": 1,
   "rows": 6192
  },
@@ -484,7 +484,7 @@
   "item": "california_housing:4",
   "version": "0.7.0",
   "config": "no_magnitude_slots",
-  "score": 0.6922632910748368,
+  "score": 0.6715823084509143,
   "own_undefined": 0,
   "rows_dropped": 1,
   "rows": 6192
@@ -494,7 +494,7 @@
   "item": "california_housing:4",
   "version": "0.7.0",
   "config": "parsimony_alpha",
-  "score": 0.6931942687237131,
+  "score": 0.6609180939034387,
   "own_undefined": 0,
   "rows_dropped": 1,
   "rows": 6192

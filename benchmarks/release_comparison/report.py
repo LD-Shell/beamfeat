@@ -122,12 +122,18 @@ def errors(rows):
     return bad
 
 
+def spelling(formulas):
+    """Formulas without brackets and spaces: 0.7.0 brackets a divisor spelled 1/(...), which earlier
+    releases printed without, and the bracket changes nothing that is fitted."""
+    return None if formulas is None else [f.replace("(", "").replace(")", "").replace(" ", "") for f in formulas]
+
+
 def identical(rows, a, b):
     ia = {r["item"]: r for r in sel(rows, *a)}
     ib = {r["item"]: r for r in sel(rows, *b)}
     common = set(ia) & set(ib)
-    same = sum(ia[i].get("formulas") == ib[i].get("formulas") and same_score(ia[i].get("score"), ib[i].get("score"))
-               for i in common)
+    same = sum(spelling(ia[i].get("formulas")) == spelling(ib[i].get("formulas"))
+               and same_score(ia[i].get("score"), ib[i].get("score")) for i in common)
     return same, len(common)
 
 
@@ -386,13 +392,19 @@ def releases_summary(d):
     return "\n".join(out)
 
 
+# 0.7.0's two changes to fits, one at a time: the denominator guard (0.7.0 without its magnitude
+# slots against 0.6.1) and the magnitude slots (0.7.0 against 0.7.0 without them).
+SPLIT_070 = [(("0.6.1", "default"), ("0.7.0", "no_magnitude_slots")),
+             (("0.7.0", "no_magnitude_slots"), ("0.7.0", "default"))]
+
+
 def option_summary(study_rows):
     """Paired effects of each release and option on the same items."""
     out = ["## 8. Paired effects (same items; mean difference ± SE)", "",
            "Releases are compared with the previous release's default; options with their own release's default.", ""]
     comparisons = [(("0.4.2", "default"), ("0.5.0", "default")), (("0.5.0", "default"), ("0.6.0", "default")),
                    (("0.6.0", "default"), ("0.6.1", "default")), (("0.6.1", "default"), ("0.7.0", "default"))] + \
-        [((v, "default"), (v, c)) for v, c in OPTIONS]
+        SPLIT_070 + [((v, "default"), (v, c)) for v, c in OPTIONS]
     d = study_rows
     g = lambda r: r["item"].split("_n")[0]  # noqa: E731
     out += ["| comparison | designs Δ cond. FDR (snr 1) | designs Δ cond. FDR (snr 3) | designs Δ R² (snr 1) | "
@@ -464,7 +476,7 @@ def scorecard(d):
            "mean terms (real) | designs Δ cond. FDR, snr 1 | time (× default) | memory (× default) |",
            "| :-- | --: | --: | :-- | --: | --: | --: | --: | --: |"]
     for v, c in [(("0.4.2", "default"), ("0.5.0", "default")), (("0.5.0", "default"), ("0.6.0", "default")),
-                 (("0.6.1", "default"), ("0.7.0", "default"))] + \
+                 (("0.6.1", "default"), ("0.7.0", "default"))] + SPLIT_070 + \
             [((v, "default"), (v, c)) for v, c in OPTIONS]:
         a, b = v, c
         real = {**per_dataset(d["suite"], a, b, REAL), **per_dataset(d["highdim"], a, b, ["communities", "superconduct", "tecator", "eyedata", "riboflavin"])}
