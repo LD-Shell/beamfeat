@@ -38,11 +38,12 @@ forward step without `parsimony_alpha` is deprecated.
   the equation list in `_rendering.py`, and the evaluation of new rows in
   `_prediction.py`. The built-in operators are defined in `_operators.py`,
   the place to add one. `BeamSearch.run` runs one method per depth instead
-  of a loop of 264 lines. The public API, its import paths and its
-  documentation are unchanged. Fits, predictions, p-values, equations, LaTeX,
-  the verbose output and the warnings are those of 0.6.1, compared field by
-  field on 327 fits across the benchmark datasets and options, and models
-  saved with 0.6.1 load and predict identically. Private helpers imported
+  of a loop of 264 lines. The public API and its import paths are
+  unchanged. Fits, predictions, p-values, LaTeX, the verbose output and the
+  warnings are those of 0.6.1, compared field by field on 327 fits across the
+  benchmark datasets and options, and so are the printed equations, apart
+  from the brackets described under "Fixed"; models saved with 0.6.1 load and
+  predict identically. Private helpers imported
   from `beamfeat.estimators` by name, such as `_chance_p_value`, now live in
   those modules. `ARCHITECTURE.md` maps the modules and a fit's stages.
 - ruff checks function size in `src/`: complexity 18 and 60 statements, the
@@ -58,6 +59,24 @@ forward step without `parsimony_alpha` is deprecated.
 - `release_comparison/` includes 0.7.0: its default, with the magnitude
   slots off, with `parsimony_alpha`, and with the conditional re-test alone
   and with `parsimony_alpha`, timed in a pass of its own beside 0.6.1.
+- `three_settings/` fits the default, `parsimony_alpha=0.05`,
+  `input_test=True` and both together on the same data: a noise sweep on
+  `y = x0/x1` among unrelated columns, the release comparison's datasets and
+  splits, and the paper's own studies with their own settings.
+
+### Documentation
+
+- A "Choosing a setting" page sets the default, for prediction, beside
+  `parsimony_alpha=0.05`, for a short equation, and `input_test=True`, for an
+  equation whose every column was tested: what each prints, what it costs and
+  what was measured. The Getting started tutorial ends on the same choice.
+- The user guide is split into four pages (Reading a fit, The printed
+  equation, Search options, Data and prediction), with a quickstart before
+  them and a table that finds the section for each parameter. The site's
+  navigation groups the pages under Get started, User guide, Tutorials and
+  Reference, and the changelog is on the site.
+- Every example in the quickstart and the guide was run again at 0.7.0, and
+  the outputs the magnitude slots had changed are updated.
 
 ### Deprecated
 

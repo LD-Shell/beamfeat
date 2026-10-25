@@ -25,6 +25,10 @@ of 0.6.1's, and fits take a fifth longer. The conditional re-test after the
 forward step now asks for `parsimony_alpha`, and the code is split into
 smaller modules, mapped in
 [`ARCHITECTURE.md`](https://github.com/LD-Shell/beamfeat/blob/main/ARCHITECTURE.md).
+The documentation has a new
+[Choosing a setting](https://ld-shell.github.io/beamfeat/settings/) page:
+when to keep the default, and when to ask for a short equation or for every
+column to be tested.
 How 0.4.2 (the paper's release) through 0.7.0 compare on accuracy, speed and
 memory:
 [release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md).
@@ -40,7 +44,11 @@ differences such as `((x35 - x42) / (x37 - x39))`, and reaches a mean
 held-out R² of 0.991. On all 100 channels, ridge regression reaches 0.957, a
 random forest 0.717 and LightGBM 0.756. A random forest given the formulas in
 place of the raw channels goes from 0.739 to 0.992, on three of the five
-splits.
+splits. Against the methods of chemometrics, compared since the paper,
+beamfeat's error is 44 to 59% of that of partial least squares (R² 0.951 to
+0.971), and the error of kernel methods on second-derivative spectra (R²
+0.996 to 0.998) is 48 to 62% of beamfeat's, from every channel and with no
+formula to read.
 
 The accuracy is stable from split to split; which ratios are picked is not.
 Neighbouring channels correlate at 0.99988, so many ratios are nearly
@@ -49,7 +57,9 @@ measures this on any data: it refits on many random splits and counts the
 distinct equations.
 
 The numbers are the paper's (Table 6 and its appendices), from the archived
-run in [`benchmarks/additional_experiments/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/additional_experiments);
+run in [`benchmarks/additional_experiments/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/additional_experiments),
+except the chemometrics comparison, from
+[`benchmarks/tecator_chemometrics/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/tecator_chemometrics);
 [`benchmarks/figures/tecator.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/figures/tecator.py)
 draws the plot. The [Benchmarks](https://ld-shell.github.io/beamfeat/benchmarks/)
 page has all nine datasets of that study, including those where beamfeat
@@ -82,6 +92,23 @@ model.equation()        # 'y = 0.9847*((x0 / x2) * x1) + ...'
 model.fdr_controlled_   # True: the features carry the stated FDR guarantee
 model.predict(X_new)
 ```
+
+## Three settings
+
+```python
+BeamFeatRegressor()                        # the equation that predicts best
+BeamFeatRegressor(parsimony_alpha=0.05)    # a short equation, to read or report
+BeamFeatRegressor(input_test=True)         # every column inside each formula tested
+```
+
+On noisy data the default's equation can carry extra terms. On `y = x0/x1`
+among ten unrelated columns, with noise as large as the signal, it printed a
+median of 9.5 terms, most of them reading an unrelated column, and
+`parsimony_alpha=0.05` printed the one true term in every fit. On real data,
+which rarely follow one compact formula, `parsimony_alpha` gives up some
+held-out score, and `input_test` takes 2 to 7 times as long.
+[Choosing a setting](https://ld-shell.github.io/beamfeat/settings/) has the
+measurements.
 
 ## What you get
 
@@ -128,15 +155,22 @@ gives each procedure's assumptions and what was measured.
 
 ## Documentation
 
-- [User guide](https://ld-shell.github.io/beamfeat/guide/): fitting,
-  reading and exporting an equation.
+- [Quickstart](https://ld-shell.github.io/beamfeat/quickstart/): a first fit
+  and how to read it.
+- [Choosing a setting](https://ld-shell.github.io/beamfeat/settings/): the
+  default, a short equation, or every column tested.
+- [User guide](https://ld-shell.github.io/beamfeat/guide/): reading a fit,
+  the printed equation, the search options, and data and prediction.
 - [Tutorials](https://ld-shell.github.io/beamfeat/notebooks/01_getting_started/):
   four notebooks, from a first fit to reading one in detail.
+- [Statistical guarantees](https://ld-shell.github.io/beamfeat/guarantees/):
+  what the guarantee covers, its assumptions, and what was measured.
 - [Benchmarks](https://ld-shell.github.io/beamfeat/benchmarks/): every
   measured result, with the scripts and archived runs behind it.
 - [Migrating from autofeat](https://ld-shell.github.io/beamfeat/migrating-from-autofeat/):
   the API mapping and the differences to expect.
-- [API reference](https://ld-shell.github.io/beamfeat/api/).
+- [API reference](https://ld-shell.github.io/beamfeat/api/) and
+  [changelog](https://ld-shell.github.io/beamfeat/changelog/).
 
 ## Citing
 

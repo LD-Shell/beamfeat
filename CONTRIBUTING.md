@@ -48,6 +48,19 @@ error-control properties are in scope. Heuristic selectors without a stated
 guarantee are accepted only when clearly labelled as such in their docstring
 and excluded from the default configuration.
 
+## Documentation
+
+- The site is built with MkDocs from `docs/`, and `mkdocs.yml` lists its
+  pages in order. `docs/index.md` and `docs/changelog.md` include
+  `README.md` and `CHANGELOG.md`, so those two are edited in place.
+- The guide's examples show real outputs. When a change can alter what an
+  example prints, run it again and paste the new output.
+- The tutorials are generated. Edit `notebooks/build_notebooks.py`, run it,
+  execute the notebooks it writes (for example with
+  `jupyter nbconvert --to notebook --execute --inplace`), and copy them to
+  `docs/notebooks/` with `python notebooks/build_notebooks.py --sync-docs`.
+- `mkdocs build --strict` fails on a broken link or anchor.
+
 ## Keeping up with dependencies
 
 Three checks are meant to catch a dependency release that breaks beamfeat

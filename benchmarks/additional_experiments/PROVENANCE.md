@@ -17,7 +17,7 @@ note it in the revision.
 |---|---|---|---|
 | communities_crime_numeric.csv | 1,993 x 101 | UCI Communities and Crime; Redmond & Baveja (2002) | drop 5 non-predictive id columns; drop the 22 LEMAS columns (~84% missing); drop the single row missing OtherPerCap |
 | superconductivity.csv | 21,263 x 82 | UCI Superconductivity; Hamidieh (2018) | none (train.csv verbatim) |
-| tecator.csv | 240 x 126 | StatLib Tecator; Borggaard & Thodberg (1992); mirror pinned by checksum | none; the harness uses the 100 absorbance channels and the fat target, ignoring the shipped principal components |
+| tecator.csv | 240 x 126 | StatLib Tecator, recorded on a Tecator Infratec Food and Feed Analyzer; Borggaard & Thodberg (1992); mirror pinned by checksum; redistributed under the permission note in `data/TECATOR_PERMISSION.txt` | none; the harness uses the 100 absorbance channels and the fat target, ignoring the shipped principal components; the samples keep StatLib's order |
 | eyedata.csv | 120 x 201 | CRAN `flare`; Scheetz et al. (2006), PNAS | matrix x + TRIM32 target from eyedata.rda |
 | riboflavin.csv | 71 x 4,089 | CRAN `hdi`; Buhlmann, Kalisch & Meier (2014) | y + 4,088-gene matrix from riboflavin.RData (R column-major layout honoured) |
 | ct_slices.csv (via --all) | 53,500 x 385 | UCI Relative location of CT slices; Graf et al. (2011) | drop patientId |

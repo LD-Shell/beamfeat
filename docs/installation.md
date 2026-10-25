@@ -73,6 +73,12 @@ The higher-dimensional studies have their own driver,
 `python benchmarks/figures/tecator.py` redraws the figure on the home page
 from their archived run in a few seconds.
 
+Three studies need none of the competing tools and run wherever beamfeat is
+installed: the release comparison (`benchmarks/release_comparison/`), the
+three settings (`benchmarks/three_settings/`) and the chemometrics baselines
+on tecator (`benchmarks/tecator_chemometrics/`). Each folder's
+`PROVENANCE.md` gives its commands and the versions it pinned.
+
 `reproduce_all.ipynb` also builds a throwaway virtual environment with the
 newest numpy and scikit-learn and runs the suite there, so the pinned kernel
 does not become the only evidence that the package works on current releases.

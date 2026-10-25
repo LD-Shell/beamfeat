@@ -2,7 +2,7 @@
 
 The results on this page come from scripts in the repository and their
 archived runs, from the paper (TMLR 2026, which describes release 0.4.2), or
-from the [changelog](https://github.com/LD-Shell/beamfeat/blob/main/CHANGELOG.md).
+from the [changelog](changelog.md).
 Results with a random component carry Monte Carlo error from a finite number
 of trials, so read them at the precision given. Some of the paper's results
 have moved since: two bugs fixed in 0.5.0 change a few, and some figures come
@@ -79,9 +79,39 @@ thirty fits with different seeds on one partition (the design of
 deviation of 0.004, while selecting 79 distinct features, counting
 value-equivalent ones once, none of them in more than 8 of the 30 fits.
 Adjacent channels correlate at 0.99988, so many band pairs are
-near-substitutes and each fit picks among them. The
-[user guide](guide.md#one-equation-or-one-of-many) shows how to run the same
-check on other data.
+near-substitutes and each fit picks among them.
+[One equation or one of many](guide/reading-a-fit.md#one-equation-or-one-of-many)
+shows how to run the same check on other data.
+
+### Tecator and the methods of chemometrics
+
+The study above compares beamfeat with general-purpose baselines. On
+spectra, chemometrics uses partial least squares (PLS) on preprocessed
+spectra, and kernel methods on derivative spectra are among the most
+accurate. [`benchmarks/tecator_chemometrics/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/tecator_chemometrics),
+added after the paper, fits them on the same five splits, each tuned by
+cross-validation on its training rows:
+
+| method | held-out R² | RMSE (% fat) | size |
+| :-- | --: | --: | :-- |
+| SVR, second-derivative spectra | 0.998 | 0.66 | all 100 channels |
+| kernel ridge, second-derivative spectra | 0.997 | 0.79 | all 100 channels |
+| Gaussian process, second-derivative spectra | 0.996 | 0.85 | all 100 channels |
+| beamfeat, second-derivative spectra | 0.995 | 1.01 | 1 to 2 terms |
+| beamfeat | 0.991 | 1.37 | 2 to 4 terms |
+| PLS, after the standard normal variate | 0.971 | 2.33 | 5 to 18 components |
+| PLS, derivative spectra | 0.958 | 2.89 | 12 to 20 components |
+| ridge | 0.957 | 2.94 | all 100 channels |
+| PLS | 0.951 | 3.14 | 17 to 18 components |
+
+beamfeat's error is 44 to 59% of that of PLS, the field's standard, and the
+kernel methods' is 48 to 62% of beamfeat's, from all 100 channels and with no
+formula to read. On derivative spectra beamfeat narrows that gap with one or
+two terms, so it works with the field's preprocessing rather than in place of
+it. Its formulas are mostly ratios of differences between nearby channels,
+much like a derivative followed by a normalisation, and the channels it uses
+most lie at 926 to 946 nm, near the band around 930 nm usually attributed to
+fat; which channels a fit picks still varies from split to split.
 
 ## Selection calibration
 
@@ -199,7 +229,7 @@ beamfeat adds none.
   the regression default since 0.7.0, recovered every lost cell but one
   crowded sum law (0.88), at 1.2 to 1.7 times the fit time, and left the
   real-data suites and the false-discovery rates essentially unchanged; the
-  [guide](guide.md#laws-whose-parts-the-score-cannot-see) shows how to use it.
+  [guide](guide/search.md#laws-whose-parts-the-score-cannot-see) shows how to use it.
 - **Friedman #1**
   ([`benchmarks/friedman_decomposition.py`](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/friedman_decomposition.py)).
   Over six draws, a representation oracle reaches 0.960 ± 0.003, a
@@ -249,6 +279,21 @@ control; beamfeat applies it to symbolic expressions on tabular columns.
 [Migrating from autofeat](migrating-from-autofeat.md) maps one API onto the
 other.
 
+## Three settings
+
+[`benchmarks/three_settings/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/three_settings)
+fits the default, `parsimony_alpha=0.05`, `input_test=True` and both together
+on the same data: a noise sweep on `y = x0/x1` among unrelated columns, the
+release comparison's datasets and splits, and the paper's own studies with
+their own settings. [Choosing a setting](settings.md) summarises it. In
+short, at noise as large as the signal the default printed a median of 9.5
+terms, most of them reading an unrelated column, and `parsimony_alpha`
+printed the one true term in every fit; on the 12 real datasets the default
+had the best mean held-out score (0.673, against 0.657 with
+`parsimony_alpha` and 0.659 with `input_test`). At the paper's settings the
+comparison study's mean R² is 0.804 at the default, 0.784 with
+`parsimony_alpha` and 0.801 with `input_test`, against the paper's 0.803.
+
 ## Release comparison
 
 [`benchmarks/release_comparison/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/release_comparison)
@@ -286,7 +331,10 @@ The paper describes release 0.4.2, archived with its run records at
 [10.5281/zenodo.23417132](https://doi.org/10.5281/zenodo.23417132). Some of
 its numbers differ from what current releases give, for three reasons: two
 bugs, figures from runs made under an earlier release, and speed. The
-archived records are kept as they were run.
+archived records are kept as they were run. Comparisons added since the
+paper, such as the chemometrics baselines on tecator and the
+[three settings](#three-settings), have folders of their own and change
+none of the paper's numbers.
 
 ### Two bugs, fixed in 0.5.0
 

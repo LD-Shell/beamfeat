@@ -244,13 +244,17 @@ Measured on 20 seeds of `y = x0*x1` plus 25% noise among 10 junk columns
 a junk column 14 → 1, printed terms with one 23/45 → 1/28, held-out R² 0.9413
 → 0.9416. With the junk `x8` correlated 0.82 with `x1`, 10 → 3. On pure-noise
 targets the screen rejects no null with the option or without it, and the
-physics panel is unchanged.
+physics panel is unchanged. On the release comparison's 12 real datasets
+(`benchmarks/three_settings/`) held-out score fell on 7, by 0.04 at most, and
+fits took 3.6 times as long.
 
 ## Parsimony within the screened set
 
 Three things can be wanted of the fitted equation: that it be short, that the
 guarantee cover the terms actually printed, and that it cost no selection
 rows. Any two are available together, and the choice is one parameter.
+[Choosing a setting](settings.md) sets the default beside `parsimony_alpha`
+and `input_test` on the same data.
 
 **`parsimony="forward"` (the default)** applies greedy forward selection
 *within* the screened set and fits the compact subset. It is short and costs
@@ -401,29 +405,30 @@ On real data the check costs accuracy. These designs have one strong term
 and noise; real targets tend to carry many modest effects, each of which adds
 little on its own, often less than the best of the remaining terms reaches
 against noise, so the step stops after one to four terms. In
-`benchmarks/release_comparison/` (5 splits each, 70/30) held-out score fell by
-more than 0.005 on 8 of 12 real datasets, was within 0.005 on 3, and rose on
-one:
+`benchmarks/three_settings/`, on the datasets and splits of
+`benchmarks/release_comparison/` (5 splits each, 70/30), held-out score fell
+by more than 0.005 on 8 of 12 real datasets, was within 0.005 on 3, and rose
+on one:
 
 | dataset | rows (train) | default | `parsimony_alpha=0.05` |
 | :-- | --: | --: | --: |
-| diabetes | 309 | 0.430 (5.0 terms) | 0.381 (1.4) |
+| diabetes | 309 | 0.431 (5.4 terms) | 0.381 (1.4) |
 | tips | 170 | 0.461 (12.0) | 0.397 (1.0) |
 | penguins | 239 | 0.803 (7.8) | 0.768 (1.4) |
 | breast_cancer (accuracy) | 398 | 0.974 (20.8) | 0.961 (3.8) |
 | mpg | 274 | 0.868 (12.0) | 0.858 (1.6) |
-| communities | 1,395 | 0.648 (14.2) | 0.633 (2.8) |
-| superconduct | 3,500 | 0.746 (20.2) | 0.728 (12.6) |
-| riboflavin | 49 | 0.506 (17.4) | 0.306 (1.0) |
+| communities | 1,395 | 0.645 (11.0) | 0.629 (2.4) |
+| superconduct | 3,500 | 0.740 (18.6) | 0.717 (8.6) |
+| riboflavin | 49 | 0.502 (18.2) | 0.306 (1.0) |
 | diamonds | 980 | 0.853 (3.8) | 0.851 (1.0) |
-| california_housing | 14,448 | 0.695 (12.2) | 0.693 (10.8) |
-| tecator | 168 | 0.991 (2.6) | 0.991 (2.6) |
-| eyedata | 84 | 0.110 (32.2) | 0.330 (1.0) |
+| california_housing | 14,448 | 0.697 (13.2) | 0.695 (11.8) |
+| tecator | 168 | 0.991 (3.4) | 0.989 (2.0) |
+| eyedata | 84 | 0.105 (31.0) | 0.330 (1.0) |
 
-The one gain, eyedata, is a default that overfits: 32 terms on 84 training
+The one gain, eyedata, is a default that overfits: 31 terms on 84 training
 rows, with held-out R² of -1.0 on one split. Two synthetic targets built from
-many terms behaved like the real ones (friedman1 0.798 to 0.759,
-threshold_step 0.841 to 0.808). The check suits a search for a short law,
+many terms behaved like the real ones (friedman1 0.797 to 0.759,
+threshold_step 0.838 to 0.808). The check suits a search for a short law,
 where the target is a few strong terms; for prediction, leave it off.
 
 **The equation list.** `equations()` and `equations_` record the forward path

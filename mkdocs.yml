@@ -12,10 +12,13 @@ theme:
     repo: fontawesome/brands/github
   features:
     - content.code.copy
+    - navigation.footer
+    - navigation.indexes
     - navigation.sections
-    - navigation.top
-    - search.suggest
     - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - search.suggest
     - toc.follow
   palette:
     - scheme: default
@@ -24,19 +27,34 @@ theme:
       toggle: {icon: material/brightness-4, name: light mode}
 exclude_docs: |
   sphinx_roles.py
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - User guide: guide.md
-  - Statistical guarantees: guarantees.md
-  - Benchmarks: benchmarks.md
-  - Migrating from autofeat: migrating-from-autofeat.md
+  - Get started:
+      - Installation: installation.md
+      - Quickstart: quickstart.md
+      - Choosing a setting: settings.md
+      - Migrating from autofeat: migrating-from-autofeat.md
+  - User guide:
+      - guide/index.md
+      - Reading a fit: guide/reading-a-fit.md
+      - The printed equation: guide/printed-equation.md
+      - Search options: guide/search.md
+      - Data and prediction: guide/data.md
   - Tutorials:
       - Getting started: notebooks/01_getting_started.ipynb
       - Search and scoring: notebooks/02_search_and_scoring.ipynb
       - Selection and units: notebooks/03_selection_and_units.ipynb
       - Reading a fit: notebooks/04_reading_a_fit.ipynb
-  - API reference: api.md
+  - Reference:
+      - Statistical guarantees: guarantees.md
+      - Benchmarks: benchmarks.md
+      - API reference: api.md
+      - Changelog: changelog.md
 plugins:
   - search
   - mkdocs-jupyter:

@@ -285,7 +285,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             guarantee on the subset. It suits a target of a few strong
             terms: on real data, whose many modest effects each add little,
             it stopped after one to four terms and lowered held-out score
-            on 8 of 12 datasets in ``benchmarks/release_comparison/``.
+            on 8 of 12 datasets in ``benchmarks/three_settings/``.
             Ignored when ``parsimony`` is ``None``.
 
     Attributes:
