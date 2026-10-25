@@ -17,6 +17,7 @@ from beamfeat import (
     BeamFeatRegressor,
     BeamFeatTransformer,
     DegenerateFitWarning,
+    ExtrapolationWarning,
     NoDiscoveriesWarning,
     PermutationSelector,
 )
@@ -532,6 +533,67 @@ class TestTransformSemantics:
 # --------------------------------------------------------------------------- #
 # Units
 # --------------------------------------------------------------------------- #
+
+
+class TestExtrapolation:
+    """New rows that take a feature far beyond its training range raise
+    ExtrapolationWarning, naming the feature; rows inside it do not."""
+
+    @staticmethod
+    def _ratio_fit(cls=BeamFeatRegressor):
+        rng = np.random.default_rng(0)
+        X = rng.uniform(1.0, 3.0, (400, 3))
+        y = X[:, 0] / X[:, 1] + rng.normal(0, 0.01, 400)
+        model = cls(max_depth=1, beam_width=8, random_state=0).fit(X, y)
+        assert model.formulas() == ["(x0 / x1)"]
+        return X, model
+
+    # x0/x1 is 20 on the second row, against a training range of about 0.36 to 2.74.
+    FAR = np.array([[2.0, 2.0, 2.0], [2.0, 0.1, 2.0]])
+
+    def test_ranges_are_those_of_the_training_rows(self):
+        X, model = self._ratio_fit()
+        values = X[:, 0] / X[:, 1]
+        np.testing.assert_allclose(model.feature_ranges_, [[values.min(), values.max()]])
+
+    def test_rows_inside_the_range_do_not_warn(self):
+        X, model = self._ratio_fit()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ExtrapolationWarning)
+            model.predict(X)
+            model.predict(self.FAR[:1])
+
+    def test_rows_far_beyond_warn_and_name_the_feature(self):
+        _, model = self._ratio_fit()
+        low, high = model.feature_ranges_[0]
+        widths = f"{(20.0 - high) / (high - low):.3g}"
+        expected = rf"on 1 of 2 rows, a feature lies .*'\(x0 / x1\)' by up to {re.escape(widths)} widths"
+        with pytest.warns(ExtrapolationWarning, match=expected):
+            predictions = model.predict(self.FAR)
+        # The warning changes nothing that is predicted.
+        assert np.all(np.isfinite(predictions))
+
+    def test_transform_warns_too(self):
+        _, model = self._ratio_fit(BeamFeatTransformer)
+        with pytest.warns(ExtrapolationWarning, match="on 1 of 2 rows"):
+            model.transform(self.FAR)
+
+    def test_a_model_saved_without_ranges_does_not_warn(self):
+        """A model fitted before 0.7.0 has no feature_ranges_ and predicts as it did."""
+        _, model = self._ratio_fit()
+        del model.feature_ranges_
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ExtrapolationWarning)
+            model.predict(self.FAR)
+
+    def test_a_model_without_features_does_not_warn(self, rng):
+        X = rng.uniform(1.0, 3.0, (300, 3))
+        with pytest.warns(NoDiscoveriesWarning):
+            model = BeamFeatRegressor(random_state=0).fit(X, rng.standard_normal(300))
+        assert model.feature_ranges_.shape == (0, 2)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ExtrapolationWarning)
+            model.predict(X * 100)
 
 
 class TestUnitsIntegration:

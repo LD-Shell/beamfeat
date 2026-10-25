@@ -34,6 +34,7 @@ from sklearn.utils.validation import check_is_fitted
 
 from beamfeat._base import (
     DegenerateFitWarning,
+    ExtrapolationWarning,
     NoDiscoveriesError,
     NoDiscoveriesWarning,
     _BeamFeatBase,
@@ -63,6 +64,7 @@ __all__ = [
     "BeamFeatRegressor",
     "BeamFeatTransformer",
     "DegenerateFitWarning",
+    "ExtrapolationWarning",
     "NoDiscoveriesError",
     "NoDiscoveriesWarning",
 ]
@@ -291,6 +293,10 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
         feature_formulas_: Their formula strings.
+        feature_ranges_: Each feature's smallest and largest value on the
+            training rows, one row per feature. ``transform`` and ``predict``
+            raise :class:`ExtrapolationWarning` when new rows take a feature
+            more than one width of this range beyond it.
         search_result_: The :class:`~beamfeat.search.SearchResult`.
         selection_result_: The :class:`~beamfeat.selection.SelectionResult`,
             or ``None`` if no selector was used.

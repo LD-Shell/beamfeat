@@ -5,6 +5,7 @@ from beamfeat.estimators import (
     BeamFeatRegressor,
     BeamFeatTransformer,
     DegenerateFitWarning,
+    ExtrapolationWarning,
     NoDiscoveriesError,
     NoDiscoveriesWarning,
 )
@@ -47,6 +48,7 @@ __version__ = "0.7.0"
 __all__ = [
     "BeamFeatClassifier", "BeamFeatRegressor", "BeamFeatTransformer",
     "DegenerateFitWarning",
+    "ExtrapolationWarning",
     "NoDiscoveriesError",
     "NoDiscoveriesWarning",
     "BeamSearch", "CorrelationScorer", "EvaluationLog", "Evaluator",

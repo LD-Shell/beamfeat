@@ -71,9 +71,27 @@ class NoDiscoveriesWarning(UserWarning):
     """
 
 
+class ExtrapolationWarning(UserWarning):
+    """Raised when new rows take a feature far beyond its range on the training rows.
+
+    A formula is fitted where the training data lie, and beyond them it can
+    behave unlike anything the fit saw: a ratio whose denominator approaches
+    zero there takes any size and either sign. ``predict``, ``transform`` and
+    the probability methods warn when a feature's values on the new rows lie
+    more than one width of its training range beyond that range, and name
+    the features, the rows affected and the furthest distance. Predictions on
+    those rows extrapolate the equation; check them before relying on them.
+    """
+
+
+# How far beyond its range on the training rows, in widths of that range, a
+# feature may go on new rows before ExtrapolationWarning is raised.
+_EXTRAPOLATION_WIDTHS = 1.0
+
+
 # Raised here and imported, documented and caught as beamfeat.estimators.<name>;
 # the module name keeps tracebacks and warnings filters on that path.
-for _public in (NoDiscoveriesError, DegenerateFitWarning, NoDiscoveriesWarning):
+for _public in (NoDiscoveriesError, DegenerateFitWarning, NoDiscoveriesWarning, ExtrapolationWarning):
     _public.__module__ = "beamfeat.estimators"
 
 
@@ -1037,6 +1055,11 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         self.features_ = kept_nodes
         self.feature_formulas_ = [node.name for node in kept_nodes]
         self.n_features_out_ = len(kept_nodes)
+        # Each feature's smallest and largest value on the training rows, which
+        # predict and transform compare new rows with.
+        self.feature_ranges_ = np.array(
+            [[float(np.min(values)), float(np.max(values))] for values in kept_columns], dtype=np.float64
+        ).reshape(-1, 2)
         self._resolve_fdr_scope()
         self._forward_stop_ = None
         if forward_path is not None:
@@ -1224,7 +1247,38 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                 UserWarning,
                 stacklevel=4,
             )
+        extrapolating = self._extrapolation_message(matrix)
+        if extrapolating:
+            warnings.warn(extrapolating, ExtrapolationWarning, stacklevel=4)
         return matrix
+
+    def _extrapolation_message(self, matrix: np.ndarray) -> str | None:
+        """The text of :class:`ExtrapolationWarning` for ``matrix``, or ``None`` when no feature goes that far."""
+        ranges = getattr(self, "feature_ranges_", None)  # absent from a model saved before 0.7.0
+        if ranges is None or not len(ranges):
+            return None
+        low, high = ranges[:, 0], ranges[:, 1]
+        width = np.where(high > low, high - low, np.inf)
+        with np.errstate(invalid="ignore"):
+            beyond = np.nan_to_num(np.maximum(matrix - high, low - matrix) / width, nan=-np.inf)
+        far = beyond > _EXTRAPOLATION_WIDTHS
+        if not far.any():
+            return None
+        columns = np.flatnonzero(far.any(axis=0))
+        named = ", ".join(
+            f"{self.feature_formulas_[column]!r} by up to {beyond[:, column].max():.3g} widths"
+            for column in columns[:3]
+        )
+        if len(columns) > 3:
+            named += f" and {len(columns) - 3} more"
+        which = "a feature lies beyond its" if len(columns) == 1 else f"{len(columns)} features lie beyond their"
+        n_rows = int(np.count_nonzero(far.any(axis=1)))
+        return (
+            f"beamfeat: on {n_rows} of {matrix.shape[0]} rows, {which} training range by more than "
+            f"{_EXTRAPOLATION_WIDTHS:g} width of that range: {named}. The predictions on those rows "
+            "extrapolate the equation, where a formula can behave unlike anything the fit saw, such as a "
+            "ratio whose denominator nears zero; check them."
+        )
 
     def _model_output(self, X: np.ndarray, method: str, outcome: str) -> tuple[np.ndarray, np.ndarray]:
         """Call ``model_.<method>`` on the rows every expression is defined on.

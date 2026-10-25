@@ -23,6 +23,7 @@ building and evaluating expressions directly.
 ::: beamfeat.NoDiscoveriesWarning
 ::: beamfeat.NoDiscoveriesError
 ::: beamfeat.DegenerateFitWarning
+::: beamfeat.ExtrapolationWarning
 
 ## Stability over splits
 
