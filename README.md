@@ -119,6 +119,9 @@ The formulas whose nulls are rejected are the certified set, and on average
 at most 10% of them are false discoveries (`target_fdr`). That is an average
 over repeated fits, not a promise about any one fit, and it covers the
 certified set, of which the printed equation is by default a compact subset.
+A formula is a false discovery only when it is independent of the target, so
+`(x0*x1)/(x1 + x8)` is a true one when `y = x0*x1`, however unrelated `x8`
+is; `input_test=True` tests each column inside each formula.
 If no null is rejected, the model uses no formulas and warns.
 [Statistical guarantees](https://ld-shell.github.io/beamfeat/guarantees/)
 gives each procedure's assumptions and what was measured.
