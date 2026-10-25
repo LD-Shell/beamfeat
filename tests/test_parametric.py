@@ -216,6 +216,13 @@ class TestParametricOperators:
     def test_names(self, op, constant, name):
         assert transform(op, leaf("x"), const=constant).name == name
 
+    def test_divisor_spelled_as_a_reciprocal_is_bracketed(self):
+        # (a / 1/(b - 2.5)) would read as (a/1)/(b - 2.5).
+        shifted = transform("inv_shift", leaf("b"), const=-2.5)
+        assert combine("div", leaf("a"), shifted).name == "(a / (1/(b - 2.5)))"
+        assert combine("div", shifted, leaf("a")).name == "(1/(b - 2.5) / a)"
+        assert combine("mul", leaf("a"), shifted).name == "(1/(b - 2.5) * a)"
+
     def test_sympy_and_latex(self):
         sympy = pytest.importorskip("sympy")
         gaussian = transform("exp_scaled", transform("square", leaf("x0")), const=-0.5)

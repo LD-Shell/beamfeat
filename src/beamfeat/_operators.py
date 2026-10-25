@@ -373,12 +373,17 @@ register_operator(
 )
 
 
+def _divisor_text(y: str) -> str:
+    """A divisor spelled ``1/(...)`` in brackets, so ``a / (1/(b))`` cannot read as ``(a/1)/b``."""
+    return f"({y})" if y.startswith("1/(") else y
+
+
 register_operator(
     OperatorSpec(
         name="div",
         arity=2,
         fn=lambda x, y: x / y,
-        formula=lambda x, y: f"({x} / {y})",
+        formula=lambda x, y: f"({x} / {_divisor_text(y)})",
         unit_fn=_div_unit,
         commutative=False,
     )

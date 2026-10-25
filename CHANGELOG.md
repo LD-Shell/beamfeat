@@ -76,6 +76,10 @@ forward step without `parsimony_alpha` is deprecated.
 - The `parsimony_holdout` re-test's warnings name the line of `fit` that
   raised them, as every other fit-time warning does, rather than a line
   inside the fit's internals.
+- A formula that divides by a fitted shift prints its divisor in brackets,
+  `(a / (1/(b - 2.5)))`, where it printed `(a / 1/(b - 2.5))`, which reads
+  as `(a/1)/(b - 2.5)`. Only the text changes; the expression, its values and
+  `to_sympy()` were right.
 - `to_sympy()`, `latex()` and `latex_formulas()` without sympy raise an
   `ImportError` that says to install `beamfeat[display]`, rather than a bare
   `No module named 'sympy'`.
