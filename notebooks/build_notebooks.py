@@ -284,6 +284,63 @@ for formula in classifier.formulas():
     ),
     markdown(
         """
+## Choosing a setting
+
+The default prints the equation that predicts best. Two options change what
+the equation is for: `parsimony_alpha=0.05` asks for a short equation, and
+`input_test=True` tests every column inside each formula. The difference
+shows on a noisier version of the same law, beside eight more columns that
+play no part in it.
+        """
+    ),
+    code(
+        """
+from sklearn.metrics import r2_score
+
+law = (a * b) / c
+wide = X.assign(**{name: rng.uniform(1.0, 6.0, n) for name in "efghijkl"})
+noisy = law + rng.normal(0, 0.75 * law.std(), n)
+
+# New rows, to score each equation against the law rather than the noise.
+new = pd.DataFrame(rng.uniform(1.0, 6.0, (2000, 12)), columns=wide.columns)
+truth = new["a"] * new["b"] / new["c"]
+
+settings = {
+    "default": {},
+    "parsimony_alpha=0.05": {"parsimony_alpha": 0.05},
+    "input_test=True": {"input_test": True},
+}
+for label, options in settings.items():
+    fitted = BeamFeatRegressor(random_state=0, **options).fit(wide, noisy)
+    terms = len(fitted.formulas())
+    score = r2_score(truth, fitted.predict(new))
+    print(f"{label}: {terms} term{'' if terms == 1 else 's'}, R^2 against the law {score:.4f}")
+    for formula in fitted.formulas():
+        print("   ", formula)
+        """
+    ),
+    markdown(
+        """
+The default keeps four terms. The first is the law; each of the others adds a
+little by fitting noise, and one of them reads `d`, a column the law does not
+use. `input_test=True` tests each column inside each formula and drops that
+term, but keeps the two built from `a`, `b` and `c`, since those columns do
+belong. `parsimony_alpha=0.05` stops at the law itself, and here, where the
+target is one compact formula, it is also the most accurate of the three.
+The screen and its guarantee are the same under all three settings; what
+differs is how much of the printed equation can be taken at face value.
+
+As a rule, keep the default for prediction, use `parsimony_alpha=0.05` for an
+equation to read or report, and add `input_test=True` when every column must
+be shown to matter, at several times the fit time. On real data, whose
+targets are rarely one compact formula, `parsimony_alpha` costs some
+accuracy; the documentation's
+[Choosing a setting](https://ld-shell.github.io/beamfeat/settings/) page has
+the measurements.
+        """
+    ),
+    markdown(
+        """
 ## What to read next
 
 - **02: Search and scoring** — how the beam search works, and how the scoring
@@ -1464,6 +1521,9 @@ and a warning.
 - `fdr_controlled_ = True` says the guarantee holds: on average at most
   `target_fdr` of the certified formulas are noise. It does not say every
   column in a formula belongs; `input_test=True` tests that.
+- On a noisy target the default equation can carry terms that each add a
+  little by fitting noise; `parsimony_alpha=0.05` stops them, when you want an
+  equation to read rather than the best prediction.
 - Supply units when you have them, for every column.
 - A missing constant is usually in the coefficient.
 - Quote `selection_report_` when you need the guarantee; quote `equation()`
