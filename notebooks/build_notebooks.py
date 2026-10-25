@@ -645,9 +645,10 @@ for threshold in (0.5, 0.9, 0.999):
 
 Candidates excluded during evaluation are recorded rather than silently
 dropped. This matters when a search returns less than expected: the log tells
-you whether candidates were numerically invalid, degenerate, copies of a column
-already there — `abs` of a column that is never negative is the column itself —
-or simply never proposed.
+you whether candidates were outside an operator's domain — a logarithm of a
+negative value, or a quotient whose denominator comes near zero — numerically
+invalid, degenerate, copies of a column already there — `abs` of a column that
+is never negative is the column itself — or simply never proposed.
         """
     ),
     code(
@@ -1159,8 +1160,9 @@ print(
     ),
     markdown(
         """
-The physics is still in there — `(H * Q) / (eta / rho)` — but `noise_0`
-has been bolted onto it, and `fdr_controlled_` is still
+The physics is still in there — `(rho / eta) * (H * Q)`, the same law
+spelled another way — but `noise_0` has been bolted onto it, and
+`fdr_controlled_` is still
 `True`. The R^2 is unchanged to four decimals. We searched four times as many
 candidates for an equation nobody can read.
 
