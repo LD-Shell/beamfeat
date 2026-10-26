@@ -30,10 +30,6 @@ can fit, inspect and predict with. The method is described in a
   fits, where the default never printed `log(x3)`.
 - `max_search_rows` runs the search on a sample of the rows: on 200,000 rows,
   a search on 10,000 of them cut the median fit from 110 to 33 seconds.
-- The printed equation says when `parsimony_alpha=0.05` would print fewer
-  terms.
-- `certify_test="conditional"` after the forward step now raises without
-  `parsimony_alpha`.
 
 The three options are off by default. At the defaults every fit is 0.7.0's,
 at the same speed and memory, on all 1,430 items of the
