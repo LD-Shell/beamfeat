@@ -37,8 +37,10 @@ up the data the rest of the page uses. New to beamfeat? Start with the
 | `units` | [Dimensional analysis](search.md#dimensional-analysis) |
 | `fitted_ops` | [Constants inside expressions](search.md#constants-inside-expressions) |
 | `magnitude_slots` | [Laws whose parts the score cannot see](search.md#laws-whose-parts-the-score-cannot-see) |
+| `residual_slots` | [A weak term beside a dominant one](search.md#a-weak-term-beside-a-dominant-one) |
+| `sign_shift`, `sign` | [Switches at a threshold](search.md#switches-at-a-threshold) |
 | `max_inputs` | [Search constraints](search.md#search-constraints) |
-| `n_jobs` | [Speed and memory on wide data](search.md#speed-and-memory-on-wide-data) |
+| `n_jobs`, `max_search_rows` | [Speed and memory](search.md#speed-and-memory) |
 | `feature_ranges_`, `ExtrapolationWarning` | [New rows beyond the training data](data.md#new-rows-beyond-the-training-data) |
 
 `max_depth`, `beam_width` and the scorers are covered in the

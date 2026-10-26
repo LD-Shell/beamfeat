@@ -260,6 +260,27 @@ option screened 10.5 features on average against 3.3, because it found the
 law and the screen also passes expressions built on it; one more fit in 200
 held a false feature, from three discordant replicates against two.
 
+## `residual_slots` (0.8.0)
+
+`residual_slots`, an opt-in search option of 0.8.0, adds the terms of a
+greedy forward path through the search's candidates to what the search
+returns. `null.py` ran the same six designs and 200 paired replicates at
+0.8.0's default and with `residual_slots=10` (commit `e1a2839`; both with
+`magnitude_slots` on, as it is by default; `results/residual_slots/`):
+
+| design | any false feature, default | with the option | discordant (option only / default only) | FDR, default → option |
+| :-- | --: | --: | :-- | :-- |
+| null, U(0.5, 3), 8 columns | 0.020 ± 0.010 | 0.020 ± 0.010 | 0 / 0 | 0.020 → 0.020 |
+| null, U(-1, 1), 8 columns | 0.020 ± 0.010 | 0.020 ± 0.010 | 0 / 0 | 0.020 → 0.020 |
+| null, N(0, 1), 8 columns | 0.015 ± 0.009 | 0.015 ± 0.009 | 0 / 0 | 0.015 → 0.015 |
+| null, U(-1, 1), 200 columns | 0.020 ± 0.010 | 0.015 ± 0.009 | 0 / 1 | 0.020 → 0.015 |
+| `x0*x1/x2`, U(0.5, 3), 8 columns | 0.000 | 0.020 ± 0.010 | 4 / 0 | 0.0000 → 0.0004 |
+| `x0*x1*x2`, U(-1, 1), 20 columns | 0.020 ± 0.010 | 0.040 ± 0.014 | 4 / 0 | 0.0047 → 0.0055 |
+
+On the null designs the option changed one fit in 1,200. On each planted
+design it added one false feature in four fits, each of which also screened
+the law, beside 50 and 15 screened features on average.
+
 ## Scope
 
 Three laws, two products and a product beside a visible term, at depth 2
@@ -280,7 +301,8 @@ the tables for every cell; `stress.log`, the run's output.
 three invocations that `summary.json` lists with their commits, with
 `compare.md`, the paired comparison with the default cell by cell, and
 `timing.md`, the side-by-side times. `results/null/` holds the null study's
-records, one file per design, and its table; `results/suites/` the suites'
+records, one file per design, and its table, and `results/residual_slots/`
+the same for `residual_slots=10`; `results/suites/` the suites'
 outputs for the default, for the option with the row cap and for the first
 run without it, with `suites.md`. Every table can be rebuilt from the
 records: `stress.py --tabulate` and `--compare`, `null.py --tabulate` and

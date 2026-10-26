@@ -20,7 +20,7 @@ flowchart TD
     fit["fit()<br/>BeamFeatRegressor, BeamFeatClassifier,<br/>BeamFeatTransformer · <i>estimators.py</i>"]
     fit --> pipe["_run_pipeline · <i>_base.py</i>"]
     pipe --> rows["_split_rows<br/>search rows · selection rows<br/>· re-test rows"]
-    rows --> search["_search → BeamSearch.run<br/><i>search.py</i>"]
+    rows --> search["_search → BeamSearch.run<br/>on max_search_rows of them if set<br/><i>search.py</i>"]
     search -->|"a selector (the default)"| screen["_select<br/>evaluate the candidates<br/>on the selection rows,<br/>then selector.select · <i>selection.py</i>"]
     search -->|"selector=None"| finish
     screen -->|"a null rejected"| choose["_choose_terms, within _select<br/>input test if on → forward step<br/>(<i>_forward.py</i>) → re-test<br/>if parsimony_holdout"]
@@ -37,7 +37,10 @@ flowchart TD
   search rows and `fdr_controlled_` is `False`. That split is what the FDR
   guarantee rests on: the screen tests a candidate set fixed before it looked
   at its rows. `parsimony_holdout` splits the selection rows again for the
-  re-test; without the first split it is ignored.
+  re-test; without the first split it is ignored. With `max_search_rows`,
+  the search runs on a sample of its rows (`_search_sample`), and its
+  expressions are checked on every search row (`_check_on_search_rows`); the
+  screen's rows are unchanged.
 - **Screen.** The default, `selector="permutation"`, is a
   `PermutationSelector` with the estimator's `selection_correction`,
   Benjamini-Yekutieli by default. A selector instance passed in keeps its own
@@ -81,7 +84,8 @@ flowchart TD
     score --> keep["_prune_redundant / _prune_evaluated:<br/>keep beam_width<br/>_reserve: magnitude_slots<br/>_extra_parents: more parents<br/>for the next round's fits"]
     keep --> record["trace and verbose report"]
     record --> depth
-    depth -->|"last depth, nothing new,<br/>nothing evaluated,<br/>or an empty beam"| fin["rescore everything kept<br/>against the target;<br/>_finalise: remove near-duplicates,<br/>keep max_features (default beam_width);<br/>_constant_free_copies"]
+    depth -->|"last depth, nothing new,<br/>nothing evaluated,<br/>or an empty beam"| sib["_path_siblings (residual_slots):<br/>add the transforms of<br/>the path terms' operands"]
+    sib --> fin["rescore everything kept<br/>against the target;<br/>_finalise: rank by score,<br/>remove near-duplicates,<br/>keep max_features (default beam_width);<br/>_add_path: add the forward path's<br/>terms (residual_slots);<br/>_constant_free_copies"]
 ```
 
 `_SearchState` carries the beam, the pool, everything kept so far and the
@@ -140,11 +144,11 @@ exists.
 | :-- | :-- |
 | `estimators.py` | the three public estimators: their parameters, `fit`, `predict`, `transform`, and `equation` and `latex` for the regressor and the classifier |
 | `_base.py` | `_BeamFeatBase`, what the three share: validation, units, the row split and the stages above, prediction on new rows (`_apply`, `_model_output`), the introspection methods (`formulas`, `to_sympy`, `latex_formulas`, `get_feature_names_out`), and the public warnings and errors |
-| `_forward.py` | the forward step's path through the screened set and its chance check (`parsimony_alpha`) |
+| `_forward.py` | the forward step's path through the screened set and its chance check (`parsimony_alpha`), where that check would stop the default step (`alpha_stop`), and the short path the search's residual slots take (`forward_order`) |
 | `_rendering.py` | number and LaTeX formatting, the equation list (`equations`, for all three estimators) and the notes on what the guarantee covers |
 | `_prediction.py` | the row-by-row evaluation of an expression that fails on some rows |
 | `search.py` | `BeamSearch`, `SearchResult`, `SearchTrace`; the default operator sets (`DEFAULT_UNARY`, `DEFAULT_BINARY`, and `DEFAULT_FITTED`, the estimators' default; `BeamSearch` itself fits no constants unless given `fitted_ops`), `magnitude_scores`, and `report`, the verbose output |
-| `parametric.py` | the constants inside `exp(a*x)`, `x^a`, `1/(x + a)` and `log(x + a)` |
+| `parametric.py` | the constants inside `exp(a*x)`, `x^a`, `1/(x + a)`, `log(x + a)` and `sign(x + a)` |
 | `expression.py` | `Node`, the expression DAG; `Evaluator`; units; the operator registry |
 | `_operators.py` | the built-in operators: function, formula, unit rule, domain, constant grid |
 | `scoring.py` | the scorers that rank candidates in the search |

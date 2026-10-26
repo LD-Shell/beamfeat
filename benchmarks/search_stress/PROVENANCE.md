@@ -161,6 +161,15 @@ lists), then `--compare results/default` and `--timing`; `null.py --out <dir>`
 for the null study; and the commands in `suites.py`'s docstring for the
 suites.
 
+The `residual_slots` null study (`results/residual_slots/`) ran at commit
+`e1a2839` on the same designs and seeds, with the setting chosen before its
+first fit:
+
+```bash
+python benchmarks/search_stress/null.py --out <dir> \
+    --settings '{"default": {}, "residual_slots=10": {"residual_slots": 10}}'
+```
+
 It writes `parts/` (one record file per cell, while running),
 `records.csv.gz` (one row per fit), `summary.json` (provenance and every
 aggregate) and `tables.md`; `stress.log` is its output. The default

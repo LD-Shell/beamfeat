@@ -217,6 +217,19 @@ nothing selected in 60 global-null replicates. At the defaults, with the
 slots and the denominator guard, the pure-noise pipeline stress gives BH
 7/100 and BY 1/100.
 
+`residual_slots` changes only which expressions the search returns, in the
+same way: its forward path runs inside the search, on the search rows, and
+the terms it adds reach the screen as fixed expressions like the rest. The
+guarantee is unchanged. On the same six designs, 200 paired replicates each,
+the share of null fits with any false discovery was 0.015 to 0.020 with the
+option and without it; in one replicate of the wide design the default
+screened three false features and the option none. On the planted designs
+the option added one false feature in 4 fits of 200, each a fit that also
+screened the law: the share of fits with any went from 0 to 0.020 on
+`x0*x1/x2` and from 0.020 to 0.040 on `x0*x1*x2`, and the false discovery
+rate from 0.0000 to 0.0004 and from 0.0047 to 0.0055
+(`benchmarks/search_stress/results/residual_slots/`).
+
 ## Columns inside a term (`input_test`)
 
 The screen's null is that a term is independent of the target, so

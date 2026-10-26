@@ -1,0 +1,19 @@
+{
+ "commit": "e1a2839173b459a1c95e38944a174e91b4a668c6",
+ "tracked_changes": true,
+ "beamfeat": "0.8.0.dev0",
+ "beamfeat_path": "benchmarks/release_comparison/venvs/0.8.0/lib/python3.12/site-packages/beamfeat",
+ "python": "3.12.3",
+ "numpy": "2.5.4",
+ "scipy": "1.18.1",
+ "scikit-learn": "1.9.1",
+ "sympy": "1.14.0",
+ "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+ "seeds": 200,
+ "settings": {
+  "default": {},
+  "residual_slots=10": {
+   "residual_slots": 10
+  }
+ }
+}

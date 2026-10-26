@@ -1,5 +1,5 @@
 ---
-description: "beamfeat's search options: units and dimensional analysis, constants inside expressions, magnitude slots, search constraints, and speed on wide data."
+description: "beamfeat's search options: units and dimensional analysis, constants inside expressions, magnitude and residual slots, switches at a threshold, search constraints, and speed and memory."
 ---
 
 # Search options
@@ -241,6 +241,118 @@ guarantee is unchanged (see the
 A law whose parts the magnitude score cannot see either is still out of
 reach.
 
+## A weak term beside a dominant one
+
+The search ends by ranking every candidate it kept against the target and
+keeping the best `max_features` (`beam_width` by default). A dominant term
+fills that ranking with restatements of itself, and a weaker term beside it
+is cut although the search built it. The residual slots (`residual_slots`,
+off by default) add to the ranking the first terms of a greedy forward path
+through the candidates: each the one that adds most to a least-squares fit
+of those before it. A restatement adds nothing to the term it restates, so
+the weaker term comes second.
+
+```python
+import numpy as np
+from beamfeat import BeamFeatRegressor
+
+rng = np.random.default_rng(1)
+X = rng.uniform(1, 5, (2000, 4))
+signal = X[:, 0] * X[:, 1] / X[:, 2] + 0.5 * np.log(X[:, 3])
+y = signal + rng.normal(0, 0.1 * np.std(signal), 2000)
+for slots in (0, 10):
+    print(BeamFeatRegressor(random_state=0, residual_slots=slots).fit(X, y).equation())
+```
+
+```text
+y = 0.9929*((x0 / x2) * x1) + 0.1761*((x0 + x3) + (x1 - x2)) - 0.1693*(x0 + (x1 - x2)) - 0.02271   [3 of 50 certified terms; parsimony=None prints all 50]
+y = 0.9968*((x0 / x2) * x1) + 0.475*log(x3) + 0.03165   [2 of 55 certified terms; parsimony=None prints all 55]
+```
+
+The logarithm carries 0.6% of the target's variance. Without the slots, two
+sums stand in for it.
+
+??? note "How the residual slots work"
+
+    - **The path.** It runs over every candidate the search kept, on the
+      search rows (on more than 20,000 of them, that many evenly spaced, and
+      fewer on a wide table, so that the values stay within 64 MiB). Gains
+      within a relative 2e-6 of the best are tied, and the simpler expression
+      wins, as in the beam.
+    - **Near copies.** On [1, 5], `log(x3)`, `sqrt(x3)` and `1/x3` correlate
+      above the redundancy threshold, so a depth keeps one of them and drops
+      the others. Before the final path, the operand of each path term that is
+      an input column or a transform of one, and its transforms by
+      `unary_ops`, join the candidates, so the path chooses among them.
+    - **The count.** At most `residual_slots` terms, and a quarter of the
+      search rows. A path term replaces a ranked candidate that is a near
+      copy of it, and is dropped if it is a near copy of an earlier path
+      term; every other candidate the score ranked stays, so the screen
+      tests at most `residual_slots` more candidates than before.
+
+Over 60 fits of that law, with 4 or 10 columns, 500 to 5,000 rows and two
+noise levels, the slots printed the exact law in 33, the default in none
+(`benchmarks/weak_terms_and_switches/`). They are off by default because the
+path terms explain whatever the leading terms leave, noise included, and the
+forward step keeps some of them as riders. In `benchmarks/release_comparison/`
+they printed a term built only from unrelated columns in 19 of 800
+calibration-design fits, where the default printed none, raised the share of
+riders at a signal-to-noise ratio of 1 from 0.722 to 0.729, and left the
+held-out score of 9 of 12 real datasets within 0.005, raising one and
+lowering two. With `parsimony_alpha=0.05` beside them the riders go (one
+design fit of 800, riders 0.064 against 0.061 for the check alone, the
+generating term in as many fits), and the weak term prints as often. For a
+law with a weak term, use both:
+
+```python
+model = BeamFeatRegressor(residual_slots=10, parsimony_alpha=0.05).fit(X, y)
+```
+
+The slots are for regression only; a positive number raises for
+classification. It runs inside the search, on the search rows
+only, so the screen's guarantee is unchanged.
+
+## Switches at a threshold
+
+`sign` (a unary operator) and `sign_shift` (a fitted one, `sign(x + a)`) are
+off by default. With either, a product with a switch, such as
+`x2*sign(x0 - 0.7)`, is a candidate like any other. `sign_shift` tries
+thresholds at the operand's 5% to 95% quantiles, then refines and snaps the
+threshold as the other fitted operators do their constants
+([Constants inside expressions](#constants-inside-expressions)).
+
+```python
+import numpy as np
+from beamfeat import BeamFeatRegressor
+
+rng = np.random.default_rng(0)
+X = np.column_stack([rng.uniform(-2, 2, (1000, 2)), rng.uniform(1, 5, (1000, 3))])
+y = np.where(X[:, 0] > 0.7, 2.0, -1.0) * X[:, 2] + X[:, 1] + rng.normal(0, 0.3, 1000)
+fitted = ("exp_scaled", "pow", "inv_shift", "log_shift", "sign_shift")
+for slots in (0, 10):
+    print(BeamFeatRegressor(random_state=0, fitted_ops=fitted, residual_slots=slots).fit(X, y).equation())
+```
+
+```text
+y = 1.539*(x2 * sign(x0 - 0.7)) + 1.01*(x1 + sign(x0 - 0.7)) - 1.161*(sign(x0 - 0.7) - log(x2)) + 0.3139   [3 of 50 certified terms; parsimony=None prints all 50]
+y = 1.501*(x2 * sign(x0 - 0.7)) + 0.4993*(x1 + x2) + 0.4915*x1 + 0.002704   [3 of 52 certified terms; parsimony=None prints all 52]
+```
+
+The slope in `x2` is 2 above the threshold and -1 below it: 0.5 plus 1.5
+times the sign. Both fits find the switch term; the rest of the law, `x1`
+and `0.5*x2`, is weaker, and a surrogate stands in for it until the
+[residual slots](#a-weak-term-beside-a-dominant-one) add it. Over 20 fits like
+these, at thresholds 0 and 0.7 and two noise levels, `sign_shift` printed the
+switch in every fit, with R² against the noiseless target of 0.997 to 0.999
+(1.000 with the slots), against 0.77 to 0.88 for the default and 0.983 to
+0.996 for gradient-boosted trees (`benchmarks/weak_terms_and_switches/`).
+`sign` finds a switch at zero only, as `sign_shift` does too. On the main
+suite's `threshold_step`, `3*b*1[a > 1.5]`, `sign_shift` raised the held-out
+score from 0.841 to 0.999; on the other datasets of
+`benchmarks/release_comparison/` it moved held-out score little, raising it
+on penguins by 0.025 and lowering the classifier's accuracy on breast_cancer
+by 0.022.
+
 ## Search constraints
 
 `max_inputs` caps the distinct input columns in one feature: `max_inputs=2`
@@ -286,7 +398,12 @@ still help, because it keeps the beam from filling with combinations of many
 columns. Compare the held-out score with and without it rather than assuming
 either way.
 
-## Speed and memory on wide data
+## Speed and memory
+
+On a tall table, `max_search_rows` runs the search on that many of its rows,
+drawn at random, while the screen keeps every selection row; see
+[Tall data](../settings.md#tall-data-max_search_rows). The rest of this
+section is about wide tables.
 
 `n_jobs` spreads the search over cores, and `-1` uses all of them. The
 workers are threads, since numpy releases the GIL while it scores, or

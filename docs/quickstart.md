@@ -97,7 +97,7 @@ print(clf.equation(max_terms=3))
 ```
 
 ```text
-logit P(y = 1) = 1.678*((x0 / x2) - log(x3)) - 0.1561*((x2 * x3) - (x0 * x1)) - 1.014*((x2 / x1) + (x3 / x0)) + 1.101   [20 of 50 certified terms; parsimony=None prints all 50]
+logit P(y = 1) = 1.678*((x0 / x2) - log(x3)) - 0.1561*((x2 * x3) - (x0 * x1)) - 1.014*((x2 / x1) + (x3 / x0)) + 1.101   [20 of 50 certified terms; parsimony=None prints all 50; parsimony_alpha=0.05 keeps 2]
 ```
 
 The fitted equation has 20 terms; `max_terms=3` displays the three with the
