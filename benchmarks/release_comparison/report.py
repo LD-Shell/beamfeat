@@ -16,7 +16,7 @@ RELEASES = [("0.4.2", "default"), ("0.5.0", "default"), ("0.6.0", "default"), ("
 OPTIONS = [("0.6.0", "no_fitted_ops"), ("0.6.0", "magnitude_slots"), ("0.6.0", "input_test"),
            ("0.6.0", "conditional_retest"), ("0.6.0", "bh"), ("0.6.1", "parsimony_alpha"),
            ("0.6.1", "alpha_input_test"), ("0.7.0", "conditional_retest"), ("0.7.0", "alpha_conditional"),
-           ("0.8.0", "no_residual_slots"), ("0.8.0", "parsimony_alpha"), ("0.8.0", "sign")]
+           ("0.8.0", "residual_slots"), ("0.8.0", "residual_alpha"), ("0.8.0", "sign"), ("0.8.0", "sign_shift")]
 GROUPS = ["null", "planted_snr1", "planted_snr3", "proxy_snr1", "proxy_snr3"]
 SYNTHETIC = {"product", "ratio", "three_way", "log_linear", "sqrt_ratio", "quadratic", "inverse_square",
              "physics_kinetic", "sparse_10col", "purely_linear", "friedman1", "heavy_tail_t2",
@@ -421,9 +421,9 @@ def releases_summary(d):
 # slots against 0.6.1) and the magnitude slots (0.7.0 against 0.7.0 without them).
 SPLIT_070 = [(("0.6.1", "default"), ("0.7.0", "no_magnitude_slots")),
              (("0.7.0", "no_magnitude_slots"), ("0.7.0", "default"))]
-# 0.8.0's change to fits, the residual slots: 0.8.0 against 0.8.0 without them,
-# which gives 0.7.0's fits.
-SPLIT_080 = [(("0.8.0", "no_residual_slots"), ("0.8.0", "default"))]
+# 0.8.0's residual slots, off by default, against 0.7.0's parsimony_alpha as
+# well, beside which residual_alpha is the setting for a weak term.
+SPLIT_080 = [(("0.7.0", "parsimony_alpha"), ("0.8.0", "residual_alpha"))]
 
 
 def option_summary(study_rows):
@@ -482,9 +482,9 @@ def option_summary(study_rows):
             "such setting): " + ", ".join(same), ""]
     same = []
     for study, rows in d.items():
-        s, n = identical(rows, ("0.7.0", "default"), ("0.8.0", "no_residual_slots"))
+        s, n = identical(rows, ("0.7.0", "default"), ("0.8.0", "default"))
         same.append(f"{study} {s}/{n}")
-    out += ["0.8.0 with `residual_slots=0` identical to 0.7.0 default: " + ", ".join(same), ""]
+    out += ["0.8.0 default identical to 0.7.0 default: " + ", ".join(same), ""]
     errs = [r for rows in d.values() for r in errors(rows)]
     out += [f"Fits that raised: {len(errs)}" + ("" if not errs else " — " + "; ".join(
         sorted({f"{r['version']} {r['config']} {r['study']}: {r['error'][:80]}" for r in errs})[:8])), ""]
@@ -606,20 +606,20 @@ def perf():
     if fourth:
         out += ["### 0.8.0 (a fourth pass, interleaved with 0.7.0 as a control)", "",
                 "0.8.0 was timed in a pass of its own, alternating with 0.7.0 by the same protocol, at its default and "
-                "with the residual slots off. Its ratio to 0.5.0 elsewhere on this page is chained through 0.7.0 and "
+                "with the residual slots on. Its ratio to 0.5.0 elsewhere on this page is chained through 0.7.0 and "
                 "0.6.1; the last column checks this pass's 0.7.0 against the third one.", "",
-                "| item | 0.8.0 (s) | 0.8.0, slots off (s) | 0.7.0 (s) | 0.8.0 (MB) | 0.7.0 (MB) | 0.7.0, third pass (s) |",
+                "| item | 0.8.0 (s) | 0.8.0, slots on (s) | 0.7.0 (s) | 0.8.0 (MB) | 0.7.0 (MB) | 0.7.0, third pass (s) |",
                 "| :-- | --: | --: | --: | --: | --: | --: |"]
         for item in dict.fromkeys(r["item"] for r in fourth):
             med = lambda src, v, c, m: np.median([r[m] for r in src if r["item"] == item and r["version"] == v  # noqa: E731
                                                   and r["config"] == c and "error" not in r])
             out.append(f"| {item} | {med(fourth, '0.8.0', 'default', 'seconds'):.2f} | "
-                       f"{med(fourth, '0.8.0', 'no_residual_slots', 'seconds'):.2f} | "
+                       f"{med(fourth, '0.8.0', 'residual_slots', 'seconds'):.2f} | "
                        f"{med(fourth, '0.7.0', 'default', 'seconds'):.2f} | {med(fourth, '0.8.0', 'default', 'fit_mb'):.0f} | "
                        f"{med(fourth, '0.7.0', 'default', 'fit_mb'):.0f} | {med(third, '0.7.0', 'default', 'seconds'):.2f} |")
         out += ["", f"0.8.0 against 0.7.0: time × {perf_ratio(('0.7.0', 'default'), ('0.8.0', 'default'), 'seconds'):.2f}, "
-                f"memory × {perf_ratio(('0.7.0', 'default'), ('0.8.0', 'default'), 'fit_mb'):.2f}; with the slots off, "
-                f"time × {perf_ratio(('0.7.0', 'default'), ('0.8.0', 'no_residual_slots'), 'seconds'):.2f}.", ""]
+                f"memory × {perf_ratio(('0.7.0', 'default'), ('0.8.0', 'default'), 'fit_mb'):.2f}; with the slots on, "
+                f"time × {perf_ratio(('0.7.0', 'default'), ('0.8.0', 'residual_slots'), 'seconds'):.2f}.", ""]
     return "\n".join(out)
 
 

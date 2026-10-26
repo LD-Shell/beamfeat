@@ -13,6 +13,7 @@ from `REPORT.md` or `TABLES.md`.
 | 0.6.0 | from its tag |
 | 0.6.1 | its release branch: the studies ran before the input_test memory fix and the rest after it, which changes no fit |
 | 0.7.0 | its release branch, from the commit that keeps a denominator's pole margin in the search, the last change to fits; later commits change documentation only |
+| 0.8.0 | its branch as 0.8.0.dev0, from commit e1a2839, which has the code of the release (later commits change documentation and benchmarks only); the first part of the run used 6c1ccad, whose only difference is that the residual slots were on by default (see below) |
 
 Each release has its own environment with the same stack: Python 3.12,
 numpy 2.5.4, scipy 1.18.1, scikit-learn 1.9.1, pandas 3.1.0, sympy 1.14.0.
@@ -27,8 +28,11 @@ for v in 0.4.2 0.5.0 0.6.0 0.6.1; do
     scikit-learn==1.9.1 pandas==3.1.0 sympy==1.14.0
 done
 uv venv --python 3.12 venvs/0.7.0
-uv pip install --python venvs/0.7.0 -e ../.. numpy==2.5.4 scipy==1.18.1 \
+uv pip install --python venvs/0.7.0 "beamfeat==0.7.0" numpy==2.5.4 scipy==1.18.1 \
   scikit-learn==1.9.1 pandas==3.1.0 sympy==1.14.0
+uv venv --python 3.12 venvs/0.8.0
+uv pip install --python venvs/0.8.0 ../.. numpy==2.5.4 scipy==1.18.1 \
+  scikit-learn==1.9.1 pandas==3.1.0 sympy==1.14.0 joblib==1.6.0
 ./run_all.sh
 ```
 
@@ -52,7 +56,9 @@ Settings: every release at its defaults; 0.6.0 with `fitted_ops=()`,
 (`parsimony_holdout=0.3, certify_test="conditional"`) and
 `selection_correction="bh"`; 0.6.1 with `parsimony_alpha=0.05`, alone and with
 `input_test=True`; 0.7.0 with `magnitude_slots=0`, `parsimony_alpha=0.05`, and
-the conditional re-test alone and with `parsimony_alpha=0.05`. A positive
+the conditional re-test alone and with `parsimony_alpha=0.05`; 0.8.0 with
+`residual_slots=10`, alone and with `parsimony_alpha=0.05`, with `sign` among
+the unary operators, and with `sign_shift` among the fitted ones. A positive
 `magnitude_slots` and the conditional re-test are regression only, so
 breast_cancer has no entry for them.
 
@@ -104,6 +110,21 @@ data are loaded.
   rows the other releases left out. Its formulas bracket a divisor spelled
   `1/(...)`, which earlier releases print without; `report.py` compares
   formulas without brackets.
+- **0.8.0** was added with the same harness and data, on a frozen install of
+  its branch. The run began with the residual slots on by default (commit
+  6c1ccad); they did no better than 0.7.0's default, so they were turned off
+  by default (e1a2839), which changes nothing else. That run's records were
+  kept under the names of the settings they are: its default as
+  `residual_slots`, its `parsimony_alpha` as `residual_alpha`, and its
+  setting with the slots off as the default; its `sign` setting, which had
+  the slots on, was dropped and run again with e1a2839, as was `sign_shift`.
+  Refitted with e1a2839, sampled records of the default and of
+  `residual_slots` (diabetes, friedman1, a stress law) matched exactly. The
+  0.8.0 default gives 0.7.0's records on all 1,430 items. It was timed in a
+  fourth pass, alternating with 0.7.0 by the same protocol, at its default
+  and with the residual slots on, on a machine then busy with other work and
+  about twice as slow as in the third pass; its seconds in REPORT.md are
+  0.7.0's scaled seconds times its ratio to 0.7.0 in that pass.
 - **The shipped scripts.** The run used frozen copies of the four benchmark
   scripts above, identical to the repository's files. The shipped `harness.py`
   imports the repository's files instead. Refitted with it, 30 sampled 0.6.1

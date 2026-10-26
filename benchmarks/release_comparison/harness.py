@@ -80,8 +80,9 @@ CONFIGS = {
         "residual_slots": {"residual_slots": 10},
         # The setting for a weak term: the slots, and the chance check to stop riders.
         "residual_alpha": {"residual_slots": 10, "parsimony_alpha": 0.05},
-        # The opt-in switch at zero.
+        # The opt-in switches: at zero, and at a fitted threshold.
         "sign": {"unary_ops": ("log", "sqrt", "reciprocal", "square", "abs", "sign")},
+        "sign_shift": {"fitted_ops": ("exp_scaled", "pow", "inv_shift", "log_shift", "sign_shift")},
     },
 }
 REGRESSION_ONLY = {"magnitude_slots", "conditional_retest", "alpha_conditional"}

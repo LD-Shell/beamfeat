@@ -42,12 +42,21 @@ warnings.filterwarnings("ignore")
 
 DEFAULT_UNARY = ("log", "sqrt", "reciprocal", "square", "abs")
 DEFAULT_FITTED = ("exp_scaled", "pow", "inv_shift", "log_shift")
-SETTINGS = {
+WEAK_SETTINGS = {
+    "0.7.0": {"default": {}},
+    "0.8.0": {
+        "default": {},
+        "residual_slots": {"residual_slots": 10},
+        "residual_alpha": {"residual_slots": 10, "parsimony_alpha": 0.05},
+    },
+}
+SWITCH_SETTINGS = {
     "0.7.0": {"default": {}},
     "0.8.0": {
         "default": {},
         "sign": {"unary_ops": DEFAULT_UNARY + ("sign",)},
         "sign_shift": {"fitted_ops": DEFAULT_FITTED + ("sign_shift",)},
+        "sign_shift_residual": {"fitted_ops": DEFAULT_FITTED + ("sign_shift",), "residual_slots": 10},
     },
 }
 WEAK_CELLS = [(p, n, noise) for p in (4, 10) for n in (500, 2000, 5000) for noise in (0.001, 0.1)]
@@ -110,23 +119,24 @@ def run(version, out):
         for seed in SEEDS:
             for p, n, noise in WEAK_CELLS:
                 item = f"p{p}_n{n}_noise{noise}:{seed}"
-                if ("weak", item, "default") in done:
-                    continue
                 X, y, X_test, truth = weak_data(p, n, noise, seed)
-                started = time.perf_counter()
-                model = BeamFeatRegressor(random_state=seed).fit(X, y)
-                terms = [_plain(t) for t in model.to_sympy()] if model.features_ else []
-                logs = [t for t in terms if _same(t, sympy.log(x[3]))]
-                strong = [t for t in terms if _same(t, x[0] * x[1] / x[2])]
-                write({"version": version, "study": "weak", "item": item, "config": "default",
-                       "searched": "log(x3)" in model.search_result_.names, "printed": bool(logs),
-                       "exact": len(terms) == 2 and bool(logs) and bool(strong),
-                       "terms": len(terms), "score": r2(model.predict(X_test), truth),
-                       "formulas": list(model.feature_formulas_), "seconds": time.perf_counter() - started})
+                for config, kwargs in WEAK_SETTINGS[version].items():
+                    if ("weak", item, config) in done:
+                        continue
+                    started = time.perf_counter()
+                    model = BeamFeatRegressor(random_state=seed, **kwargs).fit(X, y)
+                    terms = [_plain(t) for t in model.to_sympy()] if model.features_ else []
+                    logs = [t for t in terms if _same(t, sympy.log(x[3]))]
+                    strong = [t for t in terms if _same(t, x[0] * x[1] / x[2])]
+                    write({"version": version, "study": "weak", "item": item, "config": config,
+                           "searched": "log(x3)" in model.search_result_.names, "printed": bool(logs),
+                           "exact": len(terms) == 2 and bool(logs) and bool(strong),
+                           "terms": len(terms), "score": r2(model.predict(X_test), truth),
+                           "formulas": list(model.feature_formulas_), "seconds": time.perf_counter() - started})
             for threshold, noise in SWITCH_CELLS:
                 item = f"t{threshold}_noise{noise}:{seed}"
                 X, y, X_test, truth = switch_data(threshold, noise, seed)
-                for config, kwargs in SETTINGS[version].items():
+                for config, kwargs in SWITCH_SETTINGS[version].items():
                     if ("switch", item, config) in done:
                         continue
                     started = time.perf_counter()
@@ -151,39 +161,48 @@ def report(folder):
     for path in sorted(folder.glob("records_*.jsonl")):
         rows += [json.loads(line) for line in path.open()]
     cell = lambda r: r["item"].split(":")[0]  # noqa: E731
+    weak = [("0.7.0", "default"), ("0.8.0", "default"), ("0.8.0", "residual_slots"), ("0.8.0", "residual_alpha")]
+    names = {("0.7.0", "default"): "0.7.0", ("0.8.0", "default"): "0.8.0",
+             ("0.8.0", "residual_slots"): "0.8.0 `residual_slots=10`",
+             ("0.8.0", "residual_alpha"): "0.8.0 `residual_slots=10, parsimony_alpha=0.05`",
+             ("0.8.0", "sign"): "0.8.0 `sign`", ("0.8.0", "sign_shift"): "0.8.0 `sign_shift`",
+             ("0.8.0", "sign_shift_residual"): "0.8.0 `sign_shift`, `residual_slots=10`",
+             ("sklearn", "trees"): "gradient-boosted trees"}
     print("## A weak term beside a dominant one: `x0*x1/x2 + 0.5*log(x3)`, five seeds per cell", "")
-    print("| columns, rows, noise | 0.7.0: `log(x3)` searched / printed / exact | 0.8.0: searched / printed / exact "
-          "| R² vs law, 0.7.0 | R² vs law, 0.8.0 |")
-    print("| :-- | --: | --: | --: | --: |")
+    print("Exact law printed (its two terms and no other), of 5 fits; R² against the law on 5,000 new rows in brackets.", "")
+    print("| columns, rows, noise | " + " | ".join(names[s] for s in weak) + " |")
+    print("| :-- |" + " --: |" * len(weak))
     for p, n, noise in WEAK_CELLS:
         key = f"p{p}_n{n}_noise{noise}"
         line = [f"{p}, {n:,}, {noise:.1%}"]
-        scores = []
-        for version in ("0.7.0", "0.8.0"):
-            s = [r for r in rows if r["study"] == "weak" and r["version"] == version and cell(r) == key]
-            line.append(f"{sum(r['searched'] for r in s)} / {sum(r['printed'] for r in s)} / {sum(r['exact'] for r in s)}"
-                        f" of {len(s)}" if s else "—")
-            scores.append(f"{np.mean([r['score'] for r in s]):.5f}" if s else "—")
-        print("| " + " | ".join(line + scores) + " |")
+        for version, config in weak:
+            s = [r for r in rows if r["study"] == "weak" and r["version"] == version and r["config"] == config
+                 and cell(r) == key]
+            line.append(f"{sum(r['exact'] for r in s)} ({np.mean([r['score'] for r in s]):.5f})" if s else "—")
+        print("| " + " | ".join(line) + " |")
+    line = ["all 60"]
+    for version, config in weak:
+        s = [r for r in rows if r["study"] == "weak" and r["version"] == version and r["config"] == config]
+        line.append(f"{sum(r['exact'] for r in s)} of {len(s)}; searched {sum(r['searched'] for r in s)}")
+    print("| " + " | ".join(line) + " |")
     print()
     print("## A switch at a threshold: `y = s(x0)*x2 + x1`, five seeds per cell", "")
-    settings = [("0.7.0", "default"), ("0.8.0", "default"), ("0.8.0", "sign"), ("0.8.0", "sign_shift"), ("sklearn", "trees")]
-    names = {("0.7.0", "default"): "0.7.0", ("0.8.0", "default"): "0.8.0", ("0.8.0", "sign"): "0.8.0 `sign`",
-             ("0.8.0", "sign_shift"): "0.8.0 `sign_shift`", ("sklearn", "trees"): "gradient-boosted trees"}
-    print("| threshold, noise | " + " | ".join(names[s] for s in settings) + " |")
-    print("| :-- |" + " --: |" * len(settings))
+    switch = [("0.7.0", "default"), ("0.8.0", "default"), ("0.8.0", "sign"), ("0.8.0", "sign_shift"),
+              ("0.8.0", "sign_shift_residual"), ("sklearn", "trees")]
+    print("| threshold, noise | " + " | ".join(names[s] for s in switch) + " |")
+    print("| :-- |" + " --: |" * len(switch))
     for threshold, noise in SWITCH_CELLS:
         key = f"t{threshold}_noise{noise}"
         line = [f"{threshold}, {noise}"]
-        for version, config in settings:
+        for version, config in switch:
             s = [r for r in rows if r["study"] == "switch" and r["version"] == version and r["config"] == config
                  and cell(r) == key]
             if not s:
                 line.append("—")
             elif config == "trees":
-                line.append(f"{np.mean([r['score'] for r in s]):.3f}")
+                line.append(f"{np.mean([r['score'] for r in s]):.4f}")
             else:
-                line.append(f"{np.mean([r['score'] for r in s]):.3f} ({sum(r['switch_printed'] for r in s)} of {len(s)})")
+                line.append(f"{np.mean([r['score'] for r in s]):.4f} ({sum(r['switch_printed'] for r in s)} of {len(s)})")
         print("| " + " | ".join(line) + " |")
     print()
     print("R² against the noiseless target on 5,000 new rows, mean over seeds; in brackets, fits whose printed "

@@ -33,7 +33,7 @@ venvs/0.7.0/bin/python -I perf.py > logs/perf.log
 venvs/0.7.0/bin/python -I perf.py --settings 0.4.2:default,0.5.0:default perf_042.jsonl > logs/perf_042.log
 venvs/0.7.0/bin/python -I perf.py --settings 0.6.1:default,0.7.0:default,0.7.0:no_magnitude_slots perf_070.jsonl \
     > logs/perf_070.log
-venvs/0.8.0/bin/python -I perf.py --settings 0.7.0:default,0.8.0:default,0.8.0:no_residual_slots perf_080.jsonl \
+venvs/0.8.0/bin/python -I perf.py --settings 0.7.0:default,0.8.0:default,0.8.0:residual_slots perf_080.jsonl \
     > logs/perf_080.log
 
 venvs/0.8.0/bin/python -I report.py > TABLES.md

@@ -1,10 +1,10 @@
-# Releases compared: 0.4.2, 0.5.0, 0.6.0, 0.6.1 and 0.7.0
+# Releases compared: 0.4.2, 0.5.0, 0.6.0, 0.6.1, 0.7.0 and 0.8.0
 
-The same benchmarks, data, splits and seeds, run through five releases of
+The same benchmarks, data, splits and seeds, run through six releases of
 beamfeat, each in its own environment with the same numpy, scipy and
 scikit-learn. 0.4.2 is the release the TMLR paper describes. Each release is
-measured at its defaults, and the options 0.6.0, 0.6.1 and 0.7.0 add or
-change are measured beside them. About 23,000 fits, none of which raised.
+measured at its defaults, and the options 0.6.0, 0.6.1, 0.7.0 and 0.8.0 add
+or change are measured beside them. About 30,000 fits, none of which raised.
 `TABLES.md` has every table and `PROVENANCE.md` how the run was made and how
 to repeat it.
 
@@ -24,7 +24,8 @@ paper's numbers).
   now 10 for regression by default, and a guard that rules out a quotient
   whose denominator comes within the pole margin of zero on the search rows.
   With `magnitude_slots=0` it gives 0.6.1's fits on 1,243 of 1,430 items; the
-  others are fits whose search met such a quotient.
+  others are fits whose search met such a quotient. 0.8.0 gives 0.7.0's fits
+  on all 1,430: its new options are off by default.
 - **Accuracy.** Between releases at their defaults, held-out accuracy moves
   little. `fitted_ops` solves three more of the 60 Feynman-panel fits,
   slightly lowers the conditional false rate (riders), and gains on
@@ -37,61 +38,70 @@ paper's numbers).
   of its memory. 0.6.0 and 0.6.1 take 1.5 times 0.5.0's time and about 10%
   more memory, the cost of `fitted_ops`; 0.7.0 takes 1.25 times 0.6.1's time
   with about the same memory: 1.19 times for the magnitude slots and 1.05
-  times for the denominator guard.
+  times for the denominator guard. 0.8.0 takes 0.7.0's time and memory
+  (1.02 and 1.00 times, timed beside it).
 - **Fixed along the way.** 0.4.2 replaced a formula that fails on any
   prediction row with zeros on every row (fixed in 0.5.0); on one California
   split that cost it 0.045 of R². 0.6.0's `input_test` ran out of memory on
   large data (over 7 GB on California housing); 0.6.1 needs 0.55 GB, with the
   same fits.
-- **Guarantee.** No design fit printed a term outside the generating columns'
-  set (marginal FDR 0 everywhere), and under the global null every release
-  printed a term in 2 of 200 fits, against q = 0.1.
+- **Guarantee.** No design fit at the defaults printed a term outside the
+  generating columns' set (marginal FDR 0 everywhere), and under the global
+  null every release printed a term in 2 of 200 fits, against q = 0.1.
+- **0.8.0's options.** `sign_shift` builds a switch at a fitted threshold:
+  on `threshold_step` it raised held-out score from 0.841 to 0.999, and it
+  changed the other datasets little. `residual_slots` keeps a weak term
+  beside a dominant one; on its own it adds riders (a term from unrelated
+  columns in 19 of 800 design fits), and beside `parsimony_alpha` it scores
+  as that option does. Neither did better than the default across the
+  board, so both are off by default; their use is measured in
+  `benchmarks/weak_terms_and_switches/`.
 
 ## The releases at their defaults
 
-| measure | 0.4.2 | 0.5.0 | 0.6.0 | 0.6.1 | 0.7.0 |
-| :-- | --: | --: | --: | --: | --: |
-| Calibration designs, snr 1: terms printed | 18.6 | 18.6 | 18.2 | 18.2 | 18.5 |
-| &nbsp;&nbsp;conditional FDR (riders) | 0.736 | 0.736 | 0.720 | 0.720 | 0.722 |
-| &nbsp;&nbsp;power (generating term printed) | 0.895 | 0.895 | 0.892 | 0.892 | 0.890 |
-| &nbsp;&nbsp;held-out R² | 0.481 | 0.481 | 0.481 | 0.481 | 0.481 |
-| Calibration designs, snr 3: terms printed | 3.9 | 3.9 | 3.9 | 3.9 | 3.9 |
-| &nbsp;&nbsp;conditional FDR | 0.437 | 0.437 | 0.424 | 0.424 | 0.428 |
-| Global null: fits printing any term | 2/200 | 2/200 | 2/200 | 2/200 | 2/200 |
-| Search stress laws: exact | 0.883 | 0.883 | 0.883 | 0.883 | 1.000 |
-| Feynman panel: solved / exact form (of 60) | 47 / 40 | 47 / 40 | 50 / 40 | 50 / 40 | 50 / 40 |
-| Suite, 18 synthetic datasets: mean score | 0.9625 | 0.9625 | 0.9627 | 0.9627 | 0.9626 |
-| Suite, 7 real datasets: mean score | 0.7246 | 0.7259 | 0.7263 | 0.7263 | 0.7270 |
-| High-dimensional, 5 datasets: mean R² | 0.609 | 0.585 | 0.600 | 0.600 | 0.645 |
-| Junk-column equations (of 40) | 21 | 21 | 23 | 23 | 27 |
-| Fit time (× 0.5.0, geometric mean of 8 items) | 3.18 | 1.00 | 1.53 | 1.54 | 1.93 |
-| Peak fit memory (× 0.5.0) | 5.27 | 1.00 | 1.08 | 1.10 | 1.07 |
+| measure | 0.4.2 | 0.5.0 | 0.6.0 | 0.6.1 | 0.7.0 | 0.8.0 |
+| :-- | --: | --: | --: | --: | --: | --: |
+| Calibration designs, snr 1: terms printed | 18.6 | 18.6 | 18.2 | 18.2 | 18.5 | 18.5 |
+| &nbsp;&nbsp;conditional FDR (riders) | 0.736 | 0.736 | 0.720 | 0.720 | 0.722 | 0.722 |
+| &nbsp;&nbsp;power (generating term printed) | 0.895 | 0.895 | 0.892 | 0.892 | 0.890 | 0.890 |
+| &nbsp;&nbsp;held-out R² | 0.481 | 0.481 | 0.481 | 0.481 | 0.481 | 0.481 |
+| Calibration designs, snr 3: terms printed | 3.9 | 3.9 | 3.9 | 3.9 | 3.9 | 3.9 |
+| &nbsp;&nbsp;conditional FDR | 0.437 | 0.437 | 0.424 | 0.424 | 0.428 | 0.428 |
+| Global null: fits printing any term | 2/200 | 2/200 | 2/200 | 2/200 | 2/200 | 2/200 |
+| Search stress laws: exact | 0.883 | 0.883 | 0.883 | 0.883 | 1.000 | 1.000 |
+| Feynman panel: solved / exact form (of 60) | 47 / 40 | 47 / 40 | 50 / 40 | 50 / 40 | 50 / 40 | 50 / 40 |
+| Suite, 18 synthetic datasets: mean score | 0.9625 | 0.9625 | 0.9627 | 0.9627 | 0.9626 | 0.9626 |
+| Suite, 7 real datasets: mean score | 0.7246 | 0.7259 | 0.7263 | 0.7263 | 0.7270 | 0.7270 |
+| High-dimensional, 5 datasets: mean R² | 0.609 | 0.585 | 0.600 | 0.600 | 0.645 | 0.645 |
+| Junk-column equations (of 40) | 21 | 21 | 23 | 23 | 27 | 27 |
+| Fit time (× 0.5.0, geometric mean of 8 items) | 3.18 | 1.00 | 1.53 | 1.54 | 1.93 | 1.97 |
+| Peak fit memory (× 0.5.0) | 5.27 | 1.00 | 1.08 | 1.10 | 1.07 | 1.08 |
 
 The high-dimensional means differ mostly through riboflavin, whose five
 splits swing by up to 0.35 between near-tied fits (0.526, 0.405, 0.506, 0.506
 and 0.516 by release), and, for 0.7.0, through eyedata. 0.7.0's ratios to
 0.5.0 are chained through 0.6.1, which its own speed pass shares with the
-main one.
+main one, and 0.8.0's through 0.7.0 as well.
 
 Held-out score by dataset (R², accuracy for breast_cancer; mean of 5 splits):
 
-| dataset | 0.4.2 | 0.5.0 | 0.6.0 | 0.6.1 | 0.7.0 |
-| :-- | --: | --: | --: | --: | --: |
-| diabetes | 0.430 | 0.430 | 0.430 | 0.430 | 0.433 |
-| breast_cancer | 0.979 | 0.979 | 0.974 | 0.974 | 0.971 |
-| mpg | 0.864 | 0.864 | 0.868 | 0.868 | 0.868 |
-| diamonds | 0.850 | 0.850 | 0.853 | 0.853 | 0.852 |
-| penguins | 0.797 | 0.797 | 0.803 | 0.803 | 0.803 |
-| tips | 0.462 | 0.462 | 0.461 | 0.461 | 0.472 |
-| california_housing | 0.691 | 0.699 | 0.695 | 0.695 | 0.690 |
-| communities | 0.644 | 0.646 | 0.648 | 0.648 | 0.648 |
-| superconduct | 0.738 | 0.738 | 0.746 | 0.746 | 0.747 |
-| tecator | 0.991 | 0.991 | 0.991 | 0.991 | 0.992 |
-| eyedata (84 training rows) | 0.145 | 0.145 | 0.110 | 0.110 | 0.321 |
-| riboflavin (49 training rows) | 0.526 | 0.405 | 0.506 | 0.506 | 0.516 |
-| friedman1 | 0.786 | 0.786 | 0.798 | 0.798 | 0.796 |
-| threshold_step | 0.849 | 0.849 | 0.841 | 0.841 | 0.841 |
-| distractors_noise50 | 0.811 | 0.811 | 0.811 | 0.811 | 0.808 |
+| dataset | 0.4.2 | 0.5.0 | 0.6.0 | 0.6.1 | 0.7.0 | 0.8.0 |
+| :-- | --: | --: | --: | --: | --: | --: |
+| diabetes | 0.430 | 0.430 | 0.430 | 0.430 | 0.433 | 0.433 |
+| breast_cancer | 0.979 | 0.979 | 0.974 | 0.974 | 0.971 | 0.971 |
+| mpg | 0.864 | 0.864 | 0.868 | 0.868 | 0.868 | 0.868 |
+| diamonds | 0.850 | 0.850 | 0.853 | 0.853 | 0.852 | 0.852 |
+| penguins | 0.797 | 0.797 | 0.803 | 0.803 | 0.803 | 0.803 |
+| tips | 0.462 | 0.462 | 0.461 | 0.461 | 0.472 | 0.472 |
+| california_housing | 0.691 | 0.699 | 0.695 | 0.695 | 0.690 | 0.690 |
+| communities | 0.644 | 0.646 | 0.648 | 0.648 | 0.648 | 0.648 |
+| superconduct | 0.738 | 0.738 | 0.746 | 0.746 | 0.747 | 0.747 |
+| tecator | 0.991 | 0.991 | 0.991 | 0.991 | 0.992 | 0.992 |
+| eyedata (84 training rows) | 0.145 | 0.145 | 0.110 | 0.110 | 0.321 | 0.321 |
+| riboflavin (49 training rows) | 0.526 | 0.405 | 0.506 | 0.506 | 0.516 | 0.516 |
+| friedman1 | 0.786 | 0.786 | 0.798 | 0.798 | 0.796 | 0.796 |
+| threshold_step | 0.849 | 0.849 | 0.841 | 0.841 | 0.841 | 0.841 |
+| distractors_noise50 | 0.811 | 0.811 | 0.811 | 0.811 | 0.808 | 0.808 |
 
 The other 15 synthetic suite datasets score the same in every release.
 eyedata and riboflavin have standard errors of 0.04 to 0.30 over their
@@ -104,18 +114,22 @@ added by the fit. 0.4.2 was timed in a second pass beside 0.5.0, whose
 control matched the main pass to within 0.09 s, and 0.7.0 in a third beside
 0.6.1, which ran 7 to 12% slower throughout; 0.7.0's seconds below are scaled,
 item by item, by the ratio of 0.6.1's seconds in the main pass to those in
-its own.
+its own. 0.8.0 was timed in a fourth pass beside 0.7.0, on a machine then
+busy with other work and about twice as slow; its seconds are 0.7.0's scaled
+ones times its ratio to 0.7.0 in that pass, a ratio that varied by item
+more than the code did (the same fits differ by 5 to 25% from one run to the
+next there).
 
-| item | 0.4.2 (s) | 0.5.0 (s) | 0.6.0 (s) | 0.6.1 (s) | 0.7.0 (s) | 0.4.2 (MB) | 0.5.0 (MB) | 0.6.0 (MB) | 0.6.1 (MB) | 0.7.0 (MB) |
-| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
-| planted design, n = 1,000 | 0.99 | 0.28 | 0.61 | 0.62 | 0.77 | 260 | 50 | 52 | 52 | 53 |
-| stress law, p = 100 | 3.92 | 0.75 | 1.00 | 1.01 | 1.21 | 315 | 57 | 66 | 66 | 61 |
-| Feynman, coulomb | 0.59 | 0.24 | 0.45 | 0.45 | 0.52 | 102 | 41 | 49 | 50 | 45 |
-| diabetes | 0.55 | 0.16 | 0.24 | 0.24 | 0.33 | 75 | 35 | 35 | 35 | 31 |
-| california_housing | 3.46 | 1.78 | 2.84 | 2.83 | 3.08 | 2,571 | 88 | 99 | 99 | 101 |
-| tecator | 2.94 | 1.26 | 1.47 | 1.47 | 2.19 | 120 | 44 | 44 | 49 | 52 |
-| superconduct | 5.00 | 1.36 | 2.44 | 2.47 | 3.02 | 1,462 | 61 | 67 | 67 | 73 |
-| riboflavin | 19.57 | 4.87 | 5.45 | 5.46 | 6.92 | 338 | 167 | 172 | 173 | 173 |
+| item | 0.4.2 (s) | 0.5.0 (s) | 0.6.0 (s) | 0.6.1 (s) | 0.7.0 (s) | 0.8.0 (s) | 0.4.2 (MB) | 0.5.0 (MB) | 0.6.0 (MB) | 0.6.1 (MB) | 0.7.0 (MB) | 0.8.0 (MB) |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| planted design, n = 1,000 | 0.99 | 0.28 | 0.61 | 0.62 | 0.77 | 0.68 | 260 | 50 | 52 | 52 | 53 | 52 |
+| stress law, p = 100 | 3.92 | 0.75 | 1.00 | 1.01 | 1.21 | 1.21 | 315 | 57 | 66 | 66 | 61 | 61 |
+| Feynman, coulomb | 0.59 | 0.24 | 0.45 | 0.45 | 0.52 | 0.54 | 102 | 41 | 49 | 50 | 45 | 45 |
+| diabetes | 0.55 | 0.16 | 0.24 | 0.24 | 0.33 | 0.42 | 75 | 35 | 35 | 35 | 31 | 30 |
+| california_housing | 3.46 | 1.78 | 2.84 | 2.83 | 3.08 | 2.86 | 2,571 | 88 | 99 | 99 | 101 | 99 |
+| tecator | 2.94 | 1.26 | 1.47 | 1.47 | 2.19 | 2.72 | 120 | 44 | 44 | 49 | 52 | 52 |
+| superconduct | 5.00 | 1.36 | 2.44 | 2.47 | 3.02 | 2.94 | 1,462 | 61 | 67 | 67 | 73 | 72 |
+| riboflavin | 19.57 | 4.87 | 5.45 | 5.46 | 6.92 | 6.34 | 338 | 167 | 172 | 173 | 173 | 171 |
 
 ## The options
 
@@ -135,6 +149,10 @@ means over the 8 items, where the option was timed.
 | `selection_correction="bh"` (0.6.1) | 1 / 11 / 0 | none | 13.3 → 13.3 | 0.000 | 0.97 | 0.98 |
 | `parsimony_alpha=0.05` (0.6.1) | 1 / 3 / 8 | riboflavin -0.200 | 13.3 → 3.4 | -0.657 | 1.00 | 0.99 |
 | `parsimony_alpha` + `input_test` (0.6.1) | 1 / 1 / 10 | riboflavin -0.226 | 13.3 → 3.4 | -0.673 | 5.2 | 1.6 |
+| `residual_slots=10` (0.8.0) | 1 / 9 / 2 | eyedata -0.886 | 13.8 → 13.6 | +0.007 | 1.02 | — |
+| `residual_slots=10` with `parsimony_alpha`, against `parsimony_alpha` alone (0.8.0) | 0 / 11 / 1 | california_housing -0.012 | 3.5 → 3.6 | +0.003 | — | — |
+| `sign` (0.8.0) | 0 / 11 / 1 | diabetes -0.015 | 13.8 → 13.8 | 0.000 | — | — |
+| `sign_shift` (0.8.0) | 1 / 10 / 1 | breast_cancer -0.022 | 13.8 → 12.7 | -0.016 | — | — |
 
 The two 0.7.0 rows take its changes one at a time: the magnitude slots are
 0.7.0 against 0.7.0 with `magnitude_slots=0`, and the guard is 0.7.0 with
@@ -173,7 +191,8 @@ What they are for, as these results show it:
   designs with riders at 0.07 to 0.09 against 0.72, keeping power at 0.82
   (0.89 by default); on real data it shortens equations as `parsimony_alpha`
   does, and costs accuracy as it does. Since 0.7.0 the re-test after the
-  forward step without `parsimony_alpha` is deprecated.
+  forward step without `parsimony_alpha` is deprecated, and since 0.8.0 it
+  raises.
 - **`selection_correction="bh"`** changed almost nothing here against the
   default Benjamini-Yekutieli correction, whose guarantee holds under any
   dependence between the tests.
@@ -184,6 +203,25 @@ What they are for, as these results show it:
   and lost accuracy on 8 of 12 (9 of 12 in 0.7.0,
   `benchmarks/three_settings/`). It suits a search for a short law, not
   prediction.
+- **`residual_slots`**, new in 0.8.0 and off by default, adds to the
+  search's final ranking the first terms of a forward path through its
+  candidates, so that a term much weaker than the leading one is not cut.
+  Here, where no such term hides, it changed little on average but printed a
+  term built only from unrelated columns in 19 of 800 design fits (none by
+  default; marginal FDR 0.002) and in 4 of 200 global-null fits (2 by
+  default), and one eyedata split fell from 0.016 to -4.3, through a
+  quotient both fits share whose denominator nears zero on a test row. With
+  `parsimony_alpha` beside it, it printed such a term in 1 of 800 design
+  fits and scored as `parsimony_alpha` alone, within 0.005 on 11 of 12 real
+  datasets. On a weak term beside a dominant one it printed the exact law in
+  33 of 60 fits, the default in none (`benchmarks/weak_terms_and_switches/`).
+- **`sign_shift`**, new in 0.8.0 and off by default, fits `sign(x + a)`, so
+  that a switch at a threshold can be built: on `threshold_step`,
+  `3*b*1[a > 1.5]`, held-out score rose from 0.841 to 0.999. On the real
+  datasets it moved score little, with penguins up by 0.025 and the
+  classifier's accuracy on breast_cancer down by 0.022, and it lowered
+  riders. `sign`, the switch at zero alone, changed nothing here but
+  diabetes (-0.015).
 - **`KnockoffSelector(s_method="ci")`** helps when some columns are near-copies
   of others: power with knockoff+ rose from 0 to 0.22 on the constructed
   design of `benchmarks/knockoff_s_method.py`, and was within a few points of
@@ -192,5 +230,5 @@ What they are for, as these results show it:
 The knockoff statistic changed in 0.6.0 to one the fixed-X guarantee covers.
 On correlated designs that costs power against 0.4.2 and 0.5.0 (block
 correlation 0.9: 0.84 → 0.43 with knockoff+; factor design 1.00 → 0.28).
-The permutation selector, the default, is unaffected; 0.7.0 does not change
-the knockoff selector, which was not run again.
+The permutation selector, the default, is unaffected; neither 0.7.0 nor
+0.8.0 changes the knockoff selector, which was not run again.

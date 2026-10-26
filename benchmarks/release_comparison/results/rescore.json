@@ -171,6 +171,56 @@
  },
  {
   "study": "highdim",
+  "item": "communities:0",
+  "version": "0.8.0",
+  "config": "default",
+  "score": 0.6646115408232094,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.8.0",
+  "config": "residual_alpha",
+  "score": 0.6586313486261015,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.8.0",
+  "config": "residual_slots",
+  "score": 0.6646115408232094,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.8.0",
+  "config": "sign",
+  "score": 0.6646115408232094,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:0",
+  "version": "0.8.0",
+  "config": "sign_shift",
+  "score": 0.6646115408232094,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
   "item": "communities:2",
   "version": "0.4.2",
   "config": "default",
@@ -340,6 +390,56 @@
   "rows": 598
  },
  {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.8.0",
+  "config": "default",
+  "score": 0.6876444692313597,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.8.0",
+  "config": "residual_alpha",
+  "score": 0.6571343460655158,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.8.0",
+  "config": "residual_slots",
+  "score": 0.686450584443316,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.8.0",
+  "config": "sign",
+  "score": 0.6876444692313597,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
+  "study": "highdim",
+  "item": "communities:2",
+  "version": "0.8.0",
+  "config": "sign_shift",
+  "score": 0.6876444692313597,
+  "own_undefined": 0,
+  "rows_dropped": 2,
+  "rows": 598
+ },
+ {
   "study": "suite",
   "item": "california_housing:4",
   "version": "0.4.2",
@@ -495,6 +595,56 @@
   "version": "0.7.0",
   "config": "parsimony_alpha",
   "score": 0.6609180939034387,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.8.0",
+  "config": "default",
+  "score": 0.6715823084509143,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.8.0",
+  "config": "residual_alpha",
+  "score": 0.6898603783249992,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.8.0",
+  "config": "residual_slots",
+  "score": 0.6898603783249992,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.8.0",
+  "config": "sign",
+  "score": 0.6715823084509143,
+  "own_undefined": 0,
+  "rows_dropped": 1,
+  "rows": 6192
+ },
+ {
+  "study": "suite",
+  "item": "california_housing:4",
+  "version": "0.8.0",
+  "config": "sign_shift",
+  "score": 0.6725219765255124,
   "own_undefined": 0,
   "rows_dropped": 1,
   "rows": 6192
