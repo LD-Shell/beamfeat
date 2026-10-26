@@ -4,7 +4,7 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.8.0] - 2026-10-26
 
 Every fit at the defaults is 0.7.0's: on all 1,430 items of
 `benchmarks/release_comparison/` the printed formulas and held-out scores are
