@@ -146,6 +146,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         input_test: bool = False,
         parsimony_alpha: float | None = None,
         residual_slots: int | str = "auto",
+        max_search_rows: int | None = None,
     ) -> None:
         self.scorer = scorer
         self.selector = selector
@@ -172,6 +173,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         self.certify_test = certify_test
         self.magnitude_slots = magnitude_slots
         self.residual_slots = residual_slots
+        self.max_search_rows = max_search_rows
         self.input_test = input_test
         self.parsimony_alpha = parsimony_alpha
 
@@ -262,6 +264,14 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
             raise ValueError(
                 "on_no_discoveries must be 'empty', 'fallback' or 'raise', "
                 f"got {self.on_no_discoveries!r}"
+            )
+        if self.max_search_rows is not None and (
+            isinstance(self.max_search_rows, bool)
+            or not isinstance(self.max_search_rows, numbers.Integral)
+            or self.max_search_rows < 1
+        ):
+            raise ValueError(
+                f"max_search_rows must be None or a positive integer, got {self.max_search_rows!r}"
             )
         for name in ("magnitude_slots", "residual_slots"):
             value = getattr(self, name)
@@ -787,8 +797,12 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         """Run the beam search on the search rows; sets :attr:`search_result_`.
 
         Returns its expressions, or the input columns when it produced none.
+        With ``max_search_rows``, the search runs on a sample of the search
+        rows (:meth:`_search_sample`), and its expressions are then checked on
+        every search row (:meth:`_check_on_search_rows`).
         """
-        search_data = {name: X[rows.search, index] for index, name in enumerate(feature_names)}
+        sample = self._search_sample(rows.search)
+        search_data = {name: X[sample, index] for index, name in enumerate(feature_names)}
 
         report(
             self.verbose,
@@ -796,6 +810,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
             f"fit: {X.shape[0]} rows x {len(feature_names)} columns"
             + (
                 f", split {len(rows.search)} search / {len(rows.selection)} selection"
+                + (f" (the search on {len(sample)})" if len(sample) < len(rows.search) else "")
                 if rows.use_holdout
                 else ", no holdout (selection shares the search rows)"
             ),
@@ -819,14 +834,53 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
             magnitude_slots=self._magnitude_slots(),
             residual_slots=self._residual_slots(),
         )
-        search_result = search.run(search_data, y[rows.search], units=units)
+        search_result = search.run(search_data, y[sample], units=units)
         self.search_result_ = search_result
 
         nodes = list(search_result.nodes)
+        if nodes and len(sample) < len(rows.search):
+            nodes = self._check_on_search_rows(nodes, X, rows.search, feature_names, units)
         if not nodes:
             nodes = Evaluator(search_data, units=units).leaf_nodes()
             logger.warning("[beamfeat] search produced no features; falling back to input columns")
         return nodes
+
+    def _search_sample(self, search: np.ndarray) -> np.ndarray:
+        """The rows the search runs on: every search row, or ``max_search_rows`` of them.
+
+        The sample is drawn without replacement from the third stream of
+        ``random_state`` (the first two are the knockoff selector's and the
+        chance check's) and kept in row order.
+        """
+        if self.max_search_rows is None or len(search) <= self.max_search_rows:
+            return search
+        rng = np.random.default_rng(np.random.SeedSequence(self.random_state).spawn(3)[2])
+        return np.sort(rng.choice(search, size=self.max_search_rows, replace=False))
+
+    def _check_on_search_rows(
+        self, nodes: list[Node], X: np.ndarray, search: np.ndarray, feature_names: list[str], units
+    ) -> list[Node]:
+        """The expressions a sampled search returned that pass its filters on every search row.
+
+        The search excludes an expression outside an operator's domain, or
+        whose denominator comes within the pole margin of zero, on the rows
+        it sees; on a sample, a row it did not see can still take one there.
+        Each expression is evaluated on every search row, with the same
+        filters, and dropped if it fails them. Only the columns the
+        expressions read are copied, and the evaluator caches few arrays.
+        """
+        used = set().union(*(node.columns() for node in nodes))
+        data = {name: X[search, index] for index, name in enumerate(feature_names) if name in used}
+        evaluator = Evaluator(data, units=units, cache_size=8)
+        kept = [node for node in nodes if evaluator.evaluate(node) is not None]
+        if len(kept) < len(nodes):
+            report(
+                self.verbose,
+                1,
+                f"search: {len(nodes) - len(kept)} of {len(nodes)} expressions found on the sample "
+                "failed the search's filters on the other search rows and were dropped",
+            )
+        return kept
 
     def _select(
         self, X: np.ndarray, y: np.ndarray, rows: _Rows, feature_names: list[str], units, nodes: list[Node]

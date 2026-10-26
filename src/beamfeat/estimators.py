@@ -305,6 +305,17 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             before 0.8.0. The path is part of the search, on the search rows
             only (see :class:`~beamfeat.search.BeamSearch`), so the screen's
             guarantee is unchanged. A positive value is for regression only.
+        max_search_rows: Most rows the search runs on, or ``None``
+            (default) for every search row. The search's time and memory
+            grow with its rows, while a strong term stands out on a few
+            thousand. With a value, the search runs on that many search
+            rows, drawn at random (``random_state``), and its expressions are
+            then checked on every search row against the search's filters
+            (an operator's domain, a denominator near zero). The screen still
+            runs on every selection row, none of which the search sees, so
+            its guarantee is unchanged. What a sample can cost is a weak
+            term: ranked on fewer rows, it can be cut before the screen
+            tests it.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
@@ -405,6 +416,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         input_test: bool = False,
         parsimony_alpha: float | None = None,
         residual_slots: int | str = "auto",
+        max_search_rows: int | None = None,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -434,6 +446,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             input_test=input_test,
             parsimony_alpha=parsimony_alpha,
             residual_slots=residual_slots,
+            max_search_rows=max_search_rows,
         )
         self.problem_type = problem_type
 
@@ -535,6 +548,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         input_test: bool = False,
         parsimony_alpha: float | None = None,
         residual_slots: int | str = "auto",
+        max_search_rows: int | None = None,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -564,6 +578,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             input_test=input_test,
             parsimony_alpha=parsimony_alpha,
             residual_slots=residual_slots,
+            max_search_rows=max_search_rows,
         )
         self.alpha = alpha
 
@@ -793,6 +808,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         input_test: bool = False,
         parsimony_alpha: float | None = None,
         residual_slots: int | str = "auto",
+        max_search_rows: int | None = None,
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -822,6 +838,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             input_test=input_test,
             parsimony_alpha=parsimony_alpha,
             residual_slots=residual_slots,
+            max_search_rows=max_search_rows,
         )
         self.C = C
 

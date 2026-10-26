@@ -103,6 +103,10 @@ class TestApiConventions:
         assert cls().get_params()["residual_slots"] == "auto"
         assert clone(cls(residual_slots=5)).residual_slots == 5
 
+    def test_max_search_rows_is_a_parameter(self, cls):
+        assert cls().get_params()["max_search_rows"] is None
+        assert clone(cls(max_search_rows=500)).max_search_rows == 500
+
     def test_clone(self, cls):
         estimator = cls(max_depth=3, beam_width=17)
         cloned = clone(estimator)
@@ -807,6 +811,50 @@ class TestConfiguration:
         X, y = regression_data
         with pytest.raises(ValueError, match="residual_slots must be 'auto'"):
             _fast(BeamFeatRegressor, residual_slots="many").fit(X, y)
+
+    @pytest.mark.parametrize("value", [0, -5, 2.5, True, "all"])
+    def test_max_search_rows_rejects_other_values(self, regression_data, value):
+        X, y = regression_data
+        with pytest.raises(ValueError, match="max_search_rows must be None or a positive integer"):
+            _fast(BeamFeatRegressor, max_search_rows=value).fit(X, y)
+
+    def test_max_search_rows_samples_the_search_rows_only(self, capsys):
+        rng = np.random.default_rng(0)
+        X = rng.uniform(1, 5, (2000, 5))
+        y = X[:, 0] * X[:, 1] / X[:, 2] + rng.normal(0, 0.1, 2000)
+        full = BeamFeatRegressor(max_depth=2, beam_width=10, random_state=0).fit(X, y)
+        sampled = BeamFeatRegressor(max_depth=2, beam_width=10, random_state=0, max_search_rows=300, verbose=1).fit(X, y)
+        assert "split 1000 search / 1000 selection (the search on 300)" in capsys.readouterr().out
+        assert sampled.fdr_controlled_
+        assert [node.columns() for node in sampled.features_] == [{"x0", "x1", "x2"}]
+        assert sampled.score(X, X[:, 0] * X[:, 1] / X[:, 2]) > 0.99
+        assert sampled.search_result_.nodes != full.search_result_.nodes
+
+    def test_max_search_rows_at_or_above_the_search_rows_changes_nothing(self, regression_data):
+        X, y = regression_data
+        plain = _fast(BeamFeatRegressor).fit(X, y)
+        roomy = _fast(BeamFeatRegressor, max_search_rows=10**6).fit(X, y)
+        assert roomy.formulas() == plain.formulas()
+        np.testing.assert_array_equal(roomy.predict(X), plain.predict(X))
+
+    def test_max_search_rows_sample_is_reproducible(self):
+        search = np.arange(0, 5000, 2)
+        first = BeamFeatRegressor(max_search_rows=100, random_state=3)._search_sample(search)
+        again = BeamFeatRegressor(max_search_rows=100, random_state=3)._search_sample(search)
+        other = BeamFeatRegressor(max_search_rows=100, random_state=4)._search_sample(search)
+        np.testing.assert_array_equal(first, again)
+        assert len(first) == 100 and np.all(np.diff(first) > 0) and set(first) <= set(search)
+        assert not np.array_equal(first, other)
+
+    def test_expressions_found_on_a_sample_are_checked_on_every_search_row(self):
+        from beamfeat.expression import leaf, transform
+
+        X = np.column_stack([np.linspace(-0.5, 4.0, 200), np.linspace(1.0, 2.0, 200)])
+        nodes = [transform("log", leaf("x0")), transform("log", leaf("x1")), leaf("x0")]
+        model = BeamFeatRegressor()
+        kept = model._check_on_search_rows(nodes, X, np.arange(200), ["x0", "x1"], None)
+        assert kept == nodes[1:]
+        assert model._check_on_search_rows(nodes, X, np.arange(50, 200), ["x0", "x1"], None) == nodes
 
     def test_residual_slots_raise_for_classification(self, classification_data):
         X, y = classification_data
