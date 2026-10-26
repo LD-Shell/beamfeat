@@ -1,0 +1,60 @@
+{"cell": "p4_n2000", "seed": 0, "setting": "alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99769, "s": 1.5, "f": ["((x0 / x2) * x1)", "((x3 / x2) * (x0 * x1))"]}
+{"cell": "p4_n2000", "seed": 0, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99978, "s": 1.1, "f": ["((x0 / x2) * x1)", "x3"]}
+{"cell": "p4_n2000", "seed": 0, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99943, "s": 1.9, "f": ["((x0 / x2) * x1)", "((x0 / x3) + (x1 / x2))", "((x0 + x3) + (x1 / x2))"]}
+{"cell": "p4_n2000", "seed": 0, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 0.9, "f": ["((x0 / x2) * x1)", "log(x3)"]}
+{"cell": "p4_n5000", "seed": 0, "setting": "alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99781, "s": 1.5, "f": ["((x1 / x2) * x0)", "((x3 / x2) * (x0 * x1))"]}
+{"cell": "p4_n5000", "seed": 0, "setting": "max_features_200_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 1.7, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p4_n5000", "seed": 0, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.9998, "s": 3.8, "f": ["((x1 / x2) * x0)", "((x0 / x2) + x1)", "((x1 + x3) + (x0 / x2))"]}
+{"cell": "p4_n5000", "seed": 0, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 1.6, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p10_n5000", "seed": 0, "setting": "alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99766, "s": 3.3, "f": ["((x1 / x2) * x0)", "((x3 / x2) * (x0 * x1))"]}
+{"cell": "p10_n5000", "seed": 0, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99978, "s": 4.0, "f": ["((x1 / x2) * x0)", "x3"]}
+{"cell": "p10_n5000", "seed": 0, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99934, "s": 16.5, "f": ["((x1 / x2) * x0)", "((x0 + x3) + (x1 - x2))", "((x0 / x2) + (x1 / x3))"]}
+{"cell": "p10_n5000", "seed": 0, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 2.5, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p4_n2000", "seed": 1, "setting": "alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99978, "s": 0.7, "f": ["((x1 / x2) * x0)", "(x0 + (x1 - x2))", "((x0 + x3) + (x1 - x2))"]}
+{"cell": "p4_n2000", "seed": 1, "setting": "max_features_200_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 0.8, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p4_n2000", "seed": 1, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99978, "s": 1.8, "f": ["((x1 / x2) * x0)", "((x0 + x3) + (x1 / x2))", "((x1 / x2) + (x0 - x3))"]}
+{"cell": "p4_n2000", "seed": 1, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 0.7, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p4_n5000", "seed": 1, "setting": "alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99978, "s": 1.5, "f": ["((x0 / x2) * x1)", "(x1 + (x0 - x2))", "((x1 + x3) + (x0 - x2))"]}
+{"cell": "p4_n5000", "seed": 1, "setting": "max_features_200_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 1.9, "f": ["((x0 / x2) * x1)", "log(x3)"]}
+{"cell": "p4_n5000", "seed": 1, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99978, "s": 3.9, "f": ["((x0 / x2) * x1)", "x3"]}
+{"cell": "p4_n5000", "seed": 1, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 1.5, "f": ["((x0 / x2) * x1)", "log(x3)"]}
+{"cell": "p10_n5000", "seed": 1, "setting": "alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99762, "s": 2.9, "f": ["((x1 / x2) * x0)", "((x3 / x2) * (x0 * x1))"]}
+{"cell": "p10_n5000", "seed": 1, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99977, "s": 3.4, "f": ["((x1 / x2) * x0)", "x3"]}
+{"cell": "p10_n5000", "seed": 1, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99932, "s": 18.9, "f": ["((x1 / x2) * x0)", "((x0 + x3) + (x1 - x2))", "((x0 / x3) + (x1 / x2))"]}
+{"cell": "p10_n5000", "seed": 1, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 3.0, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p4_n2000", "seed": 2, "setting": "alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99834, "s": 0.8, "f": ["((x1 / x2) * x0)", "((x0 / x3) + (x1 / x2))"]}
+{"cell": "p4_n2000", "seed": 2, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99979, "s": 1.1, "f": ["((x1 / x2) * x0)", "x3"]}
+{"cell": "p4_n2000", "seed": 2, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99834, "s": 1.7, "f": ["((x1 / x2) * x0)", "((x0 / x3) + (x1 / x2))"]}
+{"cell": "p4_n2000", "seed": 2, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 1.0, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p4_n5000", "seed": 2, "setting": "alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99865, "s": 2.0, "f": ["((x1 / x2) * x0)", "((x3 / x2) * (x0 * x1))", "((x1 / x2) - (x3 / x0))"]}
+{"cell": "p4_n5000", "seed": 2, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99979, "s": 1.8, "f": ["((x1 / x2) * x0)", "x3"]}
+{"cell": "p4_n5000", "seed": 2, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99979, "s": 3.6, "f": ["((x1 / x2) * x0)", "x3"]}
+{"cell": "p4_n5000", "seed": 2, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 1.4, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p10_n5000", "seed": 2, "setting": "alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.9976, "s": 2.2, "f": ["((x0 / x2) * x1)", "((x3 / x2) * (x0 * x1))"]}
+{"cell": "p10_n5000", "seed": 2, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99975, "s": 3.0, "f": ["((x0 / x2) * x1)", "(x2 / x3)", "(x2 + x3)"]}
+{"cell": "p10_n5000", "seed": 2, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99931, "s": 16.0, "f": ["((x0 / x2) * x1)", "((x1 + x3) + (x0 - x2))", "((x0 / x2) + (x1 / x3))"]}
+{"cell": "p10_n5000", "seed": 2, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 2.4, "f": ["((x0 / x2) * x1)", "log(x3)"]}
+{"cell": "p4_n2000", "seed": 3, "setting": "alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99811, "s": 0.6, "f": ["((x0 / x2) * x1)", "((x0 / x3) + (x1 / x2))"]}
+{"cell": "p4_n2000", "seed": 3, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99811, "s": 0.7, "f": ["((x0 / x2) * x1)", "((x0 / x3) + (x1 / x2))"]}
+{"cell": "p4_n2000", "seed": 3, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99811, "s": 1.5, "f": ["((x0 / x2) * x1)", "((x0 / x3) + (x1 / x2))"]}
+{"cell": "p4_n2000", "seed": 3, "setting": "residual_alpha", "searched": true, "exact": false, "terms": 2, "r2": 0.99811, "s": 0.9, "f": ["((x0 / x2) * x1)", "((x0 / x3) + (x1 / x2))"]}
+{"cell": "p4_n5000", "seed": 3, "setting": "alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99977, "s": 1.6, "f": ["((x1 / x2) * x0)", "(x0 + (x1 - x2))", "((x0 + x3) + (x1 - x2))"]}
+{"cell": "p4_n5000", "seed": 3, "setting": "max_features_200_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 1.7, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p4_n5000", "seed": 3, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99977, "s": 3.9, "f": ["((x1 / x2) * x0)", "((x0 / x2) + x1)", "((x1 + x3) + (x0 / x2))"]}
+{"cell": "p4_n5000", "seed": 3, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 1.7, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p10_n5000", "seed": 3, "setting": "alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99979, "s": 2.9, "f": ["((x1 / x2) * x0)", "(x0 + (x1 - x2))", "((x0 + x3) + (x1 - x2))"]}
+{"cell": "p10_n5000", "seed": 3, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99979, "s": 2.8, "f": ["((x1 / x2) * x0)", "x3"]}
+{"cell": "p10_n5000", "seed": 3, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99935, "s": 16.5, "f": ["((x1 / x2) * x0)", "((x0 + x3) + (x1 - x2))", "((x0 / x2) + (x1 / x3))"]}
+{"cell": "p10_n5000", "seed": 3, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 3.1, "f": ["((x1 / x2) * x0)", "log(x3)"]}
+{"cell": "p4_n2000", "seed": 4, "setting": "alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99976, "s": 0.6, "f": ["((x0 / x2) * x1)", "(x1 + (x0 - x2))", "((x1 + x3) + (x0 - x2))"]}
+{"cell": "p4_n2000", "seed": 4, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99973, "s": 0.7, "f": ["((x0 / x2) * x1)", "1/(x3)"]}
+{"cell": "p4_n2000", "seed": 4, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99976, "s": 1.7, "f": ["((x0 / x2) * x1)", "((x1 / x2) + x0)", "((x0 + x3) + (x1 / x2))"]}
+{"cell": "p4_n2000", "seed": 4, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 0.6, "f": ["((x0 / x2) * x1)", "log(x3)"]}
+{"cell": "p4_n5000", "seed": 4, "setting": "alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99751, "s": 1.5, "f": ["((x0 / x2) * x1)", "((x0 / x2) / (x3 / x1))"]}
+{"cell": "p4_n5000", "seed": 4, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99976, "s": 1.4, "f": ["((x0 / x2) * x1)", "x3"]}
+{"cell": "p4_n5000", "seed": 4, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99976, "s": 4.0, "f": ["((x0 / x2) * x1)", "((x1 / x2) + x0)", "((x1 / x2) + (x0 - x3))"]}
+{"cell": "p4_n5000", "seed": 4, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 1.8, "f": ["((x0 / x2) * x1)", "log(x3)"]}
+{"cell": "p10_n5000", "seed": 4, "setting": "alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99978, "s": 2.9, "f": ["((x0 / x2) * x1)", "(x1 + (x0 - x2))", "((x1 + x3) + (x0 - x2))"]}
+{"cell": "p10_n5000", "seed": 4, "setting": "max_features_200_alpha", "searched": false, "exact": false, "terms": 2, "r2": 0.99978, "s": 3.2, "f": ["((x0 / x2) * x1)", "x3"]}
+{"cell": "p10_n5000", "seed": 4, "setting": "beam_200_alpha", "searched": false, "exact": false, "terms": 3, "r2": 0.99936, "s": 18.9, "f": ["((x0 / x2) * x1)", "((x1 + x3) + (x0 - x2))", "((x0 / x2) + (x1 / x3))"]}
+{"cell": "p10_n5000", "seed": 4, "setting": "residual_alpha", "searched": true, "exact": true, "terms": 2, "r2": 1.0, "s": 2.3, "f": ["((x0 / x2) * x1)", "log(x3)"]}

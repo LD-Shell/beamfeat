@@ -16,6 +16,7 @@ environment reproduces every record.
 ../release_comparison/venvs/0.7.0/bin/python -I run.py --version 0.7.0
 ../release_comparison/venvs/0.8.0/bin/python -I run.py --version 0.8.0
 ../release_comparison/venvs/0.8.0/bin/python -I run.py --report > TABLES.md
+../release_comparison/venvs/0.8.0/bin/python -I alternatives.py > results/alternatives.jsonl
 ```
 
 `results/records_<version>.jsonl` holds one record per fit, with the printed

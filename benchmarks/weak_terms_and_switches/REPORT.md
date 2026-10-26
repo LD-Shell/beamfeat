@@ -29,6 +29,22 @@ in 3: at a correlation of 0.08 with the target, that takes a few thousand
 rows. In no cell was the mean R² against the law lower with the slots, and
 `parsimony_alpha` beside them changed no fit's equation here.
 
+The simpler settings do not do it (`alternatives.py`, the three cells with
+0.1% noise and 2,000 or 5,000 rows, five seeds each, all with
+`parsimony_alpha=0.05`):
+
+| setting | exact law printed | `log(x3)` returned by the search |
+| :-- | --: | --: |
+| `parsimony_alpha` alone | 0 of 15 | 0 of 15 |
+| `max_features=200` | 4 of 15 | 4 of 15 |
+| `beam_width=200` | 0 of 15 | 0 of 15 |
+| `residual_slots=10` | 14 of 15 | 15 of 15 |
+
+A longer final list sometimes reaches the surviving transform, and then
+often prints `x3` instead; a wider beam keeps more restatements of
+`x0*x1/x2` and never `log(x3)`, and its fits took about five times as long
+with 10 columns.
+
 ## Switches: `y = s(x0)*x2 + x1`
 
 `s` is 2 above a threshold on `x0` and -1 below it; 1,000 rows, the
