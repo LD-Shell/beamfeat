@@ -57,7 +57,10 @@ flowchart TD
   re-test certifies on rows of their own. When the re-test certifies none,
   or the selection rows are too few to split for it (with a warning), the
   terms before the forward step are returned instead: the screened set, less
-  any the input test removed.
+  any the input test removed. At the default forward step, `alpha_stop`
+  replays the chance check of `parsimony_alpha=0.05` along the same path,
+  from the same random stream, and the count it stops at goes in the note of
+  `equation()` and the `a` line of `equations()`; the fit is unchanged.
 - **Prediction.** `predict` and `transform` replay the kept expressions on new
   rows without searching again (`_BeamFeatBase._apply`). An expression that
   fails on some rows, the logarithm of a negative value say, is evaluated row
@@ -84,7 +87,7 @@ flowchart TD
     score --> keep["_prune_redundant / _prune_evaluated:<br/>keep beam_width<br/>_reserve: magnitude_slots<br/>_extra_parents: more parents<br/>for the next round's fits"]
     keep --> record["trace and verbose report"]
     record --> depth
-    depth -->|"last depth, nothing new,<br/>nothing evaluated,<br/>or an empty beam"| sib["_path_siblings (residual_slots):<br/>add the transforms of<br/>the path terms' operands"]
+    depth -->|"last depth, nothing new,<br/>nothing evaluated,<br/>or an empty beam"| sib["_path_siblings (residual_slots):<br/>add the path terms' operands<br/>and their transforms"]
     sib --> fin["rescore everything kept<br/>against the target;<br/>_finalise: rank by score,<br/>remove near-duplicates,<br/>keep max_features (default beam_width);<br/>_add_path: add the forward path's<br/>terms (residual_slots);<br/>_constant_free_copies"]
 ```
 
@@ -122,9 +125,11 @@ flowchart LR
     _base --> _prediction
     _base --> _rendering
     _base --> expression
+    search --> _forward
     search --> parametric
     search --> expression
     selection --> expression
+    screen --> selection
     parametric --> expression
     _rendering --> expression
     _prediction --> expression
@@ -134,7 +139,7 @@ flowchart LR
 
 Arrows point from a module to one it imports. Not drawn: `__init__`, which
 re-exports the public names of `estimators`, `expression`, `scoring`,
-`search`, `selection` and `stability`, and `_compat`, the shim for
+`screen`, `search`, `selection` and `stability`, and `_compat`, the shim for
 scikit-learn versions that `estimators`, `scoring`, `selection` and
 `stability` use. `expression` imports `_operators` once, at its end, so that
 the operators register in `OPERATORS` after everything they are built from
@@ -147,20 +152,21 @@ exists.
 | `_forward.py` | the forward step's path through the screened set and its chance check (`parsimony_alpha`), where that check would stop the default step (`alpha_stop`), and the short path the search's residual slots take (`forward_order`) |
 | `_rendering.py` | number and LaTeX formatting, the equation list (`equations`, for all three estimators) and the notes on what the guarantee covers |
 | `_prediction.py` | the row-by-row evaluation of an expression that fails on some rows |
-| `search.py` | `BeamSearch`, `SearchResult`, `SearchTrace`; the default operator sets (`DEFAULT_UNARY`, `DEFAULT_BINARY`, and `DEFAULT_FITTED`, the estimators' default; `BeamSearch` itself fits no constants unless given `fitted_ops`), `magnitude_scores`, and `report`, the verbose output |
+| `search.py` | `BeamSearch`, `SearchResult`, `SearchTrace`; the default operator sets (`DEFAULT_UNARY`, `DEFAULT_BINARY`, and `DEFAULT_FITTED`, the estimators' default; `BeamSearch` itself fits no constants unless given `fitted_ops`), `magnitude_scores`, the residual slots (`_path`, `_path_siblings`, `_add_path`), and `report`, the verbose output |
 | `parametric.py` | the constants inside `exp(a*x)`, `x^a`, `1/(x + a)`, `log(x + a)` and `sign(x + a)` |
 | `expression.py` | `Node`, the expression DAG; `Evaluator`; units; the operator registry |
 | `_operators.py` | the built-in operators: function, formula, unit rule, domain, constant grid |
 | `scoring.py` | the scorers that rank candidates in the search |
 | `selection.py` | the FDR-controlled selectors, the input test, and the Freedman-Lane test of the conditional re-test (`_ConditionalPermutationSelector`) |
 | `stability.py` | `stability_report`: refits on many splits and counts the distinct equations |
+| `screen.py` | `screen_equation` and `EquationScreen`: the terms of another tool's equation tested on rows it did not see, with the screen's permutation test and an optional input test |
 | `_compat.py` | differences between scikit-learn versions |
 
 ## Where to make a change
 
 | change | where |
 | :-- | :-- |
-| a new operator | a `register_operator(OperatorSpec(...))` call in `_operators.py`, and its sympy form in `_sympy_builders` in `expression.py` (without one, `to_sympy` and the LaTeX show it as an opaque function); a fitted operator whose constant can make it a plain operator or a constant also goes in `_PLAIN_FORMS` or `_DEGENERATE` there. To use it by default, add it to `DEFAULT_UNARY`, `DEFAULT_BINARY` or `DEFAULT_FITTED` in `search.py`. Tests in `tests/test_expression.py`; a fitted operator also in `tests/test_parametric.py`, whose `FITTED` names every one and which pins `DEFAULT_FITTED` |
+| a new operator | a `register_operator(OperatorSpec(...))` call in `_operators.py`, and its sympy form in `_sympy_builders` in `expression.py` (without one, `to_sympy` and the LaTeX show it as an opaque function); a fitted operator whose constant can make it a plain operator or a constant also goes in `_PLAIN_FORMS` or `_DEGENERATE` there. To use it by default, add it to `DEFAULT_UNARY`, `DEFAULT_BINARY` or `DEFAULT_FITTED` in `search.py`. Tests in `tests/test_expression.py`; a fitted operator also in `tests/test_parametric.py`, which pins `DEFAULT_FITTED` and lists every registered fitted operator (`test_parametric_operators_are_registered`) |
 | a new scorer | a `Scorer` subclass in `scoring.py`, named in `_SCORERS`; `tests/test_scoring.py` |
 | a new selector | a `Selector` subclass in `selection.py`, named in `_SELECTORS`; `tests/test_selection.py` |
 | how terms are chosen after the screen | `_BeamFeatBase._choose_terms` in `_base.py`, the forward step in `_forward.py`; `tests/test_parsimony.py` |
@@ -173,9 +179,10 @@ exists.
 The test files follow the code by topic: `tests/test_estimators.py` for the
 estimators' API and prediction, `tests/test_screening.py` for the screen
 inside a fit, `tests/test_parsimony.py` for the forward step, the re-test and
-what the guarantee covers, `tests/test_rendering.py` for the renderings, and
-one file each for `expression`, `parametric`, `scoring`, `search`,
-`selection`, `stability` and `_compat`. ruff (`pyproject.toml`) limits the
-complexity and the number of statements of a function everywhere but the
-tests and the benchmark scripts, so a stage that grows is split rather than
-lengthened.
+what the guarantee covers, `tests/test_rendering.py` for the renderings,
+`tests/test_sign.py` for the sign operators, `tests/test_screen_equation.py`
+for `screen_equation`, and one file each for `expression`, `parametric`,
+`scoring`, `search`, `selection`, `stability` and `_compat`. ruff
+(`pyproject.toml`) limits the complexity and the number of statements of a
+function everywhere but the tests and the benchmark scripts, so a stage that
+grows is split rather than lengthened.

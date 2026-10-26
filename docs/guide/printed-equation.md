@@ -34,7 +34,7 @@ print(BeamFeatRegressor(random_state=0, parsimony_alpha=0.05).fit(X, y).equation
 ```
 
 ```text
-y = 1.052*(x0 * x1) - 0.4088*((x0 * x1) / (x0 + x6)) - 0.1452*((x3 / x0) - x1) + 0.1295*((x5 / x0) - x1) + 0.04642   [4 of 50 certified terms; parsimony=None prints all 50; parsimony_alpha=0.05 keeps 1, selection-row R^2 0.935 against 0.939]
+y = 1.052*(x0 * x1) - 0.4088*((x0 * x1) / (x0 + x6)) - 0.1452*((x3 / x0) - x1) + 0.1295*((x5 / x0) - x1) + 0.04642   [4 of 50 certified terms; parsimony=None prints all 50; parsimony_alpha=0.05 prints 1, selection-row R^2 0.935 against 0.939]
 y = 1.013*(x0 * x1) - 0.1608   [1 of 50 certified terms; parsimony=None prints all 50]
 ```
 

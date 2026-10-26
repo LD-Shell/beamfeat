@@ -95,8 +95,8 @@ after the first adding a little by fitting noise.
 stops the step earlier; the list is the same, and only the marked line moves.
 At the default settings, a line marked `a` is where `parsimony_alpha=0.05`
 would stop, and a footer line says so; `equation()` then ends with a note
-such as `parsimony_alpha=0.05 keeps 1, selection-row R^2 0.935 against
-0.939`. Neither appears when that level would keep as many terms.
+such as `parsimony_alpha=0.05 prints 1, selection-row R^2 0.935 against
+0.939`. Neither appears when that level would print as many terms.
 
 Complexity counts the nodes in each term's expression tree — operators and
 input columns, `(x0 * x1)` being 3 — plus one per term for its coefficient

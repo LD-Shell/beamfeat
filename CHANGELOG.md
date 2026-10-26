@@ -7,10 +7,12 @@ Notable changes to `beamfeat`. Format follows
 ## [Unreleased]
 
 Every fit at the defaults is 0.7.0's: on all 1,430 items of
-`benchmarks/release_comparison/` the features, p-values and predictions are
-the same. What is new is four options, all off by default, and a note in the
-printed equation. An option is on by default only where measurement shows it
-does better than the default it would replace; the residual slots did not.
+`benchmarks/release_comparison/` the printed formulas and held-out scores are
+the same. What is new: `screen_equation`, three options that are off by
+default (`residual_slots`, `max_search_rows`, and the `sign_shift` operator
+with `sign`), and a note in the printed equation. An option is on by default
+only where measurement shows it does better than the default it would
+replace; the residual slots did not.
 
 ### Added
 
@@ -20,33 +22,38 @@ does better than the default it would replace; the residual slots did not.
   default never printed `log(x3)`, and `residual_slots=10` printed the exact
   law in 33 of 60 fits (`benchmarks/weak_terms_and_switches/`). The path also
   compares each of its terms with the other transforms of its operand, which
-  a depth may have dropped as near copies (`log(x3)` beside `1/x3`). On its own
-  it adds riders: a term built only from unrelated columns in 19 of 800
-  calibration-design fits, against none, and real-data held-out score within
-  0.005 on 9 of 12 datasets, lower on two. With `parsimony_alpha=0.05` beside
-  it the riders go and the weak term prints as often, which is the setting
-  the docs give for a law with a weak term. Off by default; regression only.
+  a depth may have dropped as near copies (`log(x3)` beside `1/x3`). On its
+  own it adds riders, a term built only from unrelated columns in 19 of 800
+  calibration-design fits against none, and it left held-out score within
+  0.005 on 8 of the 11 real regression datasets, raising it on one and
+  lowering it on eyedata (by 0.89, through one split) and California housing
+  (by 0.017). With `parsimony_alpha=0.05` beside it the riders go and the
+  weak term prints as often, which is the setting the docs give for a law
+  with a weak term. Off by default; regression only.
 - `max_search_rows`: the search runs on that many of its rows, drawn at
-  random, and its expressions are then checked on every search row; the
-  screen still runs on every selection row, so its guarantee is unchanged.
-  On 200,000 rows a search on 10,000 of the 100,000 search rows cut the fit
-  from about 120 to 30 seconds and still printed a term carrying 2% of the
-  signal in every fit, with R² against the signal 0.002 lower; peak memory
-  fell by a sixth, since the screen and the final fit see every row
-  (`benchmarks/search_rows/`). Off by default.
+  random, and its expressions are then checked on every search row; the screen
+  still runs on every selection row, so its guarantee is unchanged. On 200,000
+  rows a search on 10,000 of the 100,000 search rows cut the median fit from
+  110 to 33 seconds. A product carrying 2% of the signal's variance, `x4*x5`,
+  came out as `x4` and `x5` terms in every fit, as with the full search, and
+  R² against the signal was 0.002 lower; peak memory fell by a sixth, since
+  the screen and the final fit see every row (`benchmarks/search_rows/`). Off
+  by default.
 - `sign_shift`, a fitted operator `sign(x + a)` (off by default; list it in
-  `fitted_ops`), and `sign`, its form at zero: a product with a switch, such
-  as `x2*sign(x0 - 0.7)`, becomes a candidate. On targets that switch at a
-  threshold it printed the switch in 20 of 20 fits and predicted to R² 0.997
-  to 0.999, against 0.77 to 0.88 for the default and 0.983 to 0.996 for
-  gradient-boosted trees; on the main suite's `threshold_step` it raised
-  held-out score from 0.841 to 0.999. Elsewhere it changed little, though it
-  lowered the classifier's accuracy on breast_cancer by 0.022.
-- `equation()` ends with a note when `parsimony_alpha=0.05` would print fewer
-  terms, such as `parsimony_alpha=0.05 keeps 1, selection-row R^2 0.935
-  against 0.939`, and `equations()` marks that line `a`. The count is the
-  one a fit with that level gives: the check runs on the same path, from the
-  same random stream, apart from the fit, which it leaves unchanged.
+  `fitted_ops`), and `sign`, its form at zero (list it in `unary_ops`): a
+  product with a switch, such as `x2*sign(x0 - 0.7)`, becomes a candidate. On
+  targets that switch at a threshold it printed the switch in 20 of 20 fits
+  and predicted to R² 0.997 to 0.999, against 0.76 to 0.88 for the default and
+  0.983 to 0.996 for gradient-boosted trees; on the main suite's
+  `threshold_step` it raised held-out score from 0.841 to 0.999. Elsewhere it
+  changed little, though it lowered the classifier's accuracy on breast_cancer
+  by 0.022.
+- `equation()` and `latex()` end with a note when `parsimony_alpha=0.05` would
+  print fewer terms, such as
+  `parsimony_alpha=0.05 prints 1, selection-row R^2 0.935 against 0.939`, and
+  `equations()` marks that line `a`. The count is the one a fit with that
+  level gives: the check runs on the same path, from the same random stream,
+  apart from the fit, which it leaves unchanged.
 - `screen_equation`: tests the equation another tool reports (PySR, Operon,
   gplearn, PySINDy and the like) term by term on rows the tool never saw, with
   the permutation test beamfeat's fits use under the Benjamini-Yekutieli or

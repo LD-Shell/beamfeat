@@ -76,8 +76,8 @@ A variable's null is that it is independent of `y` and of the term's other
 variables together, and the step-up runs over the (term, variable) pairs. The
 test costs power where a tool's terms mix true and false variables, since it
 removes such a term whole. A variable correlated with a true input is not null
-in this sense, so a stand-in for a true input can pass: no test of association
-can tell the two apart.
+in this sense, so the null of a stand-in for a true input can be rejected: no
+test of association can tell the two apart.
 
 ## What to do with the result
 
@@ -87,10 +87,10 @@ the rows that screened them. `found.p_values`, `found.marginal`,
 `found.untestable` and the input test's pairs and p-values are on the result
 as well (see the [API reference](../api.md#beamfeat.screen)).
 
-A term undefined or constant on any held-out row cannot be tested: it is
-reported as untestable and never kept. A term the screen does not keep has no
-support on these rows, which is not a finding that it is false; with a few
-dozen rows a real term of modest effect is often not kept.
+A term undefined on any held-out row, or constant across them, cannot be
+tested: it is reported as untestable and never kept. A term the screen does
+not keep has no support on these rows, which is not a finding that it is
+false; with a few dozen rows a real term of modest effect is often not kept.
 
 ## A term the sum would split
 

@@ -16,7 +16,7 @@ pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
 Python 3.10 or newer. There are no upper version pins. The test suite is run
-against the newest releases on Python 3.10 to 3.15, where all 1,004 tests pass
+against the newest releases on Python 3.10 to 3.15, where all 1,079 tests pass
 (scikit-learn 1.9.1 from Python 3.11, and 1.7.2, the newest that supports it,
 on 3.10; numpy 2.2 to 2.5), and against the oldest supported stack
 (scikit-learn 1.6.1, numpy 1.26, joblib 1.2), which leaves pint and pandas
@@ -36,7 +36,7 @@ pip install -e ".[all]"
 pytest
 ```
 
-1,004 tests, a few minutes, including scikit-learn's `check_estimator`
+1,079 tests, a few minutes, including scikit-learn's `check_estimator`
 conformance suite. `pytest --cov=beamfeat` reports 97% statement coverage.
 
 The `units` extra matters here: without `pint`, every unit-aware test skips

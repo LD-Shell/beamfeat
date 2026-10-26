@@ -97,7 +97,7 @@ print(clf.equation(max_terms=3))
 ```
 
 ```text
-logit P(y = 1) = 1.678*((x0 / x2) - log(x3)) - 0.1561*((x2 * x3) - (x0 * x1)) - 1.014*((x2 / x1) + (x3 / x0)) + 1.101   [20 of 50 certified terms; parsimony=None prints all 50; parsimony_alpha=0.05 keeps 2]
+logit P(y = 1) = 1.678*((x0 / x2) - log(x3)) - 0.1561*((x2 * x3) - (x0 * x1)) - 1.014*((x2 / x1) + (x3 / x0)) + 1.101   [20 of 50 certified terms; parsimony=None prints all 50; parsimony_alpha=0.05 prints 2]
 ```
 
 The fitted equation has 20 terms; `max_terms=3` displays the three with the
@@ -118,9 +118,11 @@ logit P(y = 1) = - 0.526*((x2 * x3) - (x0 * x1)) - 1.005*((x2 / x0) + (x3 / x1))
 
 - [Choosing a setting](settings.md): the default for prediction,
   `parsimony_alpha` for a short equation, `input_test` for an equation whose
-  every column was tested.
+  every column was tested, and the options for tall data, switches and weak
+  terms.
 - [User guide](guide/index.md): reading a fit, the printed equation, the
-  search options, and data and prediction.
+  search options, data and prediction, and screening another tool's
+  equation.
 - [Tutorials](notebooks/01_getting_started.ipynb): four notebooks with real
   outputs.
 - [Statistical guarantees](guarantees.md): what the guarantee covers, and

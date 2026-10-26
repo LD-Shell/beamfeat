@@ -1,5 +1,5 @@
 ---
-description: "Choose between beamfeat's default, a short equation (parsimony_alpha) and every column tested (input_test): what each prints, what it costs, what was measured."
+description: "Choose between beamfeat's default, a short equation (parsimony_alpha) and every column tested (input_test), and when to use the options for tall data, switches and weak terms: what each prints, what it costs, what was measured."
 ---
 
 # Choosing a setting
@@ -37,7 +37,7 @@ for options in ({}, {"parsimony_alpha": 0.05}, {"input_test": True}):
 ```
 
 ```text
-y = 1.052*(x0 * x1) - 0.4088*((x0 * x1) / (x0 + x6)) - 0.1452*((x3 / x0) - x1) + 0.1295*((x5 / x0) - x1) + 0.04642   [4 of 50 certified terms; parsimony=None prints all 50; parsimony_alpha=0.05 keeps 1, selection-row R^2 0.935 against 0.939]
+y = 1.052*(x0 * x1) - 0.4088*((x0 * x1) / (x0 + x6)) - 0.1452*((x3 / x0) - x1) + 0.1295*((x5 / x0) - x1) + 0.04642   [4 of 50 certified terms; parsimony=None prints all 50; parsimony_alpha=0.05 prints 1, selection-row R^2 0.935 against 0.939]
 y = 1.013*(x0 * x1) - 0.1608   [1 of 50 certified terms; parsimony=None prints all 50]
 y = 1.013*(x0 * x1) - 0.1608   [1 of 50 certified terms; parsimony=None prints all 8; input_test dropped 42]
 ```
@@ -45,7 +45,7 @@ y = 1.013*(x0 * x1) - 0.1608   [1 of 50 certified terms; parsimony=None prints a
 The default adds three terms to the product, and each brings in a column the
 target does not use: `x6`, `x3` or `x5`. Each adds a little to R² on the rows the
 equation was chosen on, by fitting noise. The note at the end of the line
-says how much: `parsimony_alpha=0.05` would keep one term, for an R² of 0.935
+says how much: `parsimony_alpha=0.05` would print one term, for an R² of 0.935
 against 0.939 on the selection rows, and it does stop before them.
 `input_test` drops 42 of the 50 certified formulas, those with a column
 whose null the test fails to reject, and the forward step then stops at the
@@ -114,13 +114,14 @@ equation whose every column was tested. It is no more accurate than
 
 The search's time and memory grow with its rows. On a tall table,
 `BeamFeatRegressor(max_search_rows=10_000)` runs the search on 10,000 of its
-rows, drawn at random, and the screen on every selection row as before, so
-the guarantee is unchanged. On 200,000 rows, a search on 10,000 of its
-100,000 rows cut the fit from about 120 to 30 seconds; a term carrying 2% of
-the signal was still printed in every fit, with R² against the signal 0.002
-lower (`benchmarks/search_rows/`). Memory fell by a sixth only, since the
-screen and the final fit still see every row. A term weak enough to need
-every row to stand out can be lost.
+rows, drawn at random, and the screen on every selection row as before, so the
+guarantee is unchanged. On 200,000 rows, a search on 10,000 of its 100,000
+rows cut the median fit from 110 to 33 seconds. A product carrying 2% of the
+signal's variance, `x4*x5`, came out as `x4` and `x5` terms in every fit, as
+with the full search, and R² against the signal was 0.002 lower
+(`benchmarks/search_rows/`). Memory fell by a sixth only, since the screen and
+the final fit still see every row. A term weak enough to need every row to
+stand out can be lost.
 
 ## A target that switches: `sign` and `sign_shift`
 
@@ -136,12 +137,14 @@ BeamFeatRegressor(fitted_ops=("exp_scaled", "pow", "inv_shift", "log_shift", "si
 
 On `y = s(x0)*x2 + x1`, where `s` is 2 above a threshold on `x0` and -1
 below it, it printed the switch term in all 20 fits and predicted the
-target to R² 0.997 to 0.999, against 0.77 to 0.88 for the default and 0.983
+target to R² 0.997 to 0.999, against 0.76 to 0.88 for the default and 0.983
 to 0.996 for gradient-boosted trees; on the main suite's `threshold_step` it
 raised held-out score from 0.841 to 0.999. Where the target does not switch
 it changes little, though it lowered the classifier's accuracy on
-breast_cancer by 0.022. [Switches at a threshold](guide/search.md#switches-at-a-threshold)
-has the details.
+breast_cancer by 0.022. `sign`, listed in `unary_ops`, builds a switch at
+zero only, which `sign_shift` also finds.
+[Switches at a threshold](guide/search.md#switches-at-a-threshold) has the
+details.
 
 ## A law with a weak term: `residual_slots=10`
 
@@ -151,15 +154,17 @@ than the leading one can be left out of the ranking, as `log(x3)` is from
 parsimony_alpha=0.05)` adds to the ranking the terms that explain what the
 leading ones leave, and stops the riders they would otherwise bring. On that
 law it printed the exact equation in 33 of 60 fits, the default in none. On
-the comparison's 12 real datasets its held-out score was within 0.005 of
-`parsimony_alpha` alone on 11, and 0.012 lower on California housing.
+the comparison's 11 real regression datasets its held-out score was within
+0.005 of `parsimony_alpha` alone on 10, and 0.012 lower on California
+housing.
 [A weak term beside a dominant one](guide/search.md#a-weak-term-beside-a-dominant-one)
 has the details.
 
 ## What was measured
 
 [`benchmarks/three_settings/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/three_settings)
-fits the four settings on the same data with the same seeds:
+fits the default, `parsimony_alpha=0.05`, `input_test=True` and both
+together on the same data with the same seeds:
 
 | | default | `parsimony_alpha=0.05` | `input_test=True` | both |
 | :-- | --: | --: | --: | --: |

@@ -46,14 +46,14 @@ with a DataFrame you can write `{"rho": "kg/m**3"}`.
 
 ## Constants inside expressions
 
-The linear model supplies the coefficients outside the expressions. That
-alone cannot write `exp(-x²/2)`, `x^1.5` or `(x0 + x1)/(1 + x0·x1)`, where the
+The linear model supplies the coefficients outside the expressions. That alone
+cannot write `exp(-x²/2)`, `x^1.5` or `(x0 + x1)/(1 + x0·x1)`, where the
 constant sits inside a nonlinearity, so the estimators also use operators that
-carry one fitted constant each, listed in `fitted_ops`. All four are on by
-default; `fitted_ops=()` keeps every expression free of constants and fits
-about twice as fast on small data. They are a list of their own: restricting
-`unary_ops` leaves them on, so `unary_ops=()` still allows `log(x + a)`
-unless `fitted_ops=()` too.
+carry one fitted constant each, listed in `fitted_ops`. All but `sign_shift`
+are on by default; `fitted_ops=()` keeps every expression free of constants
+and fits about twice as fast on small data. They are a list of their own:
+restricting `unary_ops` leaves them on, so `unary_ops=()` still allows
+`log(x + a)` unless `fitted_ops=()` too.
 
 | name | expression | operand |
 |---|---|---|
@@ -61,6 +61,7 @@ unless `fitted_ops=()` too.
 | `"pow"` | `x^a` | positive, dimensionless |
 | `"inv_shift"` | `1/(x + a)` | any; `a` takes the operand's unit |
 | `"log_shift"` | `log(x + a)` | `x + a` positive, dimensionless |
+| `"sign_shift"`, off by default | `sign(x + a)` | any; `a` takes the operand's unit ([Switches at a threshold](#switches-at-a-threshold)) |
 
 ```python
 rng = np.random.default_rng(0)
@@ -90,12 +91,14 @@ surrogate that scores well on this range and says nothing about the law.
     - **How.** Each constant maximises the absolute correlation with the target:
       a coarse grid scaled to the operand (for `exp_scaled`, `|a|` up to
       10/max|x|; for `pow`, `a` from -4 to 4; for the shifts, poles kept off the
-      observed range), then a golden-section refinement. A fit that runs to the
-      edge of its grid is discarded, and so is one for which the likelihood-ratio
-      test of the snapping step below does not reject the null that the operand
-      on its own fits as well (each operator becomes linear in `x` at one end of
-      its range). Correlation is used whatever the `scorer`; the scorer then
-      ranks the result.
+      observed range; for `sign_shift`, the operand's 5% to 95% quantiles),
+      then a golden-section refinement. A fit that runs to the edge of its grid
+      is discarded, and so is one for which the likelihood-ratio test of the
+      snapping step below does not reject the null that the operand on its own
+      fits as well (each operator but `sign_shift` becomes linear in `x` at one
+      end of its range, and `sign_shift` is held to the same test).
+      Correlation is used whatever the `scorer`; the scorer then ranks the
+      result.
     - **Poles.** `inv_shift` and `log_shift` keep their pole away from the
       data they were fitted on: at least twice the spread of the operand's ten
       most extreme values at that end, and at least 1% of its range. A pole
@@ -276,47 +279,53 @@ sums stand in for it.
 
     - **The path.** It runs over every candidate the search kept, on the
       search rows (on more than 20,000 of them, that many evenly spaced, and
-      fewer on a wide table, so that the values stay within 64 MiB). Gains
-      within a relative 2e-6 of the best are tied, and the simpler expression
-      wins, as in the beam.
+      fewer on a wide table, so that the values stay within 64 MiB, though
+      never fewer than 1,000). Gains within a relative 2e-6 of the best are
+      tied, and the simpler expression wins, as in the beam.
     - **Near copies.** On [1, 5], `log(x3)`, `sqrt(x3)` and `1/x3` correlate
       above the redundancy threshold, so a depth keeps one of them and drops
-      the others. Before the final path, the operand of each path term that is
-      an input column or a transform of one, and its transforms by
-      `unary_ops`, join the candidates, so the path chooses among them.
-    - **The count.** At most `residual_slots` terms, and a quarter of the
-      search rows. A path term replaces a ranked candidate that is a near
-      copy of it, and is dropped if it is a near copy of an earlier path
-      term; every other candidate the score ranked stays, so the screen
-      tests at most `residual_slots` more candidates than before.
+      the others. Before the final ranking, each path term that is an input
+      column, or has a single operand, adds that column or operand and its
+      transforms by `unary_ops` to the candidates, so the path chooses among
+      them; one of them can also take a place by score.
+    - **The count.** At most `residual_slots` terms, and never more than
+      `max_features` or a quarter of the search rows. A path term replaces a
+      ranked candidate that is a near copy of it, and is dropped if it is a
+      near copy of an earlier path term; every other candidate the score
+      ranked stays, so the screen tests at most `residual_slots` more
+      candidates than before.
 
 Over 60 fits of that law, with 4 or 10 columns, 500 to 5,000 rows and two
 noise levels, the slots printed the exact law in 33, the default in none
 (`benchmarks/weak_terms_and_switches/`). They are off by default because the
 path terms explain whatever the leading terms leave, noise included, and the
-forward step keeps some of them as riders. In `benchmarks/release_comparison/`
+forward step prints some of them as riders. In `benchmarks/release_comparison/`
 they printed a term built only from unrelated columns in 19 of 800
 calibration-design fits, where the default printed none, raised the share of
 riders at a signal-to-noise ratio of 1 from 0.722 to 0.729, and left the
-held-out score of 9 of 12 real datasets within 0.005, raising one and
-lowering two. With `parsimony_alpha=0.05` beside them the riders go (one
-design fit of 800, riders 0.064 against 0.061 for the check alone, the
-generating term in as many fits), and the weak term prints as often. For a
-law with a weak term, use both:
+held-out score of 8 of the 11 real regression datasets within 0.005, raising
+one and lowering two. With `parsimony_alpha=0.05` beside them the riders go
+(one design fit of 800, riders 0.064 against 0.061 for the check alone, the
+generating term in as many fits), and the weak term prints as often. On pure
+noise the two together printed a term in 4 of 200 fits, against 2 at the
+default or with the check alone, within the guarantee's q = 0.1. For a law
+with a weak term, use both:
 
 ```python
 model = BeamFeatRegressor(residual_slots=10, parsimony_alpha=0.05).fit(X, y)
 ```
 
 The slots are for regression only; a positive number raises for
-classification. It runs inside the search, on the search rows
-only, so the screen's guarantee is unchanged.
+classification. The path runs inside the search, on the search rows only, so
+the screen's guarantee is unchanged.
 
 ## Switches at a threshold
 
-`sign` (a unary operator) and `sign_shift` (a fitted one, `sign(x + a)`) are
-off by default. With either, a product with a switch, such as
-`x2*sign(x0 - 0.7)`, is a candidate like any other. `sign_shift` tries
+`sign` (a unary operator; list it in `unary_ops`) and `sign_shift` (a fitted
+one, `sign(x + a)`; list it in `fitted_ops`) are off by default. With `sign`,
+a product with a switch at zero, such as `x2*sign(x0)`, is a candidate like
+any other, and with `sign_shift` one with a switch at a fitted threshold,
+such as `x2*sign(x0 - 0.7)`. `sign_shift` tries
 thresholds at the operand's 5% to 95% quantiles, then refines and snaps the
 threshold as the other fitted operators do their constants
 ([Constants inside expressions](#constants-inside-expressions)).
@@ -344,9 +353,9 @@ and `0.5*x2`, is weaker, and a surrogate stands in for it until the
 [residual slots](#a-weak-term-beside-a-dominant-one) add it. Over 20 fits like
 these, at thresholds 0 and 0.7 and two noise levels, `sign_shift` printed the
 switch in every fit, with R² against the noiseless target of 0.997 to 0.999
-(1.000 with the slots), against 0.77 to 0.88 for the default and 0.983 to
+(1.000 with the slots), against 0.76 to 0.88 for the default and 0.983 to
 0.996 for gradient-boosted trees (`benchmarks/weak_terms_and_switches/`).
-`sign` finds a switch at zero only, as `sign_shift` does too. On the main
+`sign` finds a switch at zero only; `sign_shift` finds that one too. On the main
 suite's `threshold_step`, `3*b*1[a > 1.5]`, `sign_shift` raised the held-out
 score from 0.841 to 0.999; on the other datasets of
 `benchmarks/release_comparison/` it moved held-out score little, raising it

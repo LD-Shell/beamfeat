@@ -77,6 +77,7 @@ one of them, please cite its source as well:
 | `parsimony_alpha` | the multiplier bootstrap for the best fit noise can reach | [Fan & Zhou (2016)](#ref-fan2016) |
 | `input_test=True` | sequential Monte Carlo p-values | [Besag & Clifford (1991)](#ref-besag1991) |
 | `parsimony_holdout` with `certify_test="conditional"` | the Freedman–Lane permutation test | [Freedman & Lane (1983)](#ref-freedman1983); [Anderson & Robinson (2001)](#ref-anderson2001); [Winkler et al. (2014)](#ref-winkler2014) |
+| `screen_equation` | permutation p-values with the add-one estimator and the Benjamini–Yekutieli correction, or Benjamini–Hochberg; with `input_test=True`, sequential Monte Carlo p-values | [Phipson & Smyth (2010)](#ref-phipson2010); [Benjamini & Yekutieli (2001)](#ref-benjamini2001) or [Benjamini & Hochberg (1995)](#ref-benjamini1995); [Besag & Clifford (1991)](#ref-besag1991) |
 
 [Statistical guarantees](guarantees.md) explains what each procedure
 guarantees in beamfeat, and under which assumptions.

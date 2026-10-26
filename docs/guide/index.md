@@ -1,5 +1,5 @@
 ---
-description: "The beamfeat user guide: reading a fit, the printed equation, search options, and data and prediction, with a table that finds any parameter."
+description: "The beamfeat user guide: reading a fit, the printed equation, search options, data and prediction, and another tool's equation, with a table that finds any parameter."
 ---
 
 # User guide
@@ -13,7 +13,7 @@ up the data the rest of the page uses. New to beamfeat? Start with the
 | :-- | :-- |
 | [Reading a fit](reading-a-fit.md) | what the printed equation and its note mean, the equation at every size, the selection report, refits on other splits, an empty fit, LaTeX and export |
 | [The printed equation](printed-equation.md) | how the equation is chosen from the certified set, and the options that shorten it, test the columns inside it or re-test it |
-| [Search options](search.md) | units, fitted constants, laws whose parts the score cannot see, limits on the search, speed and memory |
+| [Search options](search.md) | units, fitted constants, laws whose parts the score cannot see, a weak term beside a dominant one, switches at a threshold, limits on the search, speed and memory |
 | [Data and prediction](data.md) | constant columns, missing values and categoricals, rows outside a formula's domain, predicting with the original columns as well, new rows beyond the training data |
 | [Another tool's equation](other-tools.md) | screening the equation PySR, Operon, gplearn or PySINDy reports on rows it never saw, and testing the columns inside its terms |
 
@@ -40,7 +40,8 @@ up the data the rest of the page uses. New to beamfeat? Start with the
 | `residual_slots` | [A weak term beside a dominant one](search.md#a-weak-term-beside-a-dominant-one) |
 | `sign_shift`, `sign` | [Switches at a threshold](search.md#switches-at-a-threshold) |
 | `max_inputs` | [Search constraints](search.md#search-constraints) |
-| `n_jobs`, `max_search_rows` | [Speed and memory](search.md#speed-and-memory) |
+| `n_jobs` | [Speed and memory](search.md#speed-and-memory) |
+| `max_search_rows` | [Tall data](../settings.md#tall-data-max_search_rows) |
 | `feature_ranges_`, `ExtrapolationWarning` | [New rows beyond the training data](data.md#new-rows-beyond-the-training-data) |
 
 `max_depth`, `beam_width` and the scorers are covered in the

@@ -12,7 +12,7 @@ precision given.
 Most archived runs were made before 0.6.0 and 0.7.0 changed the search's
 defaults: constants inside expressions (`fitted_ops`), magnitude slots and
 the guard against quotients whose denominator comes near zero. Unless a
-result says otherwise, it was measured without them. Rerun at 0.7.0's
+result says otherwise, it was measured without them. Rerun at the current
 defaults, the formula-recovery suites recover the same formulas, the
 end-to-end calibration gives the same result, and Friedman #1 rises from
 0.745 to 0.770. To reproduce an archived run exactly, install the release
@@ -111,10 +111,10 @@ averaged over five seeds:
 | PLS (raw, SNV, derivative) and ridge | 1.98 to 2.20 | 8.08 to 8.47 | 1.66 to 2.19 |
 
 beamfeat had the lowest errors on E1, though eight samples make that a hint
-rather than a measurement. The previous release missed E1 badly (RMSE 47.7)
-with a ratio whose denominator came near zero beyond the training samples;
-0.7.0 rules such ratios out, and warns when a new row takes a feature far
-beyond its training range
+rather than a measurement. Releases before 0.7.0 missed E1 badly (RMSE
+47.7) with a ratio whose denominator came near zero beyond the training
+samples; the search now rules such ratios out, and `predict` warns when a
+new row takes a feature far beyond its training range
 ([New rows beyond the training data](guide/data.md#new-rows-beyond-the-training-data)).
 
 ## Selection calibration
@@ -299,11 +299,11 @@ comparison study's mean R² is 0.803 at the default, 0.784 with
 ## Release comparison
 
 [`benchmarks/release_comparison/`](https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/release_comparison)
-runs the same benchmarks, data, splits and seeds through five releases, from
-0.4.2, the paper's, to 0.7.0, on one software stack: about 23,000 fits. The
+runs the same benchmarks, data, splits and seeds through six releases, from
+0.4.2, the paper's, to 0.8.0, on one software stack: about 30,000 fits. The
 paper's release against the current one, at their defaults:
 
-| measure | 0.4.2 (the paper's) | 0.7.0 |
+| measure | 0.4.2 (the paper's) | 0.8.0 |
 | :-- | --: | --: |
 | Feynman panel, fits solved of 60 | 47 | 50 |
 | search stress laws, exact recovery | 0.883 | 1.000 |
@@ -318,7 +318,7 @@ default.
 
 ## Test suite
 
-1,004 tests at 97% statement coverage, with a 90% floor enforced in CI,
+1,079 tests at 97% statement coverage, with a 90% floor enforced in CI,
 including scikit-learn's full estimator-conformance checks.
 
 <a id="corrections-since-the-paper"></a>
@@ -389,5 +389,5 @@ dataset without changing any feature, p-value or prediction, and a default
 fit on 1000 columns and 600 rows that peaked at 2.6 GB of memory peaks at
 0.35 GB in 0.5.0. Over the eight timing items of the
 [release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md),
-0.7.0 fits in about 0.6 of 0.4.2's time with a fifth of its memory. The
+0.8.0 fits in about 0.6 of 0.4.2's time with a fifth of its memory. The
 [changelog](changelog.md) lists every change.

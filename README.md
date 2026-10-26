@@ -1,7 +1,7 @@
 # beamfeat
 
 [![CI](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml/badge.svg)](https://github.com/LD-Shell/beamfeat/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1004%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-1079%20passing-brightgreen)](https://github.com/LD-Shell/beamfeat/tree/main/tests)
 [![PyPI](https://img.shields.io/pypi/v/beamfeat)](https://pypi.org/project/beamfeat/)
 [![Python](https://img.shields.io/badge/python-3.10%E2%80%933.15-blue)](https://github.com/LD-Shell/beamfeat)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/LD-Shell/beamfeat/blob/main/LICENSE)
@@ -17,27 +17,30 @@ a short equation in your own column names, from a scikit-learn estimator you
 can fit, inspect and predict with. The method is described in a
 [TMLR 2026 paper](https://openreview.net/forum?id=UibXoy4h3u).
 
-**New in 0.7.0**
+**New in 0.8.0**
 
-- The search finds laws whose parts do not correlate with the target, such
-  as `x0*x1*x2` with centred inputs (`magnitude_slots`, on by default for
-  regression).
-- It rules out quotients whose denominator comes near zero, which on
-  tecator's high-fat samples had predicted up to 507% fat, and `predict`
-  warns when a new row takes a feature far beyond its training range.
-- A new [Choosing a setting](https://ld-shell.github.io/beamfeat/settings/)
-  page: when to keep the default, and when to ask for a short equation or
-  for every column to be tested.
-- `certify_test="conditional"` after the forward step now needs
-  `parsimony_alpha`; without it, it warns, and it will raise from 0.8.
-- The code is split into smaller modules, mapped in
-  [`ARCHITECTURE.md`](https://github.com/LD-Shell/beamfeat/blob/main/ARCHITECTURE.md).
+- [`screen_equation`](https://ld-shell.github.io/beamfeat/guide/other-tools/)
+  tests the equation another tool reports (PySR, Operon, gplearn, PySINDy
+  and the like) term by term, on rows the tool never saw.
+- `sign_shift`, a fitted `sign(x + a)`, finds targets that switch at a
+  threshold, such as `x2*sign(x0 - 0.7)`: R² 0.997 to 0.999, where the
+  default reaches 0.76 to 0.88 and gradient-boosted trees 0.983 to 0.996.
+- `residual_slots=10`, beside `parsimony_alpha=0.05`, finds a weak term next
+  to a dominant one: it printed `x0*x1/x2 + 0.5*log(x3)` exactly in 33 of 60
+  fits, where the default never printed `log(x3)`.
+- `max_search_rows` runs the search on a sample of the rows: on 200,000 rows,
+  a search on 10,000 of them cut the median fit from 110 to 33 seconds.
+- The printed equation says when `parsimony_alpha=0.05` would print fewer
+  terms.
+- `certify_test="conditional"` after the forward step now raises without
+  `parsimony_alpha`.
 
-On real data the held-out score rose on 3 of 12 datasets and fell on none,
-and fits take a quarter longer than in the previous release. The
-[release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md)
-compares the paper's release with the later ones on accuracy, speed and
-memory.
+The three options are off by default. At the defaults every fit is 0.7.0's,
+at the same speed and memory, on all 1,430 items of the
+[release comparison](https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md),
+which measures each option against the default.
+[Choosing a setting](https://ld-shell.github.io/beamfeat/settings/) says
+when each one helps.
 
 ## An example: fat content from a spectrum
 
@@ -46,15 +49,15 @@ memory.
 In the tecator data, the task is to predict the fat content of meat samples
 from 100 near-infrared absorbance channels. Over five random 75/25 splits,
 beamfeat's equation uses three or four formulas, mostly ratios of channel
-differences such as `((x35 - x42) / (x37 - x39))`, and reaches a mean
-held-out R² of 0.991 in the paper (0.990 with 0.7.0). On all 100 channels, ridge regression reaches 0.957, a
-random forest 0.717 and LightGBM 0.756. A random forest given the formulas in
-place of the raw channels goes from 0.739 to 0.992, on three of the five
-splits. Against the methods of chemometrics, compared since the paper,
-0.7.0's error is 46 to 62% of that of partial least squares (R² 0.951 to
-0.971), and the error of kernel methods on second-derivative spectra (R²
-0.996 to 0.998) is 46 to 59% of beamfeat's, from every channel and with no
-formula to read.
+differences such as `((x35 - x42) / (x37 - x39))`, and reaches a mean held-out
+R² of 0.991 in the paper (0.990 with the current release). On all 100
+channels, ridge regression reaches 0.957, a random forest 0.717 and LightGBM
+0.756. A random forest given the formulas in place of the raw channels goes
+from 0.739 to 0.992, on three of the five splits. Against the methods of
+chemometrics, compared since the paper, the current release's error is 46 to
+62% of that of partial least squares (R² 0.951 to 0.971), and the error of
+kernel methods on second-derivative spectra (R² 0.996 to 0.998) is 46 to 59%
+of beamfeat's, from every channel and with no formula to read.
 
 The accuracy is stable from split to split; which ratios are picked is not.
 Neighbouring channels correlate at 0.99988, so many ratios are nearly
@@ -80,7 +83,7 @@ pip install "beamfeat[display]"   # + sympy, for to_sympy() and latex()
 pip install "beamfeat[all]"       # + both, pandas and the test dependencies
 ```
 
-Python 3.10 or newer, with no upper version pins: the 1,004 tests pass on
+Python 3.10 or newer, with no upper version pins: the 1,079 tests pass on
 Python 3.10 to 3.15 with the newest releases each supports, and the suite runs
 on the oldest supported stack too.
 [Installation](https://ld-shell.github.io/beamfeat/installation/) lists the
