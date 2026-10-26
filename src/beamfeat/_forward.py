@@ -134,6 +134,50 @@ def _extend_forward_path(
     return order, scores
 
 
+def forward_order(
+    matrix: np.ndarray,
+    target: np.ndarray,
+    steps: int,
+    priority: np.ndarray | None = None,
+    tie: float = 0.0,
+) -> list[int]:
+    """The first ``steps`` columns of a greedy forward path through ``matrix``.
+
+    Each step adds the column that most increases the in-sample R^2 of a
+    least-squares fit with intercept on the columns before it, computed as
+    :func:`_extend_forward_path` computes it. Gains within a fraction
+    ``tie`` of the largest are tied, and of the tied columns the one with
+    the smallest ``priority`` is added: two spellings of one expression,
+    such as ``x0*x1`` and ``(x0/x3)*(x1*x3)``, differ only by rounding. The
+    path stops early when no column left adds a direction.
+    """
+    numeric = np.asarray(target, dtype=np.float64)
+    n_rows = matrix.shape[0]
+    basis = np.full((n_rows, 1), 1.0 / np.sqrt(n_rows))
+    candidates = np.asarray(matrix, dtype=np.float64)
+    floor = 1e-10 * np.sqrt(n_rows) * np.std(candidates, axis=0)
+    candidates = _project_out(basis, candidates)
+    residual = _project_out(basis, numeric)
+    open_ = np.ones(candidates.shape[1], dtype=bool)
+    order: list[int] = []
+    for _ in range(min(steps, candidates.shape[1])):
+        norms = np.linalg.norm(candidates, axis=0)
+        live = open_ & (norms > floor)
+        if not live.any():
+            break
+        gains = np.where(live, (residual @ candidates / np.where(live, norms, 1.0)) ** 2, -1.0)
+        position = int(np.argmax(gains))
+        if priority is not None:
+            tied = np.flatnonzero(gains >= gains[position] * (1.0 - tie))
+            position = int(tied[np.argmin(priority[tied])])
+        direction = candidates[:, position] / norms[position]
+        residual = _project_out(direction[:, None], residual)
+        candidates = _project_out(direction[:, None], candidates)
+        open_[position] = False
+        order.append(position)
+    return order
+
+
 def forward_path(
     matrix: np.ndarray,
     target: np.ndarray,

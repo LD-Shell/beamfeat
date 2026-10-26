@@ -32,6 +32,18 @@ but the last keeps a few more candidates, those whose magnitude best tracks
 the target's (see :func:`magnitude_scores`), and a first depth too wide to
 propose every pair proposes those inputs early.
 
+**Residual slots** (``residual_slots``), off by default here and on by
+default in the estimators for regression. The final ranking keeps the
+``max_features`` candidates that score best against the target, and a
+dominant term fills it with restatements of itself, so that a weaker term
+beside it, such as ``log(x3)`` in ``x0*x1/x2 + 0.5*log(x3)``, is cut although
+the search built it. With the option, the first places go to the first
+terms of a greedy forward path through every candidate the search kept,
+each the one that adds most to a least-squares fit of those before it; a
+restatement adds nothing to the term it restates, and the weaker term comes
+second. The path also chooses among the transforms of a path term's
+operand, which a depth may have dropped as near copies of one another.
+
 Memory stays bounded as well. On a wide table one depth can propose
 hundreds of thousands of candidates. They are evaluated and scored a chunk at a time
 (``chunk_size``, by default as many columns as fit in :data:`CHUNK_BYTES`) and
@@ -58,6 +70,7 @@ from typing import Any
 
 import numpy as np
 
+from beamfeat._forward import forward_order
 from beamfeat.expression import (
     OPERATORS,
     BatchOutcome,
@@ -134,6 +147,14 @@ EXPENSIVE_CHUNK = 8
 # far below what a factor of the target scores (0.4 to 0.8 in
 # benchmarks/search_stress/); the cap keeps its cost from growing with the rows.
 MAGNITUDE_ROWS = 1000
+
+# Search rows the forward path of ``residual_slots`` runs on, at most, and the
+# bytes of candidate values it may hold, which lowers that cap on a wide
+# table: beyond the cap, that many rows evenly spaced through them. A term
+# explaining a hundredth of the target's variance correlates with what the
+# leading terms leave at about 0.1 or more, which 1,000 rows resolve.
+RESIDUAL_ROWS = 20_000
+RESIDUAL_BYTES = 64 * 2**20
 
 
 def report(verbose: int, level: int, message: str) -> None:
@@ -406,6 +427,26 @@ class BeamSearch:
             magnitude. The score sees only the rows the search is given, and
             of more than :data:`MAGNITUDE_ROWS` of them, that many evenly
             spaced.
+        residual_slots: Places of the final ranking given to the first
+            terms of a greedy forward path through every candidate the
+            search kept, each the one that most increases the R^2 of a
+            least-squares fit on those before it; the other places go by
+            score, as they do with ``0`` (default). A dominant term fills
+            the ranking by score with restatements of itself, and a weaker
+            term beside it is cut; a restatement adds nothing to a fit that
+            holds the term it restates, so the path takes the weaker term
+            next. At most a quarter of the rows, and the path terms are
+            subject to the same redundancy check. Before the final path, the
+            operand of each path term that is an input column or a transform
+            of one operand, and that operand's transforms by ``unary_ops``,
+            join the candidates: transforms of one operand can correlate past
+            ``redundancy_threshold``, as ``log(x)``, ``sqrt(x)`` and ``1/x``
+            do on a positive range of small spread, and a depth then keeps
+            only the best-scoring of them. Regression only. The path
+            sees only the rows the search is given, and of more than
+            :data:`RESIDUAL_ROWS` of them (fewer on a wide table, so that
+            the candidate values stay within :data:`RESIDUAL_BYTES`), that
+            many evenly spaced.
 
     Attributes:
         result_: :class:`SearchResult` from the most recent :meth:`run`.
@@ -430,6 +471,7 @@ class BeamSearch:
         max_inputs: int | None = None,
         fitted_ops: Sequence[str] = (),
         magnitude_slots: int = 0,
+        residual_slots: int = 0,
     ) -> None:
         if max_depth < 0:
             raise ValueError(f"max_depth must be non-negative, got {max_depth}")
@@ -459,6 +501,17 @@ class BeamSearch:
             raise ValueError(
                 "magnitude_slots is for regression only: a class label has no magnitude for a "
                 "candidate's to track. Leave it at 0 for classification."
+            )
+        if (
+            isinstance(residual_slots, bool)
+            or not isinstance(residual_slots, numbers.Integral)
+            or residual_slots < 0
+        ):
+            raise ValueError(f"residual_slots must be a non-negative integer, got {residual_slots!r}")
+        if residual_slots and problem_type == "classification":
+            raise ValueError(
+                "residual_slots is for regression only: the forward path fits the target by "
+                "least squares. Leave it at 0 for classification."
             )
 
         unknown = [op for op in (*unary_ops, *binary_ops) if op not in OPERATORS]
@@ -502,6 +555,7 @@ class BeamSearch:
         self._profiles: dict[str, frozenset[str] | None] = {}
         self.fitted_ops = fitted_ops
         self.magnitude_slots = int(magnitude_slots)
+        self.residual_slots = int(residual_slots)
 
         self.result_: SearchResult | None = None
 
@@ -761,13 +815,16 @@ class BeamSearch:
         scores: np.ndarray,
         limit: int,
         shield: bool = False,
+        order: np.ndarray | None = None,
     ) -> tuple[list[Node], np.ndarray, np.ndarray, int]:
         """Greedily admit candidates in score order, skipping near-duplicates.
 
         A candidate is admitted if its absolute correlation against every
         already-admitted candidate stays below ``redundancy_threshold``.
         Correlations within :data:`EXACT_COPY_TOL` of 1 count as reaching it.
-        With ``shield``, see :meth:`_admit`.
+        With ``shield``, see :meth:`_admit`. An ``order`` replaces the score
+        order of admission; the kept candidates are still returned in score
+        order.
 
         Returns:
             Tuple of (kept nodes, their values, their scores, count dropped).
@@ -775,11 +832,19 @@ class BeamSearch:
         if not nodes:
             return [], np.empty((values.shape[0], 0)), np.empty(0), 0
 
-        order = _rank(nodes, scores)
+        rank = _rank(nodes, scores)
         standardised = _standardise_columns(values)
         kept_indices, n_dropped = self._admit(
-            order, lambda index: standardised[:, index], limit, values.shape[0], _fitted_mask(nodes, shield)
+            rank if order is None else order,
+            lambda index: standardised[:, index],
+            limit,
+            values.shape[0],
+            _fitted_mask(nodes, shield),
         )
+        if order is not None:
+            place = np.empty(len(nodes), dtype=np.intp)
+            place[rank] = np.arange(len(nodes))
+            kept_indices = sorted(kept_indices, key=lambda index: place[index])
         kept_nodes = [nodes[i] for i in kept_indices]
         return kept_nodes, values[:, kept_indices], scores[kept_indices], n_dropped
 
@@ -1133,6 +1198,10 @@ class BeamSearch:
             if not self._run_depth(depth, state, evaluator, scorer, target, absolute, fit_target):
                 break
 
+        if self.residual_slots:
+            n_siblings = self._path_siblings(state, evaluator, target)
+            if n_siblings:
+                report(self.verbose, 2, f"  residual slots: {n_siblings} transforms of path operands added")
         # Final ranking across every depth, with one more redundancy pass so
         # that features admitted at different depths are also deduplicated.
         #
@@ -1148,7 +1217,8 @@ class BeamSearch:
             else np.asarray(state.selected_scores, dtype=np.float64)
         )
         result = self._finalise(
-            state.selected, state.selected_values, final_scores, evaluator, state.trace, started, fit_target
+            state.selected, state.selected_values, final_scores, evaluator, state.trace, started, fit_target,
+            target,
         )
         result.n_proposed_total = state.n_proposed_total
         result.n_evaluated_total = state.n_evaluated_total
@@ -1437,18 +1507,25 @@ class BeamSearch:
         trace: list[SearchTrace],
         started: float,
         fit_target: np.ndarray | None = None,
+        target: np.ndarray | None = None,
     ) -> SearchResult:
         """Rank, deduplicate, and truncate the accumulated selection.
 
-        With ``fitted_ops``, a kept feature with fitted constants then gives
-        way to a near copy with fewer that fits as well; see
-        :meth:`_constant_free_copies`.
+        With ``residual_slots``, the first places go to a forward path; see
+        :meth:`_residual_order`. With ``fitted_ops``, a kept feature with
+        fitted constants then gives way to a near copy with fewer that fits
+        as well; see :meth:`_constant_free_copies`.
         """
         limit = self.max_features if self.max_features is not None else self.beam_width
 
         n_redundant = 0
         if nodes:
-            kept, _, kept_scores, n_redundant = self._prune_redundant(nodes, values, scores, limit)
+            order = (
+                self._residual_order(nodes, values, scores, target, limit)
+                if self.residual_slots and target is not None
+                else None
+            )
+            kept, _, kept_scores, n_redundant = self._prune_redundant(nodes, values, scores, limit, order=order)
             if self.fitted_ops and fit_target is not None:
                 kept, kept_scores = self._constant_free_copies(nodes, values, scores, kept, fit_target)
             nodes, scores = kept, kept_scores
@@ -1463,6 +1540,78 @@ class BeamSearch:
             n_rejected_redundant_final=n_redundant,
             elapsed=time.perf_counter() - started,
         )
+
+    def _path(self, nodes: list[Node], values: np.ndarray, target: np.ndarray, limit: int) -> list[int]:
+        """The first ``residual_slots`` terms of a greedy forward path through ``values``.
+
+        At most ``limit`` and a quarter of the rows; see
+        :func:`~beamfeat._forward.forward_order`. Gains within twice
+        :data:`SCORE_TIE_TOL` of the largest, relative to it, are tied, and
+        the structurally simpler expression goes first, as in :func:`_rank`.
+        Of more rows than :data:`RESIDUAL_ROWS`, or than keep the values
+        within :data:`RESIDUAL_BYTES`, that many evenly spaced.
+        """
+        memo: dict[str, tuple[int, int]] = {}
+        sizes = np.array([sum(_counts(node, memo)) for node in nodes])
+        n_rows = values.shape[0]
+        cap = max(MAGNITUDE_ROWS, min(RESIDUAL_ROWS, RESIDUAL_BYTES // (8 * max(1, values.shape[1]))))
+        if n_rows > cap:
+            rows = np.unique(np.round(np.linspace(0, n_rows - 1, cap)).astype(np.intp))
+            values, target = values[rows], target[rows]
+        steps = min(self.residual_slots, limit, max(1, values.shape[0] // 4))
+        return forward_order(values, target, steps, priority=sizes, tie=2 * SCORE_TIE_TOL)
+
+    def _path_siblings(self, state: _SearchState, evaluator: Evaluator, target: np.ndarray) -> int:
+        """Add the other transforms of each forward-path term's operand to the candidates.
+
+        Transforms of one operand can correlate past ``redundancy_threshold``
+        (``log(x)``, ``sqrt(x)`` and ``1/x`` on a positive range of small
+        spread), so that a depth keeps the best-scoring and drops the rest,
+        although another of them is the one that fits what the leading terms
+        leave. For each term of the path that is an input column or a
+        transform of one operand, the operand and its transforms by
+        ``unary_ops`` join the candidates, so that the final path chooses
+        among them. Returns the number added.
+        """
+        path = self._path(state.selected, state.selected_values, target, len(state.selected))
+        present = set(state.selected)
+        siblings: list[Node] = []
+        for index in path:
+            node = state.selected[index]
+            if not node.children:
+                operand = node
+            elif len(node.children) == 1:
+                operand = node.children[0]
+            else:
+                continue
+            options = [operand] if operand.children or self.include_originals else []
+            if operand.depth < self.max_depth:
+                for op in self.unary_ops:
+                    try:
+                        options.append(transform(op, operand))
+                    except UnitRegistryError:
+                        raise
+                    except UnitError:
+                        continue
+            for option in options:
+                if option in present or (self._constrained and not self._allowed(option)):
+                    continue
+                present.add(option)
+                siblings.append(option)
+        added, values = evaluator.evaluate_many(siblings)
+        if added:
+            state.selected.extend(added)
+            state.selected_scores.extend([0.0] * len(added))
+            state.selected_values = np.column_stack([state.selected_values, values])
+        return len(added)
+
+    def _residual_order(
+        self, nodes: list[Node], values: np.ndarray, scores: np.ndarray, target: np.ndarray, limit: int
+    ) -> np.ndarray:
+        """Admission order of the final ranking with ``residual_slots``: :meth:`_path`, then the rest by score."""
+        path = self._path(nodes, values, target, limit)
+        first = set(path)
+        return np.array(path + [int(index) for index in _rank(nodes, scores) if int(index) not in first], dtype=np.intp)
 
     def _constant_free_copies(
         self,

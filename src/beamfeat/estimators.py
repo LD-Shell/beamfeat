@@ -290,6 +290,21 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             it stopped after one to five terms on 10 of 12 datasets in
             ``benchmarks/three_settings/`` and lowered held-out score on 9.
             Ignored when ``parsimony`` is ``None``.
+        residual_slots: Places of the search's final ranking kept for terms
+            that explain what the leading terms leave. The ranking keeps the
+            ``max_features`` candidates (``beam_width`` by default) that
+            score best against the target, and a dominant term fills it with
+            restatements of itself, so that a weaker term beside it is cut,
+            such as ``log(x3)`` in ``x0*x1/x2 + 0.5*log(x3)``. ``"auto"``
+            (default) gives 10 places for regression to the first terms of a
+            greedy forward path through the search's candidates, each the
+            one that adds most to a least-squares fit of those before it; a
+            path term is first compared with the other transforms of its
+            operand, which the search may have dropped as near copies
+            (``log(x3)`` beside ``1/x3``). ``0`` gives none, the default
+            before 0.8.0. The path is part of the search, on the search rows
+            only (see :class:`~beamfeat.search.BeamSearch`), so the screen's
+            guarantee is unchanged. A positive value is for regression only.
 
     Attributes:
         features_: Selected :class:`~beamfeat.expression.Node` expressions.
@@ -389,6 +404,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
+        residual_slots: int | str = "auto",
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -417,6 +433,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             magnitude_slots=magnitude_slots,
             input_test=input_test,
             parsimony_alpha=parsimony_alpha,
+            residual_slots=residual_slots,
         )
         self.problem_type = problem_type
 
@@ -517,6 +534,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
+        residual_slots: int | str = "auto",
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -545,6 +563,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             magnitude_slots=magnitude_slots,
             input_test=input_test,
             parsimony_alpha=parsimony_alpha,
+            residual_slots=residual_slots,
         )
         self.alpha = alpha
 
@@ -773,6 +792,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
+        residual_slots: int | str = "auto",
     ) -> None:
         super().__init__(
             scorer=scorer,
@@ -801,6 +821,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
             magnitude_slots=magnitude_slots,
             input_test=input_test,
             parsimony_alpha=parsimony_alpha,
+            residual_slots=residual_slots,
         )
         self.C = C
 

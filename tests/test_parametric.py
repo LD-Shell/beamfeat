@@ -844,24 +844,26 @@ class TestRecovery:
         assert len(model.formulas()) == 1
         assert _proportional(model.to_sympy()[0], sympy.sympify(law))
 
-    def test_additive_logarithm_is_not_found(self):
+    def test_additive_logarithm_is_kept_by_the_search(self):
         # y = x0*x1/x2 + 0.5*log(x3): the logarithm carries 0.6% of the
-        # target's variance (|corr| 0.08 with y). It is representable without
-        # any constant, and survives the depth-1 beam, but the search's final
-        # ranking scores every candidate against the raw target and keeps the
-        # best max_features (here beam_width=50); log(x3) ranks below fifty
-        # restatements of x0*x1/x2. Fitted constants do not change that:
-        # log_shift(x3) has the same small correlation. Recorded as current
-        # behaviour, with and without fitted_ops.
+        # target's variance (|corr| 0.08 with y). Ranked by score against the
+        # raw target, it falls below fifty restatements of x0*x1/x2 and is
+        # cut (residual_slots=0), and log(x3), sqrt(x3) and 1/x3 correlate
+        # past the redundancy threshold on [1, 5], so a depth keeps only one.
+        # The residual slots' forward path compares them and keeps log(x3),
+        # with or without fitted constants. The screen on 250 selection rows
+        # fails to reject its null: at |corr| 0.08 that takes a few thousand
+        # rows (tests/test_estimators.py).
         rng = np.random.default_rng(1)
         X = rng.uniform(1, 5, (500, 4))
         signal = X[:, 0] * X[:, 1] / X[:, 2] + 0.5 * np.log(X[:, 3])
         y = signal + rng.normal(0, 1e-3 * np.std(signal), 500)
         for fitted_ops in ((), FITTED):
+            plain = BeamFeatRegressor(random_state=0, fitted_ops=fitted_ops, residual_slots=0).fit(X, y)
+            assert not any("log(x3" in name for name in plain.search_result_.names)
             model = BeamFeatRegressor(random_state=0, fitted_ops=fitted_ops).fit(X, y)
             assert model.score(X, signal) > 0.99
-            assert not any("log(x3" in name for name in model.search_result_.names)
-            assert not any("log(x3" in formula for formula in model.formulas())
+            assert "log(x3)" in model.search_result_.names
 
 
 class TestNullTargets:

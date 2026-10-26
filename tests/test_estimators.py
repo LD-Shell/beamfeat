@@ -99,6 +99,10 @@ class TestApiConventions:
         assert cls().get_params()["magnitude_slots"] == "auto"
         assert clone(cls(magnitude_slots=5)).magnitude_slots == 5
 
+    def test_residual_slots_is_a_parameter(self, cls):
+        assert cls().get_params()["residual_slots"] == "auto"
+        assert clone(cls(residual_slots=5)).residual_slots == 5
+
     def test_clone(self, cls):
         estimator = cls(max_depth=3, beam_width=17)
         cloned = clone(estimator)
@@ -778,6 +782,36 @@ class TestConfiguration:
         X, y = classification_data
         with pytest.raises(ValueError, match="magnitude_slots"):
             _fast(BeamFeatClassifier, magnitude_slots=3).fit(X, y)
+
+    def test_residual_slots_find_a_weak_term_beside_a_dominant_one(self):
+        rng = np.random.default_rng(1)
+        X = rng.uniform(1, 5, (2000, 4))
+        signal = X[:, 0] * X[:, 1] / X[:, 2] + 0.5 * np.log(X[:, 3])
+        y = signal + rng.normal(0, 0.1 * np.std(signal), 2000)
+        plain = BeamFeatRegressor(random_state=0, residual_slots=0).fit(X, y)
+        assert "log(x3)" not in plain.formulas()
+        model = BeamFeatRegressor(random_state=0).fit(X, y)
+        assert sorted(model.formulas()) == ["((x0 / x2) * x1)", "log(x3)"]
+        assert model.fdr_controlled_
+
+    def test_residual_slots_auto_is_ten_for_regression_and_none_for_classification(self):
+        assert BeamFeatRegressor()._residual_slots() == 10
+        assert BeamFeatTransformer()._residual_slots() == 10
+        assert BeamFeatClassifier()._residual_slots() == 0
+        classifying = BeamFeatTransformer(problem_type="classification")
+        classifying._problem_type = classifying.problem_type  # as fit sets it
+        assert classifying._residual_slots() == 0
+        assert BeamFeatRegressor(residual_slots=4)._residual_slots() == 4
+
+    def test_residual_slots_rejects_other_strings(self, regression_data):
+        X, y = regression_data
+        with pytest.raises(ValueError, match="residual_slots must be 'auto'"):
+            _fast(BeamFeatRegressor, residual_slots="many").fit(X, y)
+
+    def test_residual_slots_raise_for_classification(self, classification_data):
+        X, y = classification_data
+        with pytest.raises(ValueError, match="residual_slots"):
+            _fast(BeamFeatClassifier, residual_slots=3).fit(X, y)
 
     def test_alpha_affects_regressor(self, regression_data):
         X, y = regression_data

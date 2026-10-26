@@ -820,6 +820,79 @@ class TestMagnitudeSlots:
 # --------------------------------------------------------------------------- #
 
 
+def _dominant_and_weak(n=1000, noise=1e-3, seed=1):
+    """``x0*x1/x2 + 0.5*log(x3)`` on [1, 5]: the logarithm carries 0.6% of the variance."""
+    rng = np.random.default_rng(seed)
+    X = rng.uniform(1, 5, (n, 4))
+    signal = X[:, 0] * X[:, 1] / X[:, 2] + 0.5 * np.log(X[:, 3])
+    target = signal + rng.normal(0, noise * np.std(signal), n)
+    return {f"x{i}": X[:, i] for i in range(4)}, target
+
+
+class TestResidualSlots:
+    def test_zero_changes_nothing(self, rng):
+        data, target = _awkward_data(rng)
+        plain = BeamSearch(max_depth=3, beam_width=15).run(data, target)
+        idle = BeamSearch(max_depth=3, beam_width=15, residual_slots=0).run(data, target)
+        assert _signature(idle) == _signature(plain)
+
+    def test_keeps_a_weak_term_beside_a_dominant_one(self):
+        data, target = _dominant_and_weak()
+        plain = BeamSearch(max_depth=2, beam_width=50, magnitude_slots=10).run(data, target)
+        assert "log(x3)" not in plain.names
+        slots = BeamSearch(max_depth=2, beam_width=50, magnitude_slots=10, residual_slots=10).run(data, target)
+        assert "log(x3)" in slots.names
+        assert len(slots.nodes) == len(plain.nodes) == 50
+
+    def test_kept_in_score_order(self):
+        data, target = _dominant_and_weak()
+        result = BeamSearch(max_depth=2, beam_width=50, residual_slots=10).run(data, target)
+        assert np.all(np.diff(result.scores) <= 1e-6)
+
+    def test_the_path_chooses_among_transforms_of_one_operand(self):
+        # log(x3), sqrt(x3) and 1/x3 correlate past 0.95 on [1, 5], so the
+        # first depth keeps one of them; the path compares them all.
+        data, target = _dominant_and_weak()
+        result = BeamSearch(max_depth=2, beam_width=50, residual_slots=10).run(data, target)
+        assert "log(x3)" in result.names
+        assert not ({"sqrt(x3)", "1/(x3)"} & set(result.names))
+
+    def test_transforms_respect_include_originals_and_depth(self):
+        data, target = _dominant_and_weak()
+        no_originals = BeamSearch(max_depth=2, beam_width=20, residual_slots=5, include_originals=False)
+        assert not any(node.depth == 0 for node in no_originals.run(data, target).nodes)
+        flat = BeamSearch(max_depth=0, beam_width=4, residual_slots=2).run(data, target)
+        assert all(node.depth == 0 for node in flat.nodes)
+
+    def test_transforms_respect_max_inputs(self):
+        data, target = _dominant_and_weak()
+        result = BeamSearch(max_depth=2, beam_width=20, residual_slots=5, max_inputs=2).run(data, target)
+        assert all(len(node.columns()) <= 2 for node in result.nodes)
+
+    def test_at_most_a_quarter_of_the_rows(self):
+        search = BeamSearch(residual_slots=10)
+        values = np.random.default_rng(0).normal(size=(12, 30))
+        target = values[:, 0] + values[:, 1]
+        nodes = [leaf(f"c{j}") for j in range(30)]
+        assert len(search._path(nodes, values, target, limit=50)) == 3
+
+    def test_deterministic(self):
+        data, target = _dominant_and_weak(n=400)
+        first = BeamSearch(max_depth=2, beam_width=20, residual_slots=5).run(data, target)
+        second = BeamSearch(max_depth=2, beam_width=20, residual_slots=5).run(data, target)
+        assert _signature(first) == _signature(second)
+
+    @pytest.mark.parametrize("value", [-1, 1.5, True, "auto"])
+    def test_rejects_non_integers(self, value):
+        with pytest.raises(ValueError, match="residual_slots must be a non-negative integer"):
+            BeamSearch(residual_slots=value)
+
+    def test_regression_only(self):
+        with pytest.raises(ValueError, match="residual_slots is for regression only"):
+            BeamSearch(problem_type="classification", residual_slots=3)
+        BeamSearch(problem_type="classification", residual_slots=0)
+
+
 class TestReporting:
     def test_trace_covers_every_depth(self, rng):
         data = _positive_data(rng)

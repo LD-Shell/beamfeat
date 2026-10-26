@@ -39,6 +39,9 @@ logger = logging.getLogger("beamfeat.estimators")
 # benchmarks/search_stress/ and benchmarks/release_comparison/.
 _AUTO_MAGNITUDE_SLOTS = 10
 
+# Residual slots under residual_slots="auto" for regression.
+_AUTO_RESIDUAL_SLOTS = 10
+
 
 class NoDiscoveriesError(RuntimeError):
     """Raised in ``on_no_discoveries="raise"`` mode when the screen rejects no null."""
@@ -142,6 +145,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
+        residual_slots: int | str = "auto",
     ) -> None:
         self.scorer = scorer
         self.selector = selector
@@ -167,6 +171,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         self.fitted_ops = fitted_ops
         self.certify_test = certify_test
         self.magnitude_slots = magnitude_slots
+        self.residual_slots = residual_slots
         self.input_test = input_test
         self.parsimony_alpha = parsimony_alpha
 
@@ -258,10 +263,10 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                 "on_no_discoveries must be 'empty', 'fallback' or 'raise', "
                 f"got {self.on_no_discoveries!r}"
             )
-        if isinstance(self.magnitude_slots, str) and self.magnitude_slots != "auto":
-            raise ValueError(
-                f"magnitude_slots must be 'auto' or a non-negative integer, got {self.magnitude_slots!r}"
-            )
+        for name in ("magnitude_slots", "residual_slots"):
+            value = getattr(self, name)
+            if isinstance(value, str) and value != "auto":
+                raise ValueError(f"{name} must be 'auto' or a non-negative integer, got {value!r}")
         for name in ("selection_holdout", "parsimony_holdout"):
             value = getattr(self, name)
             if value is None:
@@ -466,6 +471,12 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         if isinstance(self.magnitude_slots, str):
             return 0 if self._problem_type == "classification" else _AUTO_MAGNITUDE_SLOTS
         return self.magnitude_slots
+
+    def _residual_slots(self) -> int:
+        """``residual_slots``, with ``"auto"`` resolved: 10 for regression, none for classification."""
+        if isinstance(self.residual_slots, str):
+            return 0 if self._problem_type == "classification" else _AUTO_RESIDUAL_SLOTS
+        return self.residual_slots
 
     def _setting(self, name: str) -> Any:
         """The estimator's value for a selector setting it shares."""
@@ -806,6 +817,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
             max_inputs=self.max_inputs,
             fitted_ops=self.fitted_ops,
             magnitude_slots=self._magnitude_slots(),
+            residual_slots=self._residual_slots(),
         )
         search_result = search.run(search_data, y[rows.search], units=units)
         self.search_result_ = search_result
