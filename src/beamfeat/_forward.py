@@ -178,6 +178,49 @@ def forward_order(
     return order
 
 
+def _numeric_target(target: np.ndarray, classification: bool) -> np.ndarray:
+    """The target as floats: the forward step fits integer-coded labels for classification."""
+    # Labels are encoded before any numeric cast: the transformer passes
+    # its target through unencoded, and string labels cannot be cast.
+    if classification:
+        _, numeric = np.unique(target, return_inverse=True)
+        return numeric.astype(np.float64)
+    return np.asarray(target, dtype=np.float64)
+
+
+def _chance_stream(random_state: int | None) -> np.random.Generator:
+    """The random stream of the chance checks: the second of the seed, the first being the knockoff selector's."""
+    return np.random.default_rng(np.random.SeedSequence(random_state).spawn(2)[1])
+
+
+def alpha_stop(
+    matrix: np.ndarray,
+    target: np.ndarray,
+    order: list[int],
+    stop: int,
+    *,
+    classification: bool,
+    parsimony_alpha: float,
+    random_state: int | None,
+) -> int:
+    """How many terms the forward step keeps with ``parsimony_alpha``, given its path without.
+
+    With a level the step adds the same terms in the same order, and stops
+    as well at the first whose gain fails to reject the null of chance
+    (:func:`_chance_p_value`, drawn from the same stream), so the count is
+    the first such position before ``stop``, or ``stop``. ``order`` is the
+    path :func:`forward_path` returns without a level.
+    """
+    numeric = _numeric_target(target, classification)
+    if float(np.var(numeric)) < 1e-12:  # pragma: no cover - defensive
+        return stop
+    rng = _chance_stream(random_state)
+    for kept in range(1, stop):
+        if _chance_p_value(matrix, numeric, order[:kept], order[kept:], rng) > parsimony_alpha:
+            return kept
+    return stop
+
+
 def forward_path(
     matrix: np.ndarray,
     target: np.ndarray,
@@ -198,22 +241,12 @@ def forward_path(
     as it computes them, so the subset it keeps does not depend on how far
     the path is followed.
     """
-    # Labels are encoded before any numeric cast: the transformer passes
-    # its target through unencoded, and string labels cannot be cast.
-    if classification:
-        _, numeric = np.unique(target, return_inverse=True)
-        numeric = numeric.astype(np.float64)
-    else:
-        numeric = np.asarray(target, dtype=np.float64)
+    numeric = _numeric_target(target, classification)
     total_variance = float(np.var(numeric))
     if total_variance < 1e-12:  # pragma: no cover - defensive
         return list(screened), [float("nan")] * len(screened), len(screened)
 
-    # The second stream of the seed: the first is the knockoff selector's.
-    rng = (
-        None if parsimony_alpha is None
-        else np.random.default_rng(np.random.SeedSequence(random_state).spawn(2)[1])
-    )
+    rng = None if parsimony_alpha is None else _chance_stream(random_state)
     chosen: list[int] = []
     scores_kept: list[float] = []
     remaining = list(screened)

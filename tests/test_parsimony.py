@@ -348,13 +348,77 @@ class TestParsimonyAlpha:
         assert len(checked.feature_formulas_) < len(plain.feature_formulas_)
         assert [r["formulas"] for r in checked.equations_] == [r["formulas"] for r in plain.equations_]
         assert "parsimony_alpha=0.05" in checked.equations()
-        assert "parsimony_alpha" not in plain.equations()
+        assert "a where parsimony_alpha=0.05 stops" in plain.equations()
+        assert plain._alpha_stop_ == len(checked.feature_formulas_)
 
     def test_seeded(self):
         X, y = self._noisy(0)
         first = _fast(BeamFeatRegressor, selector="permutation", parsimony_alpha=0.5).fit(X, y)
         second = _fast(BeamFeatRegressor, selector="permutation", parsimony_alpha=0.5).fit(X, y)
         assert first.feature_formulas_ == second.feature_formulas_
+
+
+class TestAlphaHint:
+    """At the default forward step, the equation says where ``parsimony_alpha=0.05`` would stop."""
+
+    _noisy = staticmethod(TestParsimonyAlpha._noisy)
+
+    @pytest.mark.parametrize("seed", [0, 1, 2])
+    def test_matches_the_fit_with_the_level(self, seed):
+        X, y = self._noisy(seed)
+        plain = BeamFeatRegressor(random_state=seed).fit(X, y)
+        checked = BeamFeatRegressor(random_state=seed, parsimony_alpha=0.05).fit(X, y)
+        assert plain._alpha_stop_ == len(checked.feature_formulas_)
+        kept = len(checked.feature_formulas_)
+        if kept < len(plain.feature_formulas_):
+            r2 = {record["n_terms"]: record["r2"] for record in plain.equations_}
+            note = (
+                f"parsimony_alpha=0.05 keeps {kept}, selection-row R^2 {r2[kept]:.3f} against "
+                f"{r2[len(plain.feature_formulas_)]:.3f}"
+            )
+            assert note in plain.equation()
+            lines = plain.equations().splitlines()
+            assert any(line.split()[:2] == ["a", str(kept)] for line in lines)
+            assert "a where parsimony_alpha=0.05 stops" in plain.equations()
+
+    def test_the_fit_is_unchanged(self):
+        X, y = self._noisy(0)
+        model = BeamFeatRegressor(random_state=0).fit(X, y)
+        hint = model._alpha_stop_
+        model._alpha_stop_ = None
+        bare = model.equation()
+        model._alpha_stop_ = hint
+        assert model.equation().startswith(bare.split("   [")[0])
+
+    def test_classification_names_no_r2(self, classification_data):
+        X, y = classification_data
+        plain = _fast(BeamFeatClassifier, selector="permutation").fit(X, y)
+        checked = _fast(BeamFeatClassifier, selector="permutation", parsimony_alpha=0.05).fit(X, y)
+        assert plain._alpha_stop_ == len(checked.feature_formulas_)
+        assert "selection-row R^2" not in plain.equation()
+
+    @pytest.mark.parametrize(
+        "kwargs", [{"parsimony_alpha": 0.05}, {"parsimony": None}, {"parsimony_holdout": 0.3}]
+    )
+    def test_none_without_the_default_step(self, kwargs):
+        X, y = self._noisy(0)
+        model = BeamFeatRegressor(random_state=0, **kwargs).fit(X, y)
+        assert model._alpha_stop_ is None
+        assert "parsimony_alpha=0.05 keeps" not in model.equation()
+        assert "a where parsimony_alpha" not in model.equations()
+
+    def test_none_when_the_level_keeps_as_many(self, regression_data):
+        X, y = regression_data
+        model = _fast(BeamFeatRegressor, selector="permutation").fit(X, y)
+        assert model._alpha_stop_ == len(model.feature_formulas_)
+        assert "parsimony_alpha=0.05 keeps" not in model.equation()
+
+    def test_a_model_saved_without_it_renders(self):
+        X, y = self._noisy(0)
+        model = BeamFeatRegressor(random_state=0).fit(X, y)
+        del model._alpha_stop_
+        assert "parsimony_alpha=0.05 keeps" not in model.equation()
+        assert "a where parsimony_alpha" not in model.equations()
 
 
 class TestInflationOfTheReturnedSet:

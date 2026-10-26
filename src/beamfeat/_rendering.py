@@ -249,14 +249,35 @@ class _EquationsMixin:
     ``fdr_controlled_``, ``fdr_scope_`` and ``n_features_out_``.
     """
 
-    def _parsimony_note(self) -> str:
-        """Suffix for ``equation()`` when the printed terms are a strict subset.
+    def _alpha_hint(self, of_these: bool) -> str:
+        """Where ``parsimony_alpha=0.05`` would stop, when it would print fewer terms; empty otherwise.
 
-        Empty whenever the printed terms *are* the certified ones, which is
-        what :attr:`fdr_scope_` already decides.
+        Set by a fit at the default forward step, without ``parsimony_alpha``
+        or a re-test: the step with that level would add the same terms in
+        the same order and stop at the first whose gain fails to reject the
+        null of chance. For regression it gives the in-sample R^2 on the
+        selection rows of both equations, from :attr:`equations_`.
+        """
+        stop = getattr(self, "_alpha_stop_", None)
+        marked = [record for record in (getattr(self, "equations_", None) or []) if record["model"]]
+        if stop is None or not marked or stop >= marked[0]["n_terms"]:
+            return ""
+        kept = marked[0]["n_terms"]
+        text = f"parsimony_alpha=0.05 keeps {stop}" + (f" of these {kept} terms" if of_these else "")
+        if self._problem_type == "classification":
+            return text
+        r2 = {record["n_terms"]: record["r2"] for record in self.equations_}
+        return f"{text}, selection-row R^2 {r2[stop]:.3f} against {r2[kept]:.3f}"
+
+    def _parsimony_note(self) -> str:
+        """Suffix for ``equation()`` when the printed terms are a strict subset, or :meth:`_alpha_hint` would cut them.
+
+        Without the hint, empty whenever the printed terms *are* the
+        certified ones, which is what :attr:`fdr_scope_` already decides.
         """
         if getattr(self, "fdr_scope_", None) != "screened set":
-            return ""
+            hint = self._alpha_hint(of_these=True)
+            return f"   [{hint}]" if hint else ""
         screened, kept = int(self.selection_result_.n_selected), int(self.n_features_out_)
         # A subset can also arise without the parsimony step, when a screened
         # expression cannot be evaluated on the full training data; pointing
@@ -267,6 +288,9 @@ class _EquationsMixin:
         )
         if dropped:
             remedy += f"; input_test dropped {dropped}"
+        hint = self._alpha_hint(of_these=False)
+        if hint:
+            remedy += f"; {hint}"
         return f"   [{kept} of {screened} certified terms{remedy}]"
 
     def _latex_parsimony_note(self) -> str:
@@ -321,9 +345,10 @@ class _EquationsMixin:
             return "no equation list: the screen rejected no null"
 
         screened = len(self.equations_)
+        alpha_line = getattr(self, "_alpha_stop_", None) if self._alpha_hint(of_these=False) else None
         rows = [
             (
-                "*" if record["model"] else "",
+                "*" if record["model"] else "a" if record["n_terms"] == alpha_line else "",
                 str(record["n_terms"]),
                 str(record["complexity"]),
                 f"{record['r2']:.{precision}f}",
@@ -337,6 +362,7 @@ class _EquationsMixin:
             if max_n_terms is None
             or record["n_terms"] <= max_n_terms
             or record["model"]
+            or record["n_terms"] == alpha_line
         ]
         header = ("", "k", "complexity", "R^2", "gain", "equation")
         widths = [max(len(row[column]) for row in [header, *rows]) for column in range(5)]
@@ -367,6 +393,11 @@ class _EquationsMixin:
         if previous < screened:
             lines.append(elided)
         lines.append(self._path_model_note())
+        if alpha_line is not None:
+            lines.append(
+                "a where parsimony_alpha=0.05 stops: the next term's gain fails to reject the "
+                "null that chance reaches it."
+            )
         lines.append(self._path_scope_note(screened))
         return "\n".join(lines)
 

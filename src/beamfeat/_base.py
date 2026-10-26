@@ -18,7 +18,7 @@ import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
-from beamfeat._forward import forward_path
+from beamfeat._forward import alpha_stop, forward_path
 from beamfeat._prediction import _evaluate_by_row
 from beamfeat._rendering import _equation_list, _EquationsMixin
 from beamfeat.expression import Evaluator, Node, _import_sympy, _sympy_symbols
@@ -38,6 +38,10 @@ logger = logging.getLogger("beamfeat.estimators")
 # Magnitude slots under magnitude_slots="auto" for regression: the setting of
 # benchmarks/search_stress/ and benchmarks/release_comparison/.
 _AUTO_MAGNITUDE_SLOTS = 10
+
+# The level whose stopping point the equation shows beside the default
+# forward step's (see _EquationsMixin._alpha_hint).
+_HINT_ALPHA = 0.05
 
 # Residual slots under residual_slots="auto" for regression.
 _AUTO_RESIDUAL_SLOTS = 10
@@ -892,6 +896,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         candidates screened, and the forward path when one was taken.
         """
         forward_path = None
+        self._alpha_stop_ = None
         selection_rows = rows.selection if rows.use_holdout else np.arange(X.shape[0])
         selection_data = {name: X[selection_rows, index] for index, name in enumerate(feature_names)}
         evaluator = Evaluator(selection_data, units=units)
@@ -1012,12 +1017,23 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
         keep_order = self._parsimonious_subset(
             matrix, selection_target, eligible, forward_path
         )
+        if self.parsimony is not None and self.parsimony_alpha is None and not rows.use_certify:
+            self._alpha_stop_ = alpha_stop(
+                matrix, selection_target, forward_path[0], forward_path[2],
+                classification=self._problem_type == "classification",
+                parsimony_alpha=_HINT_ALPHA, random_state=self.random_state,
+            )
+        hint = (
+            f"; parsimony_alpha={_HINT_ALPHA:g} would keep {self._alpha_stop_}"
+            if self._alpha_stop_ is not None and self._alpha_stop_ < len(keep_order)
+            else ""
+        )
         report(
             self.verbose,
             1,
             f"parsimony: {len(eligible)} certified -> "
             f"{len(keep_order)} term{'' if len(keep_order) == 1 else 's'}"
-            f" (|S|/|S'| = {len(eligible) / len(keep_order):.2f})"
+            f" (|S|/|S'| = {len(eligible) / len(keep_order):.2f}){hint}"
             if self.parsimony is not None
             else f"parsimony: off, keeping all {len(eligible)} "
             f"certified term{'' if len(eligible) == 1 else 's'}",
