@@ -860,9 +860,9 @@ class TestRecovery:
         signal = X[:, 0] * X[:, 1] / X[:, 2] + 0.5 * np.log(X[:, 3])
         y = signal + rng.normal(0, 1e-3 * np.std(signal), 500)
         for fitted_ops in ((), FITTED):
-            plain = BeamFeatRegressor(random_state=0, fitted_ops=fitted_ops, residual_slots=0).fit(X, y)
+            plain = BeamFeatRegressor(random_state=0, fitted_ops=fitted_ops).fit(X, y)
             assert not any("log(x3" in name for name in plain.search_result_.names)
-            model = BeamFeatRegressor(random_state=0, fitted_ops=fitted_ops).fit(X, y)
+            model = BeamFeatRegressor(random_state=0, fitted_ops=fitted_ops, residual_slots=10).fit(X, y)
             assert model.score(X, signal) > 0.99
             assert "log(x3)" in model.search_result_.names
 

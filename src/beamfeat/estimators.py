@@ -302,16 +302,20 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             default) that score best against the target, and a dominant
             term fills it with restatements of itself, so that a weaker term
             beside it is cut, such as ``log(x3)`` in
-            ``x0*x1/x2 + 0.5*log(x3)``. ``"auto"`` (default) adds up to 10
-            places for regression for the first terms of a greedy forward
-            path through the search's candidates, each the one that adds
-            most to a least-squares fit of those before it; a path term
-            replaces a ranked near copy of itself, and is first compared
-            with the other transforms of its operand, which the search may
-            have dropped as near copies (``log(x3)`` beside ``1/x3``). ``0``
-            adds none, the default before 0.8.0. The path is part of the search, on the search rows
-            only (see :class:`~beamfeat.search.BeamSearch`), so the screen's
-            guarantee is unchanged. A positive value is for regression only.
+            ``x0*x1/x2 + 0.5*log(x3)``. A positive value adds up to that
+            many places for the first terms of a greedy forward path through
+            the search's candidates, each the one that adds most to a
+            least-squares fit of those before it; a path term replaces a
+            ranked near copy of itself, and is first compared with the other
+            transforms of its operand, which the search may have dropped as
+            near copies (``log(x3)`` beside ``1/x3``). ``0`` (default) adds
+            none. The path terms explain what the leading terms leave, noise
+            as well as a weak term, so on their own they add riders that the
+            forward step keeps; ``parsimony_alpha=0.05`` beside them stops
+            the riders and keeps the weak term. The path is part of the
+            search, on the search rows only (see
+            :class:`~beamfeat.search.BeamSearch`), so the screen's guarantee
+            is unchanged. A positive value is for regression only.
         max_search_rows: Most rows the search runs on, or ``None``
             (default) for every search row. The search's time and memory
             grow with its rows, while a strong term stands out on a few
@@ -422,7 +426,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
-        residual_slots: int | str = "auto",
+        residual_slots: int = 0,
         max_search_rows: int | None = None,
     ) -> None:
         super().__init__(
@@ -554,7 +558,7 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
-        residual_slots: int | str = "auto",
+        residual_slots: int = 0,
         max_search_rows: int | None = None,
     ) -> None:
         super().__init__(
@@ -814,7 +818,7 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
         magnitude_slots: int | str = "auto",
         input_test: bool = False,
         parsimony_alpha: float | None = None,
-        residual_slots: int | str = "auto",
+        residual_slots: int = 0,
         max_search_rows: int | None = None,
     ) -> None:
         super().__init__(

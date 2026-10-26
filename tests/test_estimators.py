@@ -100,7 +100,7 @@ class TestApiConventions:
         assert clone(cls(magnitude_slots=5)).magnitude_slots == 5
 
     def test_residual_slots_is_a_parameter(self, cls):
-        assert cls().get_params()["residual_slots"] == "auto"
+        assert cls().get_params()["residual_slots"] == 0
         assert clone(cls(residual_slots=5)).residual_slots == 5
 
     def test_max_search_rows_is_a_parameter(self, cls):
@@ -795,25 +795,25 @@ class TestConfiguration:
         X = rng.uniform(1, 5, (2000, 4))
         signal = X[:, 0] * X[:, 1] / X[:, 2] + 0.5 * np.log(X[:, 3])
         y = signal + rng.normal(0, 0.1 * np.std(signal), 2000)
-        plain = BeamFeatRegressor(random_state=0, residual_slots=0).fit(X, y)
+        plain = BeamFeatRegressor(random_state=0).fit(X, y)
         assert "log(x3)" not in plain.formulas()
-        model = BeamFeatRegressor(random_state=0).fit(X, y)
-        assert sorted(model.formulas()) == ["((x0 / x2) * x1)", "log(x3)"]
-        assert model.fdr_controlled_
+        for options in ({}, {"parsimony_alpha": 0.05}):
+            model = BeamFeatRegressor(random_state=0, residual_slots=10, **options).fit(X, y)
+            assert sorted(model.formulas()) == ["((x0 / x2) * x1)", "log(x3)"]
+            assert model.fdr_controlled_
 
-    def test_residual_slots_auto_is_ten_for_regression_and_none_for_classification(self):
-        assert BeamFeatRegressor()._residual_slots() == 10
-        assert BeamFeatTransformer()._residual_slots() == 10
-        assert BeamFeatClassifier()._residual_slots() == 0
-        classifying = BeamFeatTransformer(problem_type="classification")
-        classifying._problem_type = classifying.problem_type  # as fit sets it
-        assert classifying._residual_slots() == 0
-        assert BeamFeatRegressor(residual_slots=4)._residual_slots() == 4
-
-    def test_residual_slots_rejects_other_strings(self, regression_data):
+    def test_residual_slots_default_changes_nothing(self, regression_data):
         X, y = regression_data
-        with pytest.raises(ValueError, match="residual_slots must be 'auto'"):
-            _fast(BeamFeatRegressor, residual_slots="many").fit(X, y)
+        plain = _fast(BeamFeatRegressor).fit(X, y)
+        explicit = _fast(BeamFeatRegressor, residual_slots=0).fit(X, y)
+        assert explicit.formulas() == plain.formulas()
+        np.testing.assert_array_equal(explicit.predict(X), plain.predict(X))
+
+    @pytest.mark.parametrize("value", ["auto", -1, 1.5, True])
+    def test_residual_slots_rejects_non_integers(self, regression_data, value):
+        X, y = regression_data
+        with pytest.raises(ValueError, match="residual_slots must be a non-negative integer"):
+            _fast(BeamFeatRegressor, residual_slots=value).fit(X, y)
 
     @pytest.mark.parametrize("value", [0, -5, 2.5, True, "all"])
     def test_max_search_rows_rejects_other_values(self, regression_data, value):

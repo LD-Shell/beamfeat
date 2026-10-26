@@ -53,8 +53,9 @@ class TestSign:
         X, signal, y = _switch(0.0, seed)
         default = BeamFeatRegressor(random_state=seed).fit(X, y)
         model = BeamFeatRegressor(random_state=seed, unary_ops=DEFAULT_UNARY + ("sign",)).fit(X, y)
-        assert "(x2 * sign(x0))" in model.formulas()
-        assert model.score(X, signal) > 0.999 > default.score(X, signal)
+        assert model.formulas()[0] == "(x2 * sign(x0))"
+        assert model.score(X, signal) > 0.995
+        assert default.score(X, signal) < 0.8
 
 
 class TestSignShift:
@@ -80,5 +81,6 @@ class TestSignShift:
             warnings.simplefilter("ignore")
             plain = BeamFeatRegressor(random_state=seed, unary_ops=DEFAULT_UNARY + ("sign",)).fit(X, y)
         model = BeamFeatRegressor(random_state=seed, fitted_ops=DEFAULT_FITTED + ("sign_shift",)).fit(X, y)
-        assert "(x2 * sign(x0 - 0.7))" in model.formulas()
-        assert model.score(X, signal) > 0.999 > plain.score(X, signal)
+        assert model.formulas()[0] == "(x2 * sign(x0 - 0.7))"
+        assert model.score(X, signal) > 0.995
+        assert plain.score(X, signal) < 0.9

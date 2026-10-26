@@ -32,8 +32,7 @@ but the last keeps a few more candidates, those whose magnitude best tracks
 the target's (see :func:`magnitude_scores`), and a first depth too wide to
 propose every pair proposes those inputs early.
 
-**Residual slots** (``residual_slots``), off by default here and on by
-default in the estimators for regression. The final ranking keeps the
+**Residual slots** (``residual_slots``), off by default. The final ranking keeps the
 ``max_features`` candidates that score best against the target, and a
 dominant term fills it with restatements of itself, so that a weaker term
 beside it, such as ``log(x3)`` in ``x0*x1/x2 + 0.5*log(x3)``, is cut although
