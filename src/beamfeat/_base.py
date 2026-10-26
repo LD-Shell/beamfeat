@@ -305,16 +305,13 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
             and self.parsimony is not None
             and self.parsimony_alpha is None
         ):
-            warnings.warn(
-                "beamfeat: certify_test='conditional' after the forward step without "
-                "parsimony_alpha is deprecated and will raise from 0.8. On a noisy target the "
-                "forward step passes the re-test riders it cannot certify, and the whole "
-                "screened set is then returned: 40 terms on diabetes and mpg in "
-                "benchmarks/release_comparison. Pass parsimony_alpha=0.05, which stops the step "
-                "at the first gain chance can reach, or parsimony=None to re-test the whole "
-                "screened set.",
-                FutureWarning,
-                stacklevel=3,
+            raise ValueError(
+                "certify_test='conditional' after the forward step needs parsimony_alpha. "
+                "On a noisy target the forward step hands the re-test riders it cannot "
+                "certify, and the whole screened set is then returned: 40 terms on diabetes "
+                "and mpg in benchmarks/release_comparison. Pass parsimony_alpha=0.05, which "
+                "stops the step at the first gain chance can reach, or parsimony=None to "
+                "re-test the whole screened set."
             )
         if not isinstance(self.input_test, (bool, np.bool_)):
             raise ValueError(f"input_test must be True or False, got {self.input_test!r}")

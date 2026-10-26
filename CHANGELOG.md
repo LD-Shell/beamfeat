@@ -16,6 +16,14 @@ Notable changes to `beamfeat`. Format follows
   their p-values and what was kept. It reads the equation with sympy, from the
   `display` extra.
 
+### Removed
+
+- `certify_test="conditional"` after the forward step without
+  `parsimony_alpha`, deprecated in 0.7.0, raises a `ValueError`. Pass
+  `parsimony_alpha=0.05`, or `parsimony=None` to re-test the whole screened
+  set. The studies in `benchmarks/parsimony_holdout/` that ran the combination
+  reproduce with 0.7.0.
+
 ## [0.7.0] - 2026-10-25
 
 Two changes to fits, under "Changed": `magnitude_slots="auto"`, 10 beam

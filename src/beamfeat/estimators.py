@@ -229,7 +229,7 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             After the forward step ``"conditional"`` needs ``parsimony_alpha``:
             without it the step hands the re-test riders it cannot certify,
             and on noisy data the screened set comes back in most fits, so
-            that combination is deprecated, warns, and will raise from 0.8.
+            that combination raises.
             With ``parsimony=None`` the re-test sees the whole screened set
             and needs no ``parsimony_alpha``. Regression only; ignored when
             ``parsimony_holdout`` is ``None``. See the guarantees page for its

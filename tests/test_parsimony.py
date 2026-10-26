@@ -161,14 +161,14 @@ class TestCertifyTest:
         assert conditional.certification_result_.method == "conditional_permutation"
         assert conditional.fdr_scope_ == "printed equation"
 
-    @pytest.mark.filterwarnings("ignore:beamfeat. certify_test='conditional' after the forward step:FutureWarning")
     def test_conditional_keeps_true_terms(self):
         rng = np.random.default_rng(0)
         X = rng.uniform(0.5, 3.0, (600, 5))
         y = X[:, 0] + X[:, 1] * X[:, 2] + rng.normal(0, 0.5, 600)
         fits = {
             test: BeamFeatTransformer(
-                max_depth=1, parsimony_holdout=0.5, certify_test=test, random_state=0
+                max_depth=1, parsimony_holdout=0.5, certify_test=test, random_state=0,
+                parsimony_alpha=0.05 if test == "conditional" else None,
             ).fit(X, y)
             for test in ("marginal", "conditional")
         }
@@ -180,20 +180,19 @@ class TestCertifyTest:
         assert sorted(map(sorted, columns)) == [["x0"], ["x1", "x2"]]
         assert fits["marginal"].n_features_out_ > conditional.n_features_out_
 
-    @pytest.mark.filterwarnings("ignore:beamfeat. certify_test='conditional' after the forward step:FutureWarning")
     def test_conditional_keeps_the_planted_formula(self, regression_data):
         X, y = regression_data
         model = BeamFeatTransformer(
             max_depth=2, beam_width=20, parsimony_holdout=0.5, certify_test="conditional",
-            random_state=0,
+            parsimony_alpha=0.05, random_state=0,
         ).fit(X, y)
         assert model.certification_result_.n_selected == model.n_features_out_ >= 1
         planted = (X[:, 0] * X[:, 1]) / X[:, 2]
         assert any(abs(np.corrcoef(column, planted)[0, 1]) > 0.999 for column in model.transform(X).T)
 
-    def test_conditional_after_the_forward_step_without_alpha_is_deprecated(self, regression_data):
+    def test_conditional_after_the_forward_step_without_alpha_raises(self, regression_data):
         X, y = regression_data
-        with pytest.warns(FutureWarning, match="certify_test='conditional' after the forward step"):
+        with pytest.raises(ValueError, match="certify_test='conditional' after the forward step needs"):
             _fast(
                 BeamFeatRegressor, selector="permutation", parsimony_holdout=0.5, certify_test="conditional"
             ).fit(X, y)
@@ -201,14 +200,12 @@ class TestCertifyTest:
     @pytest.mark.parametrize(
         "kwargs", [{"parsimony_alpha": 0.05}, {"parsimony": None}, {"parsimony_holdout": None}]
     )
-    def test_conditional_is_not_deprecated_with_alpha_without_the_step_or_without_a_re_test(
+    def test_conditional_runs_with_alpha_without_the_step_or_without_a_re_test(
         self, regression_data, kwargs
     ):
         X, y = regression_data
         settings = {"selector": "permutation", "parsimony_holdout": 0.5, "certify_test": "conditional", **kwargs}
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", FutureWarning)
-            _fast(BeamFeatRegressor, **settings).fit(X, y)
+        _fast(BeamFeatRegressor, **settings).fit(X, y)
 
     def test_marginal_is_the_default_and_unchanged(self, regression_data):
         X, y = regression_data
@@ -232,7 +229,6 @@ class TestCertifyTest:
         assert conditional.formulas() == plain.formulas()
         np.testing.assert_array_equal(conditional.predict(X), plain.predict(X))
 
-    @pytest.mark.filterwarnings("ignore:beamfeat. certify_test='conditional' after the forward step:FutureWarning")
     def test_runs_at_the_screens_level_and_correction(self, regression_data):
         from beamfeat.selection import _adjusted_p_values
 
@@ -242,7 +238,8 @@ class TestCertifyTest:
             # the instance's settings override the estimator's, which it says
             warnings.simplefilter("ignore", UserWarning)
             model = _fast(
-                BeamFeatRegressor, selector=selector, parsimony_holdout=0.5, certify_test="conditional"
+                BeamFeatRegressor, selector=selector, parsimony_holdout=0.5, certify_test="conditional",
+                parsimony_alpha=0.05,
             ).fit(X, y)
         result = model.certification_result_
         assert result.target_fdr == 0.2

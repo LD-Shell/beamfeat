@@ -111,6 +111,10 @@ BLAS or scikit-learn can move a borderline permutation count or a ridge
 penalty and so a few records; the tables should then agree within their
 standard errors, not to the digit.
 
+The settings that run the conditional re-test after the forward step without
+`parsimony_alpha` (`conditional_0.3`, `conditional_0.5`) raise from 0.8;
+rerun them with 0.7.0.
+
 ## Scope
 
 One formula, one operator set, two noise levels, inputs on a bounded positive

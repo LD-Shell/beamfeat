@@ -137,7 +137,7 @@ so). After the forward step that happened in about nine fits in ten at a
 signal-to-noise ratio of 1 (`benchmarks/parsimony_holdout/`). So after the
 forward step the conditional re-test needs `parsimony_alpha` (above), which
 brings the fallback under one fit in a hundred; without it the combination
-is deprecated since 0.7.0 and will raise from 0.8. The example above
+raises a `ValueError`. The example above
 re-tests the whole screened set (`parsimony=None`) and needs no
 `parsimony_alpha`. Both re-tests cost rows: hold back a fraction only when
 the selection rows number a few hundred or more.

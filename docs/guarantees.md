@@ -359,9 +359,9 @@ happened in 87 to 92% of fits at a ratio of 1 and in 18 to 26% at 3 (37 to
 52% with 300 rows, under 1% with 1,000). `certification_result_.n_selected`
 is 0 on such a fit. With the chance check below, the fallback all but
 disappears: under 1% of fits at a ratio of 1. The conditional re-test after
-the forward step without `parsimony_alpha` is deprecated: it warns with a
-`FutureWarning`, and will raise from 0.8. With
-`parsimony=None`, which re-tests the whole screened set, it is unchanged.
+the forward step without `parsimony_alpha` raises a `ValueError`. With
+`parsimony=None`, which re-tests the whole screened set, it needs no
+`parsimony_alpha`.
 
 **The forward step's chance check, `parsimony_alpha`.** The riders above
 are a property of the forward step's stopping rule. The best of the many
