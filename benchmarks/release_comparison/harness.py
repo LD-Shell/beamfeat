@@ -74,6 +74,14 @@ CONFIGS = {
         "conditional_retest": {"parsimony_holdout": 0.3, "certify_test": "conditional"},
         "alpha_conditional": {"parsimony_alpha": 0.05, "parsimony_holdout": 0.3, "certify_test": "conditional"},
     },
+    "0.8.0": {
+        "default": {},
+        # 0.7.0's default, which 0.8.0 gives with the residual slots off.
+        "no_residual_slots": {"residual_slots": 0},
+        "parsimony_alpha": {"parsimony_alpha": 0.05},
+        # The opt-in switch at zero.
+        "sign": {"unary_ops": ("log", "sqrt", "reciprocal", "square", "abs", "sign")},
+    },
 }
 REGRESSION_ONLY = {"magnitude_slots", "conditional_retest", "alpha_conditional"}
 COLUMN = re.compile(r"x(\d+)")

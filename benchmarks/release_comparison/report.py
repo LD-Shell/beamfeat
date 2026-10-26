@@ -12,10 +12,11 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 R = HERE / "results"
 RELEASES = [("0.4.2", "default"), ("0.5.0", "default"), ("0.6.0", "default"), ("0.6.1", "default"),
-            ("0.7.0", "default")]
+            ("0.7.0", "default"), ("0.8.0", "default")]
 OPTIONS = [("0.6.0", "no_fitted_ops"), ("0.6.0", "magnitude_slots"), ("0.6.0", "input_test"),
            ("0.6.0", "conditional_retest"), ("0.6.0", "bh"), ("0.6.1", "parsimony_alpha"),
-           ("0.6.1", "alpha_input_test"), ("0.7.0", "conditional_retest"), ("0.7.0", "alpha_conditional")]
+           ("0.6.1", "alpha_input_test"), ("0.7.0", "conditional_retest"), ("0.7.0", "alpha_conditional"),
+           ("0.8.0", "no_residual_slots"), ("0.8.0", "parsimony_alpha"), ("0.8.0", "sign")]
 GROUPS = ["null", "planted_snr1", "planted_snr3", "proxy_snr1", "proxy_snr3"]
 SYNTHETIC = {"product", "ratio", "three_way", "log_linear", "sqrt_ratio", "quadratic", "inverse_square",
              "physics_kinetic", "sparse_10col", "purely_linear", "friedman1", "heavy_tail_t2",
@@ -59,19 +60,43 @@ def perf_rows(name):
     return [json.loads(line) for line in path.open()] if path.exists() else []
 
 
+# The timing passes, each run on its own: the main one, then 0.4.2 beside
+# 0.5.0, 0.7.0 beside 0.6.1 and 0.8.0 beside 0.7.0.
+PASSES = ("perf.jsonl", "perf_042.jsonl", "perf_070.jsonl", "perf_080.jsonl")
+
+
+def _pass_settings(name):
+    return {(r["version"], r["config"]) for r in perf_rows(name)}
+
+
 def perf_ratio(a, b, metric):
     """Geometric mean over items of median(b) / median(a), within the pass that timed both.
 
-    0.4.2 was timed in a pass of its own beside 0.5.0, and 0.7.0 in one beside
-    0.6.1. A ratio between 0.7.0 and 0.5.0 is chained through 0.6.1, which the
-    0.7.0 pass and the main pass share.
+    Settings timed in different passes are compared through the settings the
+    passes share: 0.7.0 against 0.5.0 through 0.6.1, which the 0.7.0 pass
+    and the main pass share, and 0.8.0 through 0.7.0 as well.
     """
-    if "0.7.0" in (a[0], b[0]) and "0.5.0" in (a[0], b[0]):
-        bridge = ("0.6.1", "default")
-        first, second = (a, bridge), (bridge, b)
-        return perf_ratio(*first, metric) * perf_ratio(*second, metric)
-    name = "perf_042.jsonl" if "0.4.2" in (a[0], b[0]) else "perf_070.jsonl" if "0.7.0" in (a[0], b[0]) else "perf.jsonl"
-    rows = perf_rows(name)
+    passes = [name for name in PASSES if {a, b} <= _pass_settings(name)]
+    if not passes:
+        # Shortest chain of passes from a to b, each step within one pass.
+        frontier, previous = [a], {a: None}
+        while frontier:
+            here = frontier.pop(0)
+            for name in PASSES:
+                settings = _pass_settings(name)
+                if here in settings:
+                    for there in settings:
+                        if there not in previous:
+                            previous[there] = here
+                            frontier.append(there)
+        if b not in previous:
+            return float("nan")
+        chain = [b]
+        while previous[chain[-1]] is not None:
+            chain.append(previous[chain[-1]])
+        chain.reverse()
+        return math.prod(perf_ratio(x, y, metric) for x, y in zip(chain, chain[1:]))
+    rows = perf_rows(passes[0])
     ratios = []
     for item in dict.fromkeys(r["item"] for r in rows):
         sa = [r[metric] for r in rows if "error" not in r and r["item"] == item and (r["version"], r["config"]) == a]
@@ -350,7 +375,7 @@ def releases_summary(d):
             return f"{ms([fn(r) for r in s])[0]:.{1 if key == 'terms' else 3}f}"
         if metric == "mfdr":
             s = sel(des, v, "default", lambda r: g(r) != "null")
-            return f"{max(r['marginal_false'] / max(r['printed'], 1) for r in s):.3f}"
+            return f"{max(r['marginal_false'] / max(r['printed'], 1) for r in s):.3f}" if s else "—"
         if metric == "stress":
             return f"{ms([float(r['exact']) for r in sel(st, v, 'default')])[0]:.3f}"
         if metric == "feynman":
@@ -396,6 +421,9 @@ def releases_summary(d):
 # slots against 0.6.1) and the magnitude slots (0.7.0 against 0.7.0 without them).
 SPLIT_070 = [(("0.6.1", "default"), ("0.7.0", "no_magnitude_slots")),
              (("0.7.0", "no_magnitude_slots"), ("0.7.0", "default"))]
+# 0.8.0's change to fits, the residual slots: 0.8.0 against 0.8.0 without them,
+# which gives 0.7.0's fits.
+SPLIT_080 = [(("0.8.0", "no_residual_slots"), ("0.8.0", "default"))]
 
 
 def option_summary(study_rows):
@@ -403,8 +431,9 @@ def option_summary(study_rows):
     out = ["## 8. Paired effects (same items; mean difference ± SE)", "",
            "Releases are compared with the previous release's default; options with their own release's default.", ""]
     comparisons = [(("0.4.2", "default"), ("0.5.0", "default")), (("0.5.0", "default"), ("0.6.0", "default")),
-                   (("0.6.0", "default"), ("0.6.1", "default")), (("0.6.1", "default"), ("0.7.0", "default"))] + \
-        SPLIT_070 + [((v, "default"), (v, c)) for v, c in OPTIONS]
+                   (("0.6.0", "default"), ("0.6.1", "default")), (("0.6.1", "default"), ("0.7.0", "default")),
+                   (("0.7.0", "default"), ("0.8.0", "default"))] + \
+        SPLIT_070 + SPLIT_080 + [((v, "default"), (v, c)) for v, c in OPTIONS]
     d = study_rows
     g = lambda r: r["item"].split("_n")[0]  # noqa: E731
     out += ["| comparison | designs Δ cond. FDR (snr 1) | designs Δ cond. FDR (snr 3) | designs Δ R² (snr 1) | "
@@ -451,6 +480,11 @@ def option_summary(study_rows):
         same.append(f"{study} {s}/{n}")
     out += ["0.7.0 default identical to 0.6.0 with `magnitude_slots=10` (regression; classification has no "
             "such setting): " + ", ".join(same), ""]
+    same = []
+    for study, rows in d.items():
+        s, n = identical(rows, ("0.7.0", "default"), ("0.8.0", "no_residual_slots"))
+        same.append(f"{study} {s}/{n}")
+    out += ["0.8.0 with `residual_slots=0` identical to 0.7.0 default: " + ", ".join(same), ""]
     errs = [r for rows in d.values() for r in errors(rows)]
     out += [f"Fits that raised: {len(errs)}" + ("" if not errs else " — " + "; ".join(
         sorted({f"{r['version']} {r['config']} {r['study']}: {r['error'][:80]}" for r in errs})[:8])), ""]
@@ -476,8 +510,8 @@ def scorecard(d):
            "mean terms (real) | designs Δ cond. FDR, snr 1 | time (× default) | memory (× default) |",
            "| :-- | --: | --: | :-- | --: | --: | --: | --: | --: |"]
     for v, c in [(("0.4.2", "default"), ("0.5.0", "default")), (("0.5.0", "default"), ("0.6.0", "default")),
-                 (("0.6.1", "default"), ("0.7.0", "default"))] + SPLIT_070 + \
-            [((v, "default"), (v, c)) for v, c in OPTIONS]:
+                 (("0.6.1", "default"), ("0.7.0", "default")), (("0.7.0", "default"), ("0.8.0", "default"))] + \
+            SPLIT_070 + SPLIT_080 + [((v, "default"), (v, c)) for v, c in OPTIONS]:
         a, b = v, c
         real = {**per_dataset(d["suite"], a, b, REAL), **per_dataset(d["highdim"], a, b, ["communities", "superconduct", "tecator", "eyedata", "riboflavin"])}
         synth = per_dataset(d["suite"], a, b, sorted(SYNTHETIC))
@@ -568,6 +602,24 @@ def perf():
         out += ["", f"0.7.0 against 0.6.1: time × {perf_ratio(('0.6.1', 'default'), ('0.7.0', 'default'), 'seconds'):.2f}, "
                 f"memory × {perf_ratio(('0.6.1', 'default'), ('0.7.0', 'default'), 'fit_mb'):.2f}; with the slots off, "
                 f"time × {perf_ratio(('0.6.1', 'default'), ('0.7.0', 'no_magnitude_slots'), 'seconds'):.2f}.", ""]
+    fourth = perf_rows("perf_080.jsonl")
+    if fourth:
+        out += ["### 0.8.0 (a fourth pass, interleaved with 0.7.0 as a control)", "",
+                "0.8.0 was timed in a pass of its own, alternating with 0.7.0 by the same protocol, at its default and "
+                "with the residual slots off. Its ratio to 0.5.0 elsewhere on this page is chained through 0.7.0 and "
+                "0.6.1; the last column checks this pass's 0.7.0 against the third one.", "",
+                "| item | 0.8.0 (s) | 0.8.0, slots off (s) | 0.7.0 (s) | 0.8.0 (MB) | 0.7.0 (MB) | 0.7.0, third pass (s) |",
+                "| :-- | --: | --: | --: | --: | --: | --: |"]
+        for item in dict.fromkeys(r["item"] for r in fourth):
+            med = lambda src, v, c, m: np.median([r[m] for r in src if r["item"] == item and r["version"] == v  # noqa: E731
+                                                  and r["config"] == c and "error" not in r])
+            out.append(f"| {item} | {med(fourth, '0.8.0', 'default', 'seconds'):.2f} | "
+                       f"{med(fourth, '0.8.0', 'no_residual_slots', 'seconds'):.2f} | "
+                       f"{med(fourth, '0.7.0', 'default', 'seconds'):.2f} | {med(fourth, '0.8.0', 'default', 'fit_mb'):.0f} | "
+                       f"{med(fourth, '0.7.0', 'default', 'fit_mb'):.0f} | {med(third, '0.7.0', 'default', 'seconds'):.2f} |")
+        out += ["", f"0.8.0 against 0.7.0: time × {perf_ratio(('0.7.0', 'default'), ('0.8.0', 'default'), 'seconds'):.2f}, "
+                f"memory × {perf_ratio(('0.7.0', 'default'), ('0.8.0', 'default'), 'fit_mb'):.2f}; with the slots off, "
+                f"time × {perf_ratio(('0.7.0', 'default'), ('0.8.0', 'no_residual_slots'), 'seconds'):.2f}.", ""]
     return "\n".join(out)
 
 
