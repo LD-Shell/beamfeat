@@ -149,7 +149,8 @@ MAGNITUDE_ROWS = 1000
 
 # Search rows the forward path of ``residual_slots`` runs on, at most, and the
 # bytes of candidate values it may hold, which lowers that cap on a wide
-# table: beyond the cap, that many rows evenly spaced through them. A term
+# table, though not below MAGNITUDE_ROWS: beyond the cap, that many rows evenly
+# spaced through them. A term
 # explaining a hundredth of the target's variance correlates with what the
 # leading terms leave at about 0.1 or more, which 1,000 rows resolve.
 RESIDUAL_ROWS = 20_000
@@ -449,8 +450,8 @@ class BeamSearch:
             only the best-scoring of them. Regression only. The path
             sees only the rows the search is given, and of more than
             :data:`RESIDUAL_ROWS` of them (fewer on a wide table, so that
-            the candidate values stay within :data:`RESIDUAL_BYTES`), that
-            many evenly spaced.
+            the candidate values stay within :data:`RESIDUAL_BYTES`, but at
+            least :data:`MAGNITUDE_ROWS`), that many evenly spaced.
 
     Attributes:
         result_: :class:`SearchResult` from the most recent :meth:`run`.
@@ -1194,7 +1195,7 @@ class BeamSearch:
         if self.residual_slots:
             n_siblings = self._path_siblings(state, evaluator, target)
             if n_siblings:
-                report(self.verbose, 2, f"  residual slots: {n_siblings} transforms of path operands added")
+                report(self.verbose, 2, f"  residual slots: {n_siblings} operands of path terms and their transforms added")
         # Final ranking across every depth, with one more redundancy pass so
         # that features admitted at different depths are also deduplicated.
         #
@@ -1539,7 +1540,8 @@ class BeamSearch:
         :data:`SCORE_TIE_TOL` of the largest, relative to it, are tied, and
         the structurally simpler expression goes first, as in :func:`_rank`.
         Of more rows than :data:`RESIDUAL_ROWS`, or than keep the values
-        within :data:`RESIDUAL_BYTES`, that many evenly spaced.
+        within :data:`RESIDUAL_BYTES` (but at least :data:`MAGNITUDE_ROWS`),
+        that many evenly spaced.
         """
         memo: dict[str, tuple[int, int]] = {}
         sizes = np.array([sum(_counts(node, memo)) for node in nodes])

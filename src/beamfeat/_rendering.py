@@ -241,6 +241,11 @@ def _tree_size(node: Node) -> int:
     return own + sum(_tree_size(child) for child in node.children)
 
 
+# The level whose stopping point the equation shows beside the default
+# forward step's (see _EquationsMixin._alpha_hint).
+_HINT_ALPHA = 0.05
+
+
 class _EquationsMixin:
     """The equation list, and the notes the renderings of a fit share.
 
@@ -263,7 +268,7 @@ class _EquationsMixin:
         if stop is None or not marked or stop >= marked[0]["n_terms"]:
             return ""
         kept = marked[0]["n_terms"]
-        text = f"parsimony_alpha=0.05 keeps {stop}" + (f" of these {kept} terms" if of_these else "")
+        text = f"parsimony_alpha={_HINT_ALPHA:g} prints {stop}" + (f" of these {kept} terms" if of_these else "")
         if self._problem_type == "classification":
             return text
         r2 = {record["n_terms"]: record["r2"] for record in self.equations_}
@@ -311,8 +316,9 @@ class _EquationsMixin:
         on the rows screening used, and the R^2 its last term added. The
         line holding the returned features is marked ``*``; at the default
         settings it is the first line whose successor adds less than
-        ``parsimony_tol``. The records behind the text are
-        :attr:`equations_`.
+        ``parsimony_tol``. At the default forward step, the line where
+        ``parsimony_alpha=0.05`` would stop is marked ``a`` when it holds
+        fewer terms. The records behind the text are :attr:`equations_`.
 
         Each line is written ``y ~ a + b``: a linear model in those terms,
         without coefficients, since only the marked line has fitted ones,
@@ -330,7 +336,7 @@ class _EquationsMixin:
             precision: Decimal places for R^2, and significant figures for
                 its gain.
             max_n_terms: If set, show only the equations with at most this
-                many terms, and the marked line whatever its size. The
+                many terms, and the marked lines whatever their size. The
                 remaining lines are elided as ``...``.
 
         Returns:
@@ -395,7 +401,7 @@ class _EquationsMixin:
         lines.append(self._path_model_note())
         if alpha_line is not None:
             lines.append(
-                "a where parsimony_alpha=0.05 stops: the next term's gain fails to reject the "
+                f"a where parsimony_alpha={_HINT_ALPHA:g} stops: the next term's gain fails to reject the "
                 "null that chance reaches it."
             )
         lines.append(self._path_scope_note(screened))

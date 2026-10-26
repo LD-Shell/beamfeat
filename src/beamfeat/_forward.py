@@ -3,7 +3,10 @@
 The estimators' default ``parsimony="forward"`` adds screened terms one at a
 time, each the one that most increases the in-sample R^2, and stops at the
 first gain below ``parsimony_tol`` or, with ``parsimony_alpha``, the first
-that fails to reject the null that chance reaches it.
+that fails to reject the null that chance reaches it. :func:`alpha_stop`
+gives the count that check would stop at, for the note in ``equation()``,
+and :func:`forward_order` the path the search's ``residual_slots`` take
+through its candidates.
 """
 
 from __future__ import annotations
@@ -203,7 +206,7 @@ def alpha_stop(
     parsimony_alpha: float,
     random_state: int | None,
 ) -> int:
-    """How many terms the forward step keeps with ``parsimony_alpha``, given its path without.
+    """How many terms the forward step adds with ``parsimony_alpha``, given its path without.
 
     With a level the step adds the same terms in the same order, and stops
     as well at the first whose gain fails to reject the null of chance

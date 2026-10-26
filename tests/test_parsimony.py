@@ -373,7 +373,7 @@ class TestAlphaHint:
         if kept < len(plain.feature_formulas_):
             r2 = {record["n_terms"]: record["r2"] for record in plain.equations_}
             note = (
-                f"parsimony_alpha=0.05 keeps {kept}, selection-row R^2 {r2[kept]:.3f} against "
+                f"parsimony_alpha=0.05 prints {kept}, selection-row R^2 {r2[kept]:.3f} against "
                 f"{r2[len(plain.feature_formulas_)]:.3f}"
             )
             assert note in plain.equation()
@@ -404,20 +404,20 @@ class TestAlphaHint:
         X, y = self._noisy(0)
         model = BeamFeatRegressor(random_state=0, **kwargs).fit(X, y)
         assert model._alpha_stop_ is None
-        assert "parsimony_alpha=0.05 keeps" not in model.equation()
+        assert "parsimony_alpha=0.05 prints" not in model.equation()
         assert "a where parsimony_alpha" not in model.equations()
 
-    def test_none_when_the_level_keeps_as_many(self, regression_data):
+    def test_none_when_the_level_prints_as_many(self, regression_data):
         X, y = regression_data
         model = _fast(BeamFeatRegressor, selector="permutation").fit(X, y)
         assert model._alpha_stop_ == len(model.feature_formulas_)
-        assert "parsimony_alpha=0.05 keeps" not in model.equation()
+        assert "parsimony_alpha=0.05 prints" not in model.equation()
 
     def test_a_model_saved_without_it_renders(self):
         X, y = self._noisy(0)
         model = BeamFeatRegressor(random_state=0).fit(X, y)
         del model._alpha_stop_
-        assert "parsimony_alpha=0.05 keeps" not in model.equation()
+        assert "parsimony_alpha=0.05 prints" not in model.equation()
         assert "a where parsimony_alpha" not in model.equations()
 
 

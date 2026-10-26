@@ -310,9 +310,10 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             transforms of its operand, which the search may have dropped as
             near copies (``log(x3)`` beside ``1/x3``). ``0`` (default) adds
             none. The path terms explain what the leading terms leave, noise
-            as well as a weak term, so on their own they add riders that the
-            forward step keeps; ``parsimony_alpha=0.05`` beside them stops
-            the riders and keeps the weak term. The path is part of the
+            as well as a weak term, so on their own they add riders to the
+            printed equation; ``parsimony_alpha=0.05`` beside them stops the
+            forward step before the riders, and the weak term is still
+            printed. The path is part of the
             search, on the search rows only (see
             :class:`~beamfeat.search.BeamSearch`), so the screen's guarantee
             is unchanged. A positive value is for regression only.
@@ -699,7 +700,9 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
             When the parsimony step dropped terms from the screened set, a
             suffix records how many of the certified terms are printed and
             how to print them all, since the guarantee covers the screened
-            set rather than this subset of it.
+            set rather than this subset of it. At the default forward step it
+            also says how many terms ``parsimony_alpha=0.05`` would print,
+            when that is fewer.
         """
         check_is_fitted(self, ["model_"])
         _check_equation_format(precision, style)
@@ -721,11 +724,10 @@ class BeamFeatRegressor(RegressorMixin, _BeamFeatBase):
         """Return the fitted model as a LaTeX equation.
 
         The same equation as :meth:`equation`, with the same terms, order and
-        coefficients, and the same note when the parsimony step dropped terms
-        from the screened set, set as ``\\text``. Each feature is rendered
-        by ``sympy.latex`` from :meth:`to_sympy`, so sympy is required, as it
-        is there. The string has no math delimiters; in a notebook,
-        ``IPython.display.Math(model.latex())`` renders it.
+        coefficients, and the same note, set as ``\\text``. Each feature is
+        rendered by ``sympy.latex`` from :meth:`to_sympy`, so sympy is
+        required, as it is there. The string has no math delimiters; in a
+        notebook, ``IPython.display.Math(model.latex())`` renders it.
 
         Args:
             precision: As in :meth:`equation`.
@@ -972,8 +974,10 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
 
         When the parsimony step dropped terms from the screened set, a suffix
         records how many of the certified terms are printed and how to print
-        them all. The terms are shared across the lines of a multiclass
-        equation, so the suffix appears once at the end of the block.
+        them all, and at the default forward step how many terms
+        ``parsimony_alpha=0.05`` would print, when that is fewer. The terms
+        are shared across the lines of a multiclass equation, so the suffix
+        appears once at the end of the block.
         """
         check_is_fitted(self, ["model_"])
         _check_equation_format(precision, style)
@@ -1017,9 +1021,8 @@ class BeamFeatClassifier(ClassifierMixin, _BeamFeatBase):
 
         The same equations as :meth:`equation`: for a binary problem the
         log-odds of ``classes_[1]``, for a multiclass problem one softmax
-        score per class in an ``aligned`` block, followed by the same note
-        when the parsimony step dropped terms from the screened set. Each
-        feature is rendered by ``sympy.latex`` from :meth:`to_sympy`, so
+        score per class in an ``aligned`` block, followed by the same note.
+        Each feature is rendered by ``sympy.latex`` from :meth:`to_sympy`, so
         sympy is required, as it is there. The string has no math
         delimiters.
 

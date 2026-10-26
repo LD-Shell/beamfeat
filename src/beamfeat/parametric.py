@@ -30,15 +30,17 @@ any other.
 segment ran into a bound -- the margin a shift keeps between its pole and
 the data (see :func:`~beamfeat.expression.pole_margins`), the smallest
 positive power when the operand comes within that margin of 0 (the pole of
-a negative power), the linear limit of a small scale, or the step limit of
-a large one -- and is discarded, as is one whose values are not finite,
-constant, or outside the operator's domain. Snapping and rounding stay
-within the same bounds, so a simple constant never moves a pole closer to
-the data than the margin. And since each operator tends to an affine
-function of its operand at one end of its range (a small scale, a distant
-shift, a power of 1), a fit is also discarded unless the likelihood-ratio
-test below rejects the null that the operand itself, or for a product the
-partner alone, fits as well; otherwise the constant only fits noise.
+a negative power), the linear limit of a small scale, the step limit of a
+large one, or the outermost quantile a threshold of ``sign_shift`` may
+take -- and is discarded, as is one whose values are not finite, constant,
+or outside the operator's domain. Snapping and rounding stay within the
+same bounds, so a simple constant never moves a pole closer to the data
+than the margin. And since every operator but ``sign_shift`` tends to an
+affine function of its operand at one end of its range (a small scale, a
+distant shift, a power of 1), a fit is also discarded unless the
+likelihood-ratio test below rejects the null that the operand itself, or
+for a product the partner alone, fits as well; otherwise the constant only
+fits noise. A threshold of ``sign_shift`` is held to the same test.
 
 **Snapping.** The data rarely pin a constant to more digits than they
 support, and ``exp(-0.49991*x^2)`` is a worse answer than ``exp(-x^2/2)``.
@@ -273,11 +275,12 @@ def _fit_jobs(
     golden-section search between the grid neighbours of the best grid
     point; the grid point itself is kept if it scores better. A job's
     ``baseline`` is the correlation the fit has to beat: the operand's own,
-    or the partner's for a product. Every operator here tends to an affine
-    function of its operand at one end of its range (a small scale, a far
-    shift, a power of 1), so unless the likelihood-ratio test of the snap
-    rejects the null that the baseline fits as well, the constant only fits
-    noise and the fit is discarded. Returns each job's constant, or ``None``.
+    or the partner's for a product. Every operator but ``sign_shift`` tends
+    to an affine function of its operand at one end of its range (a small
+    scale, a far shift, a power of 1), so unless the likelihood-ratio test of
+    the snap rejects the null that the baseline fits as well, the constant
+    only fits noise and the fit is discarded; a threshold of ``sign_shift``
+    is held to the same test. Returns each job's constant, or ``None``.
     """
     if not jobs:
         return []

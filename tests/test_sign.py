@@ -19,7 +19,7 @@ def ureg():
 
 
 def _switch(threshold, seed, n=1000):
-    """``y = x1 + x2`` times 2 above the threshold on x0 and -1 below it."""
+    """``y = s*x2 + x1``, with ``s`` 2 above the threshold on x0 and -1 below it."""
     rng = np.random.default_rng(seed)
     X = np.column_stack([rng.uniform(-2, 2, (n, 2)), rng.uniform(1, 5, (n, 3))])
     signal = np.where(X[:, 0] > threshold, 2.0, -1.0) * X[:, 2] + X[:, 1]

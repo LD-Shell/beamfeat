@@ -20,7 +20,7 @@ from sklearn.utils.validation import check_is_fitted
 
 from beamfeat._forward import alpha_stop, forward_path
 from beamfeat._prediction import _evaluate_by_row
-from beamfeat._rendering import _equation_list, _EquationsMixin
+from beamfeat._rendering import _HINT_ALPHA, _equation_list, _EquationsMixin
 from beamfeat.expression import Evaluator, Node, _import_sympy, _sympy_symbols
 from beamfeat.scoring import Scorer, is_constant
 from beamfeat.search import DEFAULT_BINARY, DEFAULT_FITTED, DEFAULT_UNARY, BeamSearch, report
@@ -38,10 +38,6 @@ logger = logging.getLogger("beamfeat.estimators")
 # Magnitude slots under magnitude_slots="auto" for regression: the setting of
 # benchmarks/search_stress/ and benchmarks/release_comparison/.
 _AUTO_MAGNITUDE_SLOTS = 10
-
-# The level whose stopping point the equation shows beside the default
-# forward step's (see _EquationsMixin._alpha_hint).
-_HINT_ALPHA = 0.05
 
 
 class NoDiscoveriesError(RuntimeError):
@@ -855,13 +851,13 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
     def _check_on_search_rows(
         self, nodes: list[Node], X: np.ndarray, search: np.ndarray, feature_names: list[str], units
     ) -> list[Node]:
-        """The expressions a sampled search returned that pass its filters on every search row.
+        """The expressions a sampled search returned that its filters do not rule out on any search row.
 
         The search excludes an expression outside an operator's domain, or
         whose denominator comes within the pole margin of zero, on the rows
         it sees; on a sample, a row it did not see can still take one there.
         Each expression is evaluated on every search row, with the same
-        filters, and dropped if it fails them. Only the columns the
+        filters, and dropped if they rule it out. Only the columns the
         expressions read are copied, and the evaluator caches few arrays.
         """
         used = set().union(*(node.columns() for node in nodes))
@@ -873,7 +869,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                 self.verbose,
                 1,
                 f"search: {len(nodes) - len(kept)} of {len(nodes)} expressions found on the sample "
-                "failed the search's filters on the other search rows and were dropped",
+                "were ruled out by the search's filters on the other search rows",
             )
         return kept
 
@@ -1015,7 +1011,7 @@ class _BeamFeatBase(_EquationsMixin, BaseEstimator):
                 parsimony_alpha=_HINT_ALPHA, random_state=self.random_state,
             )
         hint = (
-            f"; parsimony_alpha={_HINT_ALPHA:g} would keep {self._alpha_stop_}"
+            f"; parsimony_alpha={_HINT_ALPHA:g} would print {self._alpha_stop_}"
             if self._alpha_stop_ is not None and self._alpha_stop_ < len(keep_order)
             else ""
         )
