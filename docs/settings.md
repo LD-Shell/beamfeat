@@ -168,15 +168,17 @@ together on the same data with the same seeds:
 
 | | default | `parsimony_alpha=0.05` | `input_test=True` | both |
 | :-- | --: | --: | --: | --: |
-| noise sweep, noise as large as the signal: median terms | 9.5 | 1 | 2 | 1 |
-| … terms reading an unrelated column | 78 of 92 | 0 of 10 | 3 of 21 | 0 of 10 |
-| … R² against the true function | 0.981 | 0.998 | 0.995 | 0.998 |
-| 12 real datasets: mean held-out score | 0.693 | 0.675 | 0.675 | 0.667 |
-| … mean terms | 13.8 | 3.5 | 10.5 | 3.1 |
-| … better / same / worse than the default | — | 1 / 2 / 9 | 0 / 5 / 7 | 1 / 1 / 10 |
-| 18 synthetic datasets: within 0.005 of the default | — | 15 | 17 | 16 |
-| fit time, × the default's | 1 | 1.0 | 3.6 | 3.6 |
-| the paper's comparison study: mean R² (paper 0.803) | 0.803 | 0.784 | 0.803 | 0.786 |
+| **Noise sweep**, noise as large as the signal | | | | |
+| median terms | 9.5 | 1 | 2 | 1 |
+| terms reading an unrelated column | 78 of 92 | 0 of 10 | 3 of 21 | 0 of 10 |
+| R² against the true function | 0.981 | 0.998 | 0.995 | 0.998 |
+| **12 real datasets** | | | | |
+| mean held-out score | 0.693 | 0.675 | 0.675 | 0.667 |
+| mean terms | 13.8 | 3.5 | 10.5 | 3.1 |
+| better / same / worse than the default | — | 1 / 2 / 9 | 0 / 5 / 7 | 1 / 1 / 10 |
+| **18 synthetic datasets**: within 0.005 of the default | — | 15 | 17 | 16 |
+| **Fit time**, × the default's | 1 | 1.0 | 3.6 | 3.6 |
+| **The paper's comparison study**: mean R² (paper 0.803) | 0.803 | 0.784 | 0.803 | 0.786 |
 
 The noise sweep is ten fits of `y = x0/x1` among ten unrelated columns; the
 real and synthetic datasets are those of the release comparison, five splits
