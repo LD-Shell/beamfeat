@@ -144,19 +144,21 @@ means over the 8 items, where the option was timed.
 | `magnitude_slots=10` (0.7.0's default) | 1 / 10 / 1 | riboflavin -0.011 | 13.8 → 13.8 | +0.004 | 1.19 | 1.07 |
 | denominator guard (0.7.0, always on) | 3 / 9 / 0 | california_housing -0.005 | 13.3 → 13.8 | -0.002 | 1.05 | 0.91 |
 | `input_test=True` (0.6.1) | 0 / 5 / 7 | riboflavin -0.065 | 13.3 → 10.5 | -0.541 | 5.2 | 1.6 |
-| conditional re-test (0.6.0) | 1 / 4 / 6 | riboflavin -1.428 | 13.3 → 23.9 | -0.025 | 1.02 | 0.99 |
-| conditional re-test with `parsimony_alpha` (0.7.0) | 1 / 2 / 8 | tips -0.046 | 13.8 → 6.9 | -0.642 | — | — |
+| conditional re-test (0.6.0) | 1 / 4 / 6 | riboflavin -1.428 | 12.7 → 23.9 | -0.025 | 1.02 | 0.99 |
+| conditional re-test with `parsimony_alpha` (0.7.0) | 1 / 2 / 8 | tips -0.046 | 12.7 → 6.9 | -0.642 | — | — |
 | `selection_correction="bh"` (0.6.1) | 1 / 11 / 0 | none | 13.3 → 13.3 | 0.000 | 0.97 | 0.98 |
 | `parsimony_alpha=0.05` (0.6.1) | 1 / 3 / 8 | riboflavin -0.200 | 13.3 → 3.4 | -0.657 | 1.00 | 0.99 |
 | `parsimony_alpha` + `input_test` (0.6.1) | 1 / 1 / 10 | riboflavin -0.226 | 13.3 → 3.4 | -0.673 | 5.2 | 1.6 |
-| `residual_slots=10` (0.8.0) | 1 / 9 / 2 | eyedata -0.886 | 13.8 → 13.6 | +0.007 | 1.02 | — |
-| `residual_slots=10` with `parsimony_alpha`, against `parsimony_alpha` alone (0.8.0) | 0 / 11 / 1 | california_housing -0.012 | 3.5 → 3.6 | +0.003 | — | — |
+| `residual_slots=10` (0.8.0) | 1 / 8 / 2 | eyedata -0.886 | 12.7 → 12.5 | +0.007 | 1.00 | 1.02 |
+| `residual_slots=10` with `parsimony_alpha`, against `parsimony_alpha` alone (0.8.0) | 0 / 10 / 1 | california_housing -0.012 | 3.5 → 3.7 | +0.003 | — | — |
 | `sign` (0.8.0) | 0 / 11 / 1 | diabetes -0.015 | 13.8 → 13.8 | 0.000 | — | — |
 | `sign_shift` (0.8.0) | 1 / 10 / 1 | breast_cancer -0.022 | 13.8 → 12.7 | -0.016 | — | — |
 
 The two 0.7.0 rows take its changes one at a time: the magnitude slots are
 0.7.0 against 0.7.0 with `magnitude_slots=0`, and the guard is 0.7.0 with
-`magnitude_slots=0` against 0.6.1.
+`magnitude_slots=0` against 0.6.1. The conditional re-test and the residual
+slots are for regression only, so their rows leave out breast_cancer, and
+each row's mean terms are over the fits both settings have.
 
 What they are for, as these results show it:
 
@@ -212,8 +214,8 @@ What they are for, as these results show it:
   default), and one eyedata split fell from 0.016 to -4.3, through a
   quotient both fits share whose denominator nears zero on a test row. With
   `parsimony_alpha` beside it, it printed such a term in 1 of 800 design
-  fits and scored as `parsimony_alpha` alone, within 0.005 on 11 of 12 real
-  datasets. On a weak term beside a dominant one it printed the exact law in
+  fits and scored as `parsimony_alpha` alone, within 0.005 on 10 of the 11
+  real regression datasets. On a weak term beside a dominant one it printed the exact law in
   33 of 60 fits, the default in none (`benchmarks/weak_terms_and_switches/`).
 - **`sign_shift`**, new in 0.8.0 and off by default, fits `sign(x + a)`, so
   that a switch at a threshold can be built: on `threshold_step`,

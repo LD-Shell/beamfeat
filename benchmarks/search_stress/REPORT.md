@@ -277,9 +277,12 @@ returns. `null.py` ran the same six designs and 200 paired replicates at
 | `x0*x1/x2`, U(0.5, 3), 8 columns | 0.000 | 0.020 ± 0.010 | 4 / 0 | 0.0000 → 0.0004 |
 | `x0*x1*x2`, U(-1, 1), 20 columns | 0.020 ± 0.010 | 0.040 ± 0.014 | 4 / 0 | 0.0047 → 0.0055 |
 
-On the null designs the option changed one fit in 1,200. On each planted
+On the null designs the option changed one fit in 800. On each planted
 design it added one false feature in four fits, each of which also screened
-the law, beside 50 and 15 screened features on average.
+the law, beside 50 and 15 screened features on average. The default here is
+0.8.0's, with the fitted constants and the denominator guard that came after
+the `magnitude_slots` study above, so on the same seeds it differs from that
+study's rows with the option on three designs (0.020 against 0.025).
 
 ## Scope
 

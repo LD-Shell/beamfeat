@@ -1,4 +1,4 @@
-"""Release comparison: beamfeat 0.4.2, 0.5.0, 0.6.0 and 0.6.1 and their options.
+"""Release comparison: beamfeat 0.4.2, 0.5.0, 0.6.0, 0.6.1, 0.7.0 and 0.8.0, and their options.
 
 The same rows, splits and seeds go through whichever beamfeat the running
 interpreter has. Data come from the repository's benchmark scripts
@@ -85,7 +85,7 @@ CONFIGS = {
         "sign_shift": {"fitted_ops": ("exp_scaled", "pow", "inv_shift", "log_shift", "sign_shift")},
     },
 }
-REGRESSION_ONLY = {"magnitude_slots", "conditional_retest", "alpha_conditional"}
+REGRESSION_ONLY = {"magnitude_slots", "conditional_retest", "alpha_conditional", "residual_slots", "residual_alpha"}
 COLUMN = re.compile(r"x(\d+)")
 
 

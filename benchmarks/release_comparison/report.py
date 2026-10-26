@@ -264,7 +264,7 @@ def suite():
             vals.append(f"{ms([r['score'] for r in s])[0]:.3f} ({ms([r['printed'] for r in s])[0]:.1f}){mark}" if s else "n/a")
         out.append(f"| {d} | " + " | ".join(vals) + " |")
     out.append("")
-    out += ["n/a: breast_cancer is classification, which `magnitude_slots` and the conditional re-test do not support. "
+    out += ["n/a: breast_cancer is classification, which `magnitude_slots`, the conditional re-test and `residual_slots` do not support. "
             "† 0.6.0 `input_test` passed 7 GB on every California split and was stopped; the value shown is the same "
             "test run with the 0.6.1 memory fix (CHANGELOG, 0.6.1, Fixed), which leaves every fit unchanged and "
             "finishes in about 80 s using 0.55 GB. The 0.6.1 `alpha_input_test` California cell also runs with the fix.", ""]
@@ -505,6 +505,7 @@ def scorecard(d):
     out = ["## 10. Option scorecard (each option against its own release's default)", "",
            "Datasets: the 7 real suite datasets and the 5 high-dimensional ones (12), and the 18 synthetic suite "
            "datasets; better / same / worse = mean held-out score over the 5 splits differs by more than 0.005. "
+           "Mean terms: over the real-data fits both settings have. "
            "Time and memory: geometric-mean ratio over the perf items both settings finished.", "",
            "| option | real: better / same / worse | real: median Δ | real: worst Δ | synthetic: better / same / worse | "
            "mean terms (real) | designs Δ cond. FDR, snr 1 | time (× default) | memory (× default) |",
@@ -517,12 +518,18 @@ def scorecard(d):
         synth = per_dataset(d["suite"], a, b, sorted(SYNTHETIC))
         tally = lambda ds: f"{sum(x > 0.005 for x in ds.values())} / {sum(abs(x) <= 0.005 for x in ds.values())} / {sum(x < -0.005 for x in ds.values())}"  # noqa: E731
         worst = min(real.items(), key=lambda kv: kv[1]) if real else ("—", float("nan"))
-        terms = lambda cfg: ms([r["printed"] for st in ("suite", "highdim") for r in sel(d[st], *cfg)  # noqa: E731
-                                if r["item"].split(":")[0] in set(REAL) | {"communities", "superconduct", "tecator", "eyedata", "riboflavin"}])[0]
+        # Terms over the fits both settings have, so that a setting with no
+        # entry for a dataset (breast_cancer, for the regression-only ones)
+        # is not compared across different datasets.
+        printed = lambda cfg: {r["item"]: r["printed"] for st in ("suite", "highdim") for r in sel(d[st], *cfg)  # noqa: E731
+                               if r["item"].split(":")[0] in set(REAL) | {"communities", "superconduct", "tecator", "eyedata", "riboflavin"}}
+        pa, pb = printed(a), printed(b)
+        both = sorted(pa.keys() & pb.keys())
+        terms = lambda p: ms([p[item] for item in both])[0]  # noqa: E731
         g = lambda r: r["item"].split("_n")[0]  # noqa: E731
         cf = paired(d["designs"], a, b, lambda r: r["conditional_false"] / max(r["printed"], 1), lambda r: "snr1" in g(r))
         out.append(f"| {label(*b)} vs {label(*a)} | {tally(real)} | {np.median(list(real.values())):+.4f} | "
-                   f"{worst[0]} {worst[1]:+.3f} | {tally(synth)} | {terms(a):.1f} → {terms(b):.1f} | {f(cf)} | "
+                   f"{worst[0]} {worst[1]:+.3f} | {tally(synth)} | {terms(pa):.1f} → {terms(pb):.1f} | {f(cf)} | "
                    f"{ratio_text(perf_ratio(a, b, 'seconds'))} | {ratio_text(perf_ratio(a, b, 'fit_mb'))} |")
     out.append("")
     return "\n".join(out)

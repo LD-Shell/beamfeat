@@ -59,8 +59,8 @@ Settings: every release at its defaults; 0.6.0 with `fitted_ops=()`,
 the conditional re-test alone and with `parsimony_alpha=0.05`; 0.8.0 with
 `residual_slots=10`, alone and with `parsimony_alpha=0.05`, with `sign` among
 the unary operators, and with `sign_shift` among the fitted ones. A positive
-`magnitude_slots` and the conditional re-test are regression only, so
-breast_cancer has no entry for them.
+`magnitude_slots`, the conditional re-test and the residual slots are
+regression only, so breast_cancer has no entry for them.
 
 ## Procedure
 
@@ -118,6 +118,10 @@ data are loaded.
   `residual_slots`, its `parsimony_alpha` as `residual_alpha`, and its
   setting with the slots off as the default; its `sign` setting, which had
   the slots on, was dropped and run again with e1a2839, as was `sign_shift`.
+  The slots' default then was `"auto"`, 10 for regression and none for a
+  classifier, so that run's breast_cancer fits under the two residual names
+  had no slots; those ten records were replaced by the entry `harness.py`
+  writes for a regression-only setting on a classifier.
   Refitted with e1a2839, sampled records of the default and of
   `residual_slots` (diabetes, friedman1, a stress law) matched exactly. The
   0.8.0 default gives 0.7.0's records on all 1,430 items. It was timed in a

@@ -24,9 +24,9 @@ of its operand.
 
 Each row pools 4 and 10 columns and noise of 0.1% and 10% of the signal's
 standard deviation, five seeds each. At 500 rows the search kept `log(x3)`
-in 16 of 20 fits, but the screen, on 250 selection rows, rejected its null
-in 3: at a correlation of 0.08 with the target, that takes a few thousand
-rows. In no cell was the mean R² against the law lower with the slots, and
+in 16 of 20 fits, but only 3 printed it: the screen tests it on 250
+selection rows, and at a correlation of 0.08 with the target, rejecting its
+null takes a few thousand. In no cell was the mean R² against the law lower with the slots, and
 `parsimony_alpha` beside them changed no fit's equation here.
 
 The simpler settings do not do it (`alternatives.py`, the three cells with
@@ -42,7 +42,7 @@ The simpler settings do not do it (`alternatives.py`, the three cells with
 
 A longer final list sometimes reaches the surviving transform, and then
 often prints `x3` instead; a wider beam keeps more restatements of
-`x0*x1/x2` and never `log(x3)`, and its fits took about five times as long
+`x0*x1/x2` and never `log(x3)`, and its fits took about six times as long
 with 10 columns.
 
 ## Switches: `y = s(x0)*x2 + x1`
@@ -61,7 +61,7 @@ the switch term:
 | gradient-boosted trees | 0.987 to 0.996 | 0.983 to 0.992 | — |
 
 The default cannot build a switch, so it fits a smooth surrogate.
-`sign_shift` fits the threshold and snaps it to 0.7. The rest of the law,
+`sign_shift` fits the threshold and rounds it to 0.7. The rest of the law,
 `x1` and the switch's offset `0.5*x2`, is weaker than the switch term, and
 without the residual slots a surrogate stands in for it. `sign` covers a
 switch at zero only, which `sign_shift` also finds. Trees approximate the

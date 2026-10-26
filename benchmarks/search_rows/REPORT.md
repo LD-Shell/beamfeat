@@ -12,14 +12,14 @@ plus noise as large as the signal, with `w` giving the weak term 2%, 0.5% or
 0.1% of the signal's variance. The default split leaves 100,000 search rows.
 Five seeds per cell, every other setting at its default.
 
-| search rows | fit time, s (median over 15 fits) | peak memory of the fit, MB | 2% term: `x4` and `x5` printed | R² against the signal, 2% term |
+| search rows | fit time, s (median of 15 fits) | peak memory of the fit, MB | 2% term: `x4` and `x5` printed | R² against the signal, 2% term |
 | --: | --: | --: | --: | --: |
-| 100,000 (all) | 110 to 128 | 777 | 5 of 5 | 0.9972 |
-| 30,000 | 45 to 48 | 648 | 5 of 5 | 0.9962 |
-| 10,000 | 28 to 37 | 646 | 5 of 5 | 0.9953 |
-| 3,000 | 24 to 35 | 648 | 5 of 5 | 0.9955 |
+| 100,000 (all) | 110 | 777 | 5 of 5 | 0.9972 |
+| 30,000 | 46 | 648 | 5 of 5 | 0.9962 |
+| 10,000 | 33 | 646 | 5 of 5 | 0.9953 |
+| 3,000 | 27 | 648 | 5 of 5 | 0.9955 |
 
-- **Time** falls by 2.5 to 4.5 times. The screen on 100,000 selection rows
+- **Time** falls by 2.4 to 4.0 times. The screen on 100,000 selection rows
   and the final fit on all 200,000 take the rest, about 25 seconds here.
 - **Memory** falls by a sixth: its peak is set by the screen and the final
   fit, which still see every row.
