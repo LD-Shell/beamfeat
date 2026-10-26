@@ -44,7 +44,7 @@ from beamfeat.selection import (
 )
 from beamfeat.stability import StabilityReport, stability_report
 
-__version__ = "0.7.0"
+__version__ = "0.8.0.dev0"
 
 __all__ = [
     "BeamFeatClassifier", "BeamFeatRegressor", "BeamFeatTransformer",
