@@ -102,7 +102,8 @@ class TestConstantFreeNodesUnchanged:
             transform("log", leaf("a"), const=1.0)
 
     def test_parametric_operators_are_registered(self):
-        assert parametric_operators() == sorted(FITTED)
+        # sign_shift is registered but off by default.
+        assert parametric_operators() == sorted((*FITTED, "sign_shift"))
         assert not any(OPERATORS[name].parametric for name in ("log", "exp", "add", "square"))
 
     def test_parametric_operator_must_be_unary(self):
