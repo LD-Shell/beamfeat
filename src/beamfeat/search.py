@@ -377,8 +377,10 @@ class BeamSearch:
             returns the best expression within the limit instead.
         fitted_ops: Parametric operators whose constant is fitted to the
             data, from ``"exp_scaled"`` (``exp(a*x)``), ``"pow"`` (``x^a``,
-            for positive ``x``), ``"inv_shift"`` (``1/(x + a)``) and
-            ``"log_shift"`` (``log(x + a)``). Empty by default, which leaves
+            for positive ``x``), ``"inv_shift"`` (``1/(x + a)``),
+            ``"log_shift"`` (``log(x + a)``) and ``"sign_shift"``
+            (``sign(x + a)``, the threshold between the operand's 5% and 95%
+            quantiles). Empty by default, which leaves
             every expression free of constants. At each depth, each operator
             is fitted to each expression of the previous depth's beam (at
             the first depth, the ``beam_width`` best input columns), and to

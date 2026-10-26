@@ -127,7 +127,9 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
         beam_width: Expressions retained at each search depth.
         max_features: Cap on features returned by the search, before selection.
         target_fdr: Nominal false discovery rate for the selector.
-        unary_ops: Unary operators to apply.
+        unary_ops: Unary operators to apply. ``"sign"``, off by default, adds
+            switches at zero, such as ``x2*sign(x0)`` for a target whose
+            slope in ``x2`` changes sign with ``x0``.
         binary_ops: Binary operators to apply.
         redundancy_threshold: Absolute correlation at or above which a
             candidate is treated as a duplicate.
@@ -193,7 +195,10 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             ``"pow"`` (``x^a``), ``"inv_shift"`` (``1/(x + a)``) and
             ``"log_shift"`` (``log(x + a)``). All four by default; ``()``
             keeps every expression free of constants, as the default did
-            before 0.6.0, and fits about twice as fast on small data. The
+            before 0.6.0, and fits about twice as fast on small data.
+            ``"sign_shift"`` (``sign(x + a)``, its threshold between the
+            operand's 5% and 95% quantiles) is off by default; it adds
+            switches away from zero, such as ``x2*sign(x0 - 0.7)``. The
             constants are fitted during the search, on the search rows only
             (see :class:`~beamfeat.search.BeamSearch`), so the screen on the
             selection rows sees fixed expressions and its guarantee is

@@ -172,6 +172,22 @@ register_operator(
 )
 
 
+def _sign_unit(unit: Any) -> Any:
+    """A sign carries no dimension, whatever its operand's."""
+    return None if unit is None else unit / unit
+
+
+register_operator(
+    OperatorSpec(
+        name="sign",
+        arity=1,
+        fn=lambda x: np.sign(x),
+        formula=lambda x: f"sign({x})",
+        unit_fn=_sign_unit,
+    )
+)
+
+
 register_operator(
     OperatorSpec(
         name="square",
@@ -358,6 +374,29 @@ register_operator(
         unit_fn=_dimensionless_unit("log_shift"),
         domain=lambda x, a: bool(np.all(x + a > 0)),
         constant_grid=_log_shift_grid,
+    )
+)
+
+
+# The thresholds sign_shift's grid tries: these quantiles of the operand, so
+# that each side of a threshold holds at least a twentieth of the rows.
+_THRESHOLD_LEVELS = np.linspace(0.05, 0.95, 37)
+
+
+def _threshold_grid(x: np.ndarray) -> list[np.ndarray]:
+    shifts = np.unique(-np.quantile(x, _THRESHOLD_LEVELS))
+    return [shifts] if len(shifts) >= 3 else []
+
+
+register_operator(
+    OperatorSpec(
+        name="sign_shift",
+        arity=1,
+        fn=lambda x, a: np.sign(x + a),
+        formula=lambda x, a: f"sign({_shift_text(x, a)})",
+        unit_fn=_sign_unit,
+        domain=lambda x, a: bool(np.any(x + a > 0) and np.any(x + a < 0)),
+        constant_grid=_threshold_grid,
     )
 )
 

@@ -807,6 +807,7 @@ def _sympy_builders() -> dict[str, Callable[..., Any]]:
         "log": sympy.log,
         "sqrt": sympy.sqrt,
         "abs": sympy.Abs,
+        "sign": sympy.sign,
         "square": lambda x: x**2,
         "cube": lambda x: x**3,
         "exp": sympy.exp,
@@ -814,6 +815,7 @@ def _sympy_builders() -> dict[str, Callable[..., Any]]:
         "pow": lambda x, a: x**a,
         "inv_shift": lambda x, a: 1 / (x + a),
         "log_shift": lambda x, a: sympy.log(x + a),
+        "sign_shift": lambda x, a: sympy.sign(x + a),
         "add": lambda x, y: x + y,
         "sub": lambda x, y: x - y,
         "mul": lambda x, y: x * y,
@@ -945,6 +947,7 @@ _PLAIN_FORMS: dict[tuple[str, float], str | None] = {
     ("pow", -1.0): "reciprocal",
     ("inv_shift", 0.0): "reciprocal",
     ("log_shift", 0.0): "log",
+    ("sign_shift", 0.0): "sign",
 }
 
 # Constants at which a built-in parametric operator is constant in its operand.
