@@ -37,12 +37,12 @@ default in the estimators for regression. The final ranking keeps the
 ``max_features`` candidates that score best against the target, and a
 dominant term fills it with restatements of itself, so that a weaker term
 beside it, such as ``log(x3)`` in ``x0*x1/x2 + 0.5*log(x3)``, is cut although
-the search built it. With the option, the first places go to the first
-terms of a greedy forward path through every candidate the search kept,
-each the one that adds most to a least-squares fit of those before it; a
-restatement adds nothing to the term it restates, and the weaker term comes
-second. The path also chooses among the transforms of a path term's
-operand, which a depth may have dropped as near copies of one another.
+the search built it. With the option, the first terms of a greedy forward
+path through every candidate the search kept join the ranking, each the one
+that adds most to a least-squares fit of those before it; a restatement adds
+nothing to the term it restates, and the weaker term comes second. The path
+also chooses among the transforms of a path term's operand, which a depth
+may have dropped as near copies of one another.
 
 Memory stays bounded as well. On a wide table one depth can propose
 hundreds of thousands of candidates. They are evaluated and scored a chunk at a time
@@ -325,7 +325,8 @@ class BeamSearch:
             pairs it with every expression kept so far, so the work grows
             polynomially in ``beam_width`` and ``max_depth`` rather than
             compounding with depth.
-        max_features: Maximum features returned. Defaults to ``beam_width``.
+        max_features: Maximum features returned by score. Defaults to
+            ``beam_width``; ``residual_slots`` adds up to that many more.
         unary_ops: Unary operators to apply. Defaults to log, sqrt, reciprocal,
             square, and abs.
         binary_ops: Binary operators to apply. Defaults to mul, div, add, sub.
@@ -429,16 +430,18 @@ class BeamSearch:
             magnitude. The score sees only the rows the search is given, and
             of more than :data:`MAGNITUDE_ROWS` of them, that many evenly
             spaced.
-        residual_slots: Places of the final ranking given to the first
+        residual_slots: Places added to the final ranking for the first
             terms of a greedy forward path through every candidate the
             search kept, each the one that most increases the R^2 of a
-            least-squares fit on those before it; the other places go by
-            score, as they do with ``0`` (default). A dominant term fills
-            the ranking by score with restatements of itself, and a weaker
-            term beside it is cut; a restatement adds nothing to a fit that
-            holds the term it restates, so the path takes the weaker term
-            next. At most a quarter of the rows, and the path terms are
-            subject to the same redundancy check. Before the final path, the
+            least-squares fit on those before it; ``0`` (default) adds none.
+            A dominant term fills the ranking by score with restatements of
+            itself, and a weaker term beside it is cut; a restatement adds
+            nothing to a fit that holds the term it restates, so the path
+            takes the weaker term next. A path term takes the place of a
+            ranked candidate that is a near copy of it, and is dropped if it
+            is a near copy of an earlier path term; the ranking otherwise
+            keeps every candidate the score kept. At most a quarter of the
+            rows. Before the final path, the
             operand of each path term that is an input column or a transform
             of one operand, and that operand's transforms by ``unary_ops``,
             join the candidates: transforms of one operand can correlate past
@@ -817,16 +820,13 @@ class BeamSearch:
         scores: np.ndarray,
         limit: int,
         shield: bool = False,
-        order: np.ndarray | None = None,
     ) -> tuple[list[Node], np.ndarray, np.ndarray, int]:
         """Greedily admit candidates in score order, skipping near-duplicates.
 
         A candidate is admitted if its absolute correlation against every
         already-admitted candidate stays below ``redundancy_threshold``.
         Correlations within :data:`EXACT_COPY_TOL` of 1 count as reaching it.
-        With ``shield``, see :meth:`_admit`. An ``order`` replaces the score
-        order of admission; the kept candidates are still returned in score
-        order.
+        With ``shield``, see :meth:`_admit`.
 
         Returns:
             Tuple of (kept nodes, their values, their scores, count dropped).
@@ -834,19 +834,11 @@ class BeamSearch:
         if not nodes:
             return [], np.empty((values.shape[0], 0)), np.empty(0), 0
 
-        rank = _rank(nodes, scores)
+        order = _rank(nodes, scores)
         standardised = _standardise_columns(values)
         kept_indices, n_dropped = self._admit(
-            rank if order is None else order,
-            lambda index: standardised[:, index],
-            limit,
-            values.shape[0],
-            _fitted_mask(nodes, shield),
+            order, lambda index: standardised[:, index], limit, values.shape[0], _fitted_mask(nodes, shield)
         )
-        if order is not None:
-            place = np.empty(len(nodes), dtype=np.intp)
-            place[rank] = np.arange(len(nodes))
-            kept_indices = sorted(kept_indices, key=lambda index: place[index])
         kept_nodes = [nodes[i] for i in kept_indices]
         return kept_nodes, values[:, kept_indices], scores[kept_indices], n_dropped
 
@@ -1513,8 +1505,8 @@ class BeamSearch:
     ) -> SearchResult:
         """Rank, deduplicate, and truncate the accumulated selection.
 
-        With ``residual_slots``, the first places go to a forward path; see
-        :meth:`_residual_order`. With ``fitted_ops``, a kept feature with
+        With ``residual_slots``, the terms of a forward path join the set;
+        see :meth:`_add_path`. With ``fitted_ops``, a kept feature with
         fitted constants then gives way to a near copy with fewer that fits
         as well; see :meth:`_constant_free_copies`.
         """
@@ -1522,12 +1514,9 @@ class BeamSearch:
 
         n_redundant = 0
         if nodes:
-            order = (
-                self._residual_order(nodes, values, scores, target, limit)
-                if self.residual_slots and target is not None
-                else None
-            )
-            kept, _, kept_scores, n_redundant = self._prune_redundant(nodes, values, scores, limit, order=order)
+            kept, _, kept_scores, n_redundant = self._prune_redundant(nodes, values, scores, limit)
+            if self.residual_slots and target is not None:
+                kept, kept_scores = self._add_path(nodes, values, scores, target, limit, kept)
             if self.fitted_ops and fit_target is not None:
                 kept, kept_scores = self._constant_free_copies(nodes, values, scores, kept, fit_target)
             nodes, scores = kept, kept_scores
@@ -1607,13 +1596,41 @@ class BeamSearch:
             state.selected_values = np.column_stack([state.selected_values, values])
         return len(added)
 
-    def _residual_order(
-        self, nodes: list[Node], values: np.ndarray, scores: np.ndarray, target: np.ndarray, limit: int
-    ) -> np.ndarray:
-        """Admission order of the final ranking with ``residual_slots``: :meth:`_path`, then the rest by score."""
-        path = self._path(nodes, values, target, limit)
-        first = set(path)
-        return np.array(path + [int(index) for index in _rank(nodes, scores) if int(index) not in first], dtype=np.intp)
+    def _add_path(
+        self,
+        nodes: list[Node],
+        values: np.ndarray,
+        scores: np.ndarray,
+        target: np.ndarray,
+        limit: int,
+        kept: list[Node],
+    ) -> tuple[list[Node], np.ndarray]:
+        """The final set with the terms of :meth:`_path` added, ranked by score.
+
+        Each path term not already kept joins the set, in path order, and
+        takes the place of any kept candidate that is a near copy of it
+        (correlation at ``redundancy_threshold``), unless that copy is an
+        earlier path term: the later term is then dropped, as the redundancy
+        check drops a near copy. The set grows by at most ``residual_slots``,
+        and the candidates the score kept stay in it otherwise.
+        """
+        position = {id(node): index for index, node in enumerate(nodes)}
+        chosen = [position[id(node)] for node in kept]
+        n_rows = values.shape[0]
+        standardised = _standardise_columns(values)
+        cutoff = min(self.redundancy_threshold, 1.0 - EXACT_COPY_TOL)
+        path_terms: set[int] = set()
+        for index in self._path(nodes, values, target, limit):
+            if index in chosen:
+                path_terms.add(index)
+                continue
+            copies = np.abs(standardised[:, chosen].T @ standardised[:, index]) / n_rows >= cutoff
+            if any(copy and member in path_terms for member, copy in zip(chosen, copies)):
+                continue
+            chosen = [member for member, copy in zip(chosen, copies) if not copy] + [index]
+            path_terms.add(index)
+        order = _rank([nodes[index] for index in chosen], scores[chosen])
+        return [nodes[chosen[i]] for i in order], scores[chosen][order]
 
     def _constant_free_copies(
         self,

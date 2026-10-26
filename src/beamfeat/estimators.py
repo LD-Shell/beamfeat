@@ -125,7 +125,8 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             the scorer and selector treat the target.
         max_depth: Maximum expression depth.
         beam_width: Expressions retained at each search depth.
-        max_features: Cap on features returned by the search, before selection.
+        max_features: Cap on the features the search ranks by score, before
+            selection; ``residual_slots`` adds up to that many more.
         target_fdr: Nominal false discovery rate for the selector.
         unary_ops: Unary operators to apply. ``"sign"``, off by default, adds
             switches at zero, such as ``x2*sign(x0)`` for a target whose
@@ -295,19 +296,20 @@ class BeamFeatTransformer(TransformerMixin, _BeamFeatBase):
             it stopped after one to five terms on 10 of 12 datasets in
             ``benchmarks/three_settings/`` and lowered held-out score on 9.
             Ignored when ``parsimony`` is ``None``.
-        residual_slots: Places of the search's final ranking kept for terms
-            that explain what the leading terms leave. The ranking keeps the
-            ``max_features`` candidates (``beam_width`` by default) that
-            score best against the target, and a dominant term fills it with
-            restatements of itself, so that a weaker term beside it is cut,
-            such as ``log(x3)`` in ``x0*x1/x2 + 0.5*log(x3)``. ``"auto"``
-            (default) gives 10 places for regression to the first terms of a
-            greedy forward path through the search's candidates, each the
-            one that adds most to a least-squares fit of those before it; a
-            path term is first compared with the other transforms of its
-            operand, which the search may have dropped as near copies
-            (``log(x3)`` beside ``1/x3``). ``0`` gives none, the default
-            before 0.8.0. The path is part of the search, on the search rows
+        residual_slots: Places added to the search's final ranking for
+            terms that explain what the leading terms leave. The ranking
+            keeps the ``max_features`` candidates (``beam_width`` by
+            default) that score best against the target, and a dominant
+            term fills it with restatements of itself, so that a weaker term
+            beside it is cut, such as ``log(x3)`` in
+            ``x0*x1/x2 + 0.5*log(x3)``. ``"auto"`` (default) adds up to 10
+            places for regression for the first terms of a greedy forward
+            path through the search's candidates, each the one that adds
+            most to a least-squares fit of those before it; a path term
+            replaces a ranked near copy of itself, and is first compared
+            with the other transforms of its operand, which the search may
+            have dropped as near copies (``log(x3)`` beside ``1/x3``). ``0``
+            adds none, the default before 0.8.0. The path is part of the search, on the search rows
             only (see :class:`~beamfeat.search.BeamSearch`), so the screen's
             guarantee is unchanged. A positive value is for regression only.
         max_search_rows: Most rows the search runs on, or ``None``

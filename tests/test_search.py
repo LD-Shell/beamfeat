@@ -842,7 +842,7 @@ class TestResidualSlots:
         assert "log(x3)" not in plain.names
         slots = BeamSearch(max_depth=2, beam_width=50, magnitude_slots=10, residual_slots=10).run(data, target)
         assert "log(x3)" in slots.names
-        assert len(slots.nodes) == len(plain.nodes) == 50
+        assert len(plain.nodes) == 50 <= len(slots.nodes) <= 60
 
     def test_kept_in_score_order(self):
         data, target = _dominant_and_weak()

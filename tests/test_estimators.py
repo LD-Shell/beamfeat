@@ -697,8 +697,11 @@ class TestConfiguration:
 
     def test_max_features_caps_output(self, regression_data):
         X, y = regression_data
-        model = _fast(BeamFeatRegressor, beam_width=30, max_features=5).fit(X, y)
+        model = _fast(BeamFeatRegressor, beam_width=30, max_features=5, residual_slots=0).fit(X, y)
+        assert len(model.search_result_.nodes) <= 5
         assert model.n_features_out_ <= 5
+        slots = _fast(BeamFeatRegressor, beam_width=30, max_features=5, residual_slots=3).fit(X, y)
+        assert len(slots.search_result_.nodes) <= 5 + 3
 
     def test_restricted_operators(self, regression_data):
         X, y = regression_data
