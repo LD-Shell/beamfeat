@@ -32,6 +32,7 @@ from beamfeat.scoring import (
     is_constant,
     make_scorer,
 )
+from beamfeat.screen import EquationScreen, screen_equation
 from beamfeat.search import BeamSearch, SearchResult, SearchTrace
 from beamfeat.selection import (
     KnockoffSelector,
@@ -51,12 +52,12 @@ __all__ = [
     "ExtrapolationWarning",
     "NoDiscoveriesError",
     "NoDiscoveriesWarning",
-    "BeamSearch", "CorrelationScorer", "EvaluationLog", "Evaluator",
+    "BeamSearch", "CorrelationScorer", "EquationScreen", "EvaluationLog", "Evaluator",
     "ExclusionReason", "GradientBoostingScorer", "KnockoffSelector",
     "MutualInformationScorer", "Node", "NodeError", "OperatorSpec",
     "PermutationSelector", "RejectedNode", "Scorer", "SearchResult",
     "SearchTrace", "SelectionResult", "Selector", "SpearmanScorer", "StabilityReport",
     "UnitError", "UnitRegistryError", "combine",
     "is_constant", "knockoff_threshold", "leaf", "make_scorer", "make_selector",
-    "stability_report", "transform",
+    "screen_equation", "stability_report", "transform",
 ]
