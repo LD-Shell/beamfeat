@@ -59,6 +59,8 @@ import numpy as np
 
 from beamfeat.selection import PermutationSelector
 
+__all__ = ["EquationScreen", "screen_equation"]
+
 EXCEEDANCES = 10  # Besag and Clifford's h: a pair stops at its tenth exceedance
 
 

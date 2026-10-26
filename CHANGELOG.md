@@ -4,6 +4,18 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `screen_equation`: tests the equation another tool reports (PySR, Operon,
+  gplearn, PySINDy and the like) term by term on rows the tool never saw, with
+  the permutation test beamfeat's fits use under the Benjamini-Yekutieli or
+  Benjamini-Hochberg step-up, and with `input_test=True` each variable inside
+  each term of more than one. It returns an `EquationScreen` with the terms,
+  their p-values and what was kept. It reads the equation with sympy, from the
+  `display` extra.
+
 ## [0.7.0] - 2026-10-25
 
 Two changes to fits, under "Changed": `magnitude_slots="auto"`, 10 beam

@@ -142,6 +142,10 @@ measurements.
   `(x0 * x1) / (x0 + x6)`.
 - **Stability.** `stability_report` refits on many splits and shows whether
   the equation is the only good one or one of many.
+- **Another tool's equation, screened.** `screen_equation` tests the equation
+  PySR, Operon, gplearn or PySINDy reports, term by term, on rows the tool
+  never saw, and keeps the terms whose null is rejected, with the same
+  guarantee.
 - **A warning beyond the training data.** `predict` and `transform` warn
   when a new row takes a feature far beyond its range on the training rows,
   and the search rules out quotients whose denominator comes close to zero
@@ -170,7 +174,8 @@ gives each procedure's assumptions and what was measured.
 - [Choosing a setting](https://ld-shell.github.io/beamfeat/settings/): the
   default, a short equation, or every column tested.
 - [User guide](https://ld-shell.github.io/beamfeat/guide/): reading a fit,
-  the printed equation, the search options, and data and prediction.
+  the printed equation, the search options, data and prediction, and
+  screening another tool's equation.
 - [Tutorials](https://ld-shell.github.io/beamfeat/notebooks/01_getting_started/):
   four notebooks, from a first fit to reading one in detail.
 - [Statistical guarantees](https://ld-shell.github.io/beamfeat/guarantees/):

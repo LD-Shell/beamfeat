@@ -49,6 +49,7 @@ nav:
       - The printed equation: guide/printed-equation.md
       - Search options: guide/search.md
       - Data and prediction: guide/data.md
+      - Another tool's equation: guide/other-tools.md
   - Tutorials:
       - Getting started: notebooks/01_getting_started.ipynb
       - Search and scoring: notebooks/02_search_and_scoring.ipynb

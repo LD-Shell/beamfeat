@@ -15,12 +15,14 @@ up the data the rest of the page uses. New to beamfeat? Start with the
 | [The printed equation](printed-equation.md) | how the equation is chosen from the certified set, and the options that shorten it, test the columns inside it or re-test it |
 | [Search options](search.md) | units, fitted constants, laws whose parts the score cannot see, limits on the search, speed and memory |
 | [Data and prediction](data.md) | constant columns, missing values and categoricals, rows outside a formula's domain, predicting with the original columns as well, new rows beyond the training data |
+| [Another tool's equation](other-tools.md) | screening the equation PySR, Operon, gplearn or PySINDy reports on rows it never saw, and testing the columns inside its terms |
 
 ## Find a parameter
 
 | parameter, method or attribute | where |
 | :-- | :-- |
 | `parsimony_alpha` | [A short equation](printed-equation.md#a-short-equation-parsimony_alpha) |
+| `screen_equation` | [Screening another tool's equation](other-tools.md) |
 | `input_test`, `input_report_` | [Every column tested](printed-equation.md#every-column-tested-input_test) |
 | `parsimony`, `parsimony_tol` | [The printed equation](printed-equation.md) |
 | `parsimony_holdout`, `certify_test` | [Re-testing the printed terms](printed-equation.md#re-testing-the-printed-terms-parsimony_holdout) |

@@ -29,6 +29,12 @@ building and evaluating expressions directly.
 ::: beamfeat.DegenerateFitWarning
 ::: beamfeat.ExtrapolationWarning
 
+## Screening another tool's equation
+
+::: beamfeat.screen
+    options:
+      filters: public
+
 ## Stability over splits
 
 ::: beamfeat.stability
