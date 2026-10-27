@@ -1,0 +1,2465 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="beamfeat's measured results: high-dimensional data, tecator against chemometrics, calibration, formula recovery, and comparisons with autofeat and others.">
+      
+      
+        <meta name="author" content="Olanrewaju M. Daramola">
+      
+      
+        <link rel="canonical" href="https://ld-shell.github.io/beamfeat/benchmarks/">
+      
+      
+        <link rel="prev" href="../guarantees/">
+      
+      
+        <link rel="next" href="../citing/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+
+    
+  <title>Benchmarks - beamfeat</title>
+
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    <link rel="author" href="https://orcid.org/0009-0006-3327-2047">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="beamfeat">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content="Benchmarks - beamfeat">
+  <meta property="og:description" content="beamfeat&#39;s measured results: high-dimensional data, tecator against chemometrics, calibration, formula recovery, and comparisons with autofeat and others.">
+  <meta property="og:url" content="https://ld-shell.github.io/beamfeat/benchmarks/">
+  <meta property="og:image" content="https://ld-shell.github.io/beamfeat/assets/tecator.png">
+  <meta property="og:image:width" content="1352">
+  <meta property="og:image:height" content="621">
+  <meta property="og:image:alt" content="Held-out R² on tecator over five splits: beamfeat 0.991 from three or four formulas; ridge 0.957, LightGBM 0.756 and random forest 0.717 on all 100 channels">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Benchmarks - beamfeat">
+  <meta name="twitter:description" content="beamfeat&#39;s measured results: high-dimensional data, tecator against chemometrics, calibration, formula recovery, and comparisons with autofeat and others.">
+  <meta name="twitter:image" content="https://ld-shell.github.io/beamfeat/assets/tecator.png">
+  <meta name="twitter:image:alt" content="Held-out R² on tecator over five splits: beamfeat 0.991 from three or four formulas; ridge 0.957, LightGBM 0.756 and random forest 0.717 on all 100 channels">
+  <script type="application/ld+json">
+  {"@context": "https://schema.org", "@type": "TechArticle", "about": {"@type": "SoftwareSourceCode", "codeRepository": "https://github.com/LD-Shell/beamfeat", "name": "beamfeat"}, "author": {"@id": "https://orcid.org/0009-0006-3327-2047", "@type": "Person", "affiliation": {"@type": "Organization", "name": "Universiti Teknologi PETRONAS"}, "name": "Olanrewaju M. Daramola", "url": "https://orcid.org/0009-0006-3327-2047"}, "description": "beamfeat\u0027s measured results: high-dimensional data, tecator against chemometrics, calibration, formula recovery, and comparisons with autofeat and others.", "headline": "Benchmarks - beamfeat", "inLanguage": "en", "isPartOf": {"@type": "WebSite", "name": "beamfeat", "url": "https://ld-shell.github.io/beamfeat/"}, "url": "https://ld-shell.github.io/beamfeat/benchmarks/"}
+  </script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#benchmarks" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="beamfeat" class="md-header__button md-logo" aria-label="beamfeat" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            beamfeat
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Benchmarks
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/LD-Shell/beamfeat" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../installation/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Get started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guide/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  User guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../notebooks/01_getting_started/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference and API
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="beamfeat" class="md-nav__button md-logo" aria-label="beamfeat" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    beamfeat
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/LD-Shell/beamfeat" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a setting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrating-from-autofeat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating from autofeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/reading-a-fit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading a fit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/printed-equation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The printed equation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/search/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Search options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data and prediction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/other-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Another tool's equation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/01_getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started with beamfeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/02_search_and_scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Search and scoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/03_selection_and_units/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selection and units
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/04_reading_a_fit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading a fit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference and API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference and API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guarantees/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistical guarantees
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#high-dimensional-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High-dimensional data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="High-dimensional data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tecator-and-the-methods-of-chemometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tecator and the methods of chemometrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selection-calibration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selection calibration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#formula-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula recovery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distractors-and-false-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distractors and false features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#real-datasets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real datasets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#independent-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Independent comparison
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#relationship-to-autofeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relationship to autofeat
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#three-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#release-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release comparison
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-suite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test suite
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-the-paper-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the paper today
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reading the paper today">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-bugs-fixed-in-050" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two bugs, fixed in 0.5.0
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#figures-from-runs-made-under-an-earlier-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Figures from runs made under an earlier release
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#speed-and-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Speed and memory
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../citing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Citing beamfeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#high-dimensional-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High-dimensional data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="High-dimensional data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tecator-and-the-methods-of-chemometrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tecator and the methods of chemometrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selection-calibration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selection calibration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#formula-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula recovery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distractors-and-false-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distractors and false features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#real-datasets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real datasets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#independent-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Independent comparison
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#relationship-to-autofeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relationship to autofeat
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#three-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#release-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release comparison
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-suite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test suite
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-the-paper-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the paper today
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reading the paper today">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-bugs-fixed-in-050" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two bugs, fixed in 0.5.0
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#figures-from-runs-made-under-an-earlier-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Figures from runs made under an earlier release
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#speed-and-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Speed and memory
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="benchmarks">Benchmarks</h1>
+<p>Every result here comes from a script in the repository and its archived
+run, or from the paper (TMLR 2026), which describes release 0.4.2. Results
+with a random component carry Monte Carlo error, so read them at the
+precision given.</p>
+<p>Most archived runs were made before 0.6.0 and 0.7.0 changed the search's
+defaults: constants inside expressions (<code>fitted_ops</code>), magnitude slots and
+the guard against quotients whose denominator comes near zero. Unless a
+result says otherwise, it was measured without them. Rerun at the current
+defaults, the formula-recovery suites recover the same formulas, the
+end-to-end calibration gives the same result, and Friedman #1 rises from
+0.745 to 0.770. To reproduce an archived run exactly, install the release
+that made it (<a href="../installation/#reproduce-the-benchmarks">Installation</a>).
+Where the paper's own numbers have moved,
+<a href="#reading-the-paper-today">Reading the paper today</a> says why.</p>
+<h2 id="high-dimensional-data">High-dimensional data</h2>
+<p><a href="https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/additional_experiments"><code>benchmarks/additional_experiments/</code></a>
+compares beamfeat with ridge, random forest and LightGBM on the raw columns of
+nine datasets with 81 to 4,088 columns, over five random 75/25 splits each
+(the paper's Table 6). Mean held-out R², the best in each row in bold:</p>
+<table>
+<thead>
+<tr>
+<th>dataset</th>
+<th style="text-align: right;">columns</th>
+<th style="text-align: right;">ridge</th>
+<th style="text-align: right;">random forest</th>
+<th style="text-align: right;">LightGBM</th>
+<th style="text-align: right;">beamfeat</th>
+<th style="text-align: right;">formulas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tecator</td>
+<td style="text-align: right;">100</td>
+<td style="text-align: right;">0.957</td>
+<td style="text-align: right;">0.717</td>
+<td style="text-align: right;">0.756</td>
+<td style="text-align: right;"><strong>0.991</strong></td>
+<td style="text-align: right;">3.6</td>
+</tr>
+<tr>
+<td>geomusic</td>
+<td style="text-align: right;">117</td>
+<td style="text-align: right;"><strong>0.805</strong></td>
+<td style="text-align: right;">0.739</td>
+<td style="text-align: right;">0.739</td>
+<td style="text-align: right;"><strong>0.805</strong></td>
+<td style="text-align: right;">9.6</td>
+</tr>
+<tr>
+<td>communities</td>
+<td style="text-align: right;">100</td>
+<td style="text-align: right;"><strong>0.650</strong></td>
+<td style="text-align: right;">0.638</td>
+<td style="text-align: right;">0.632</td>
+<td style="text-align: right;">0.641</td>
+<td style="text-align: right;">11.6</td>
+</tr>
+<tr>
+<td>riboflavin</td>
+<td style="text-align: right;">4,088</td>
+<td style="text-align: right;"><strong>0.579</strong></td>
+<td style="text-align: right;">0.436</td>
+<td style="text-align: right;">0.493</td>
+<td style="text-align: right;">0.544 †</td>
+<td style="text-align: right;">17.4</td>
+</tr>
+<tr>
+<td>eyedata</td>
+<td style="text-align: right;">200</td>
+<td style="text-align: right;"><strong>0.479</strong></td>
+<td style="text-align: right;">0.340</td>
+<td style="text-align: right;">0.031</td>
+<td style="text-align: right;">0.416</td>
+<td style="text-align: right;">34.0</td>
+</tr>
+<tr>
+<td>superconduct</td>
+<td style="text-align: right;">81</td>
+<td style="text-align: right;">0.725</td>
+<td style="text-align: right;"><strong>0.884</strong></td>
+<td style="text-align: right;"><strong>0.884</strong></td>
+<td style="text-align: right;">0.731</td>
+<td style="text-align: right;">16.2</td>
+</tr>
+<tr>
+<td>blogfeedback</td>
+<td style="text-align: right;">280</td>
+<td style="text-align: right;">0.379</td>
+<td style="text-align: right;"><strong>0.548</strong></td>
+<td style="text-align: right;">0.535</td>
+<td style="text-align: right;">0.415</td>
+<td style="text-align: right;">18.4</td>
+</tr>
+<tr>
+<td>ct_slices</td>
+<td style="text-align: right;">384</td>
+<td style="text-align: right;">0.852</td>
+<td style="text-align: right;"><strong>0.981</strong></td>
+<td style="text-align: right;"><strong>0.981</strong></td>
+<td style="text-align: right;">0.687 †</td>
+<td style="text-align: right;">14.0</td>
+</tr>
+<tr>
+<td>ujiindoorloc</td>
+<td style="text-align: right;">520</td>
+<td style="text-align: right;">0.949</td>
+<td style="text-align: right;"><strong>0.995</strong></td>
+<td style="text-align: right;">0.993</td>
+<td style="text-align: right;">0.812 †</td>
+<td style="text-align: right;">20.0</td>
+</tr>
+</tbody>
+</table>
+<p>"formulas" is the mean number of terms in beamfeat's fitted equation.</p>
+<p>† Corrected since the paper: rerun with 0.5.0, beamfeat's mean R² is 0.340 on
+riboflavin, 0.664 on ct_slices and 0.816 on ujiindoorloc.</p>
+<p>beamfeat leads where the target is a compact algebraic function of a few
+columns, as on tecator, where ratios of absorbance channels are features that
+threshold splits cannot build. It trails where the signal is spread thinly
+over hundreds of columns, as on ct_slices, ujiindoorloc and blogfeedback:
+ridge keeps every column and shrinks it, while a screen with an error-rate
+guarantee has little power to reject the null for features that each carry
+a small fraction of the signal, and leaves them out.
+With the corrections, it is ahead of both tree ensembles on four of the nine
+datasets: tecator, geomusic, communities and eyedata. <code>fdr_controlled_</code> was
+true on all 90 beamfeat fits of the archived run (the estimator and the
+transformer).</p>
+<p>On tecator, a random forest given the formulas in place of the raw channels
+goes from 0.739 to 0.992, on three of the five splits. On the small datasets,
+tree models given the formulas do worse than ridge, which is why ridge is the
+default.</p>
+<p>Tecator also shows what a single fit does not. In the paper's stability study,
+thirty fits with different seeds on one partition (the design of
+<code>stability_report(..., resample="seeds")</code>) held R² at 0.989, with a standard
+deviation of 0.004, while selecting 79 distinct features, counting
+value-equivalent ones once, none of them in more than 8 of the 30 fits.
+Adjacent channels correlate at 0.99988, so many band pairs are
+near-substitutes and each fit picks among them.
+<a href="../guide/reading-a-fit/#one-equation-or-one-of-many">One equation or one of many</a>
+shows how to run the same check on other data.</p>
+<h3 id="tecator-and-the-methods-of-chemometrics">Tecator and the methods of chemometrics</h3>
+<p>On spectra, chemometrics uses partial least squares (PLS) on preprocessed
+spectra, and kernel methods on derivative spectra are among the most
+accurate. <a href="https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/tecator_chemometrics"><code>benchmarks/tecator_chemometrics/</code></a>,
+added after the paper, fits them on the same five splits, each tuned by
+cross-validation on its training rows:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">method</th>
+<th style="text-align: right;">held-out R²</th>
+<th style="text-align: right;">RMSE (% fat)</th>
+<th style="text-align: left;">size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">SVR, second-derivative spectra</td>
+<td style="text-align: right;">0.998</td>
+<td style="text-align: right;">0.66</td>
+<td style="text-align: left;">all 100 channels</td>
+</tr>
+<tr>
+<td style="text-align: left;">kernel ridge, second-derivative spectra</td>
+<td style="text-align: right;">0.997</td>
+<td style="text-align: right;">0.79</td>
+<td style="text-align: left;">all 100 channels</td>
+</tr>
+<tr>
+<td style="text-align: left;">Gaussian process, second-derivative spectra</td>
+<td style="text-align: right;">0.996</td>
+<td style="text-align: right;">0.85</td>
+<td style="text-align: left;">all 100 channels</td>
+</tr>
+<tr>
+<td style="text-align: left;">beamfeat, second-derivative spectra</td>
+<td style="text-align: right;">0.996</td>
+<td style="text-align: right;">0.89</td>
+<td style="text-align: left;">1 to 3 terms</td>
+</tr>
+<tr>
+<td style="text-align: left;">beamfeat</td>
+<td style="text-align: right;">0.990</td>
+<td style="text-align: right;">1.44</td>
+<td style="text-align: left;">3 to 4 terms</td>
+</tr>
+<tr>
+<td style="text-align: left;">PLS, after the standard normal variate</td>
+<td style="text-align: right;">0.971</td>
+<td style="text-align: right;">2.33</td>
+<td style="text-align: left;">5 to 18 components</td>
+</tr>
+<tr>
+<td style="text-align: left;">PLS, derivative spectra</td>
+<td style="text-align: right;">0.958</td>
+<td style="text-align: right;">2.89</td>
+<td style="text-align: left;">12 to 20 components</td>
+</tr>
+<tr>
+<td style="text-align: left;">ridge</td>
+<td style="text-align: right;">0.957</td>
+<td style="text-align: right;">2.94</td>
+<td style="text-align: left;">all 100 channels</td>
+</tr>
+<tr>
+<td style="text-align: left;">PLS</td>
+<td style="text-align: right;">0.951</td>
+<td style="text-align: right;">3.14</td>
+<td style="text-align: left;">17 to 18 components</td>
+</tr>
+</tbody>
+</table>
+<p>beamfeat's error is about half that of PLS, the field's standard (46 to 62%
+of it). The kernel methods' error is about half of beamfeat's (46 to 59%),
+from all 100 channels and with no formula to read; on derivative spectra
+beamfeat comes close to them with one to three terms. Its formulas are mostly
+ratios of differences between nearby channels, and the channels it uses most
+lie at 920 to 946 nm, near the band around 930 nm usually attributed to fat.</p>
+<p>The data's documentation defines a split of its own: samples 1 to 172 to
+train, 173 to 215 to test, and two extrapolation sets, E1 (eight samples with
+more fat than any training sample) and E2 (more protein). beamfeat is
+averaged over five seeds:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">method</th>
+<th style="text-align: right;">test RMSE</th>
+<th style="text-align: right;">E1 RMSE</th>
+<th style="text-align: right;">E2 RMSE</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">kernel ridge, SVR, Gaussian process (derivative)</td>
+<td style="text-align: right;">0.54 to 0.55</td>
+<td style="text-align: right;">2.69 to 3.76</td>
+<td style="text-align: right;">0.41 to 0.44</td>
+</tr>
+<tr>
+<td style="text-align: left;">beamfeat, second-derivative spectra</td>
+<td style="text-align: right;">0.64</td>
+<td style="text-align: right;">1.74</td>
+<td style="text-align: right;">0.43</td>
+</tr>
+<tr>
+<td style="text-align: left;">beamfeat</td>
+<td style="text-align: right;">1.33</td>
+<td style="text-align: right;">1.99</td>
+<td style="text-align: right;">1.17</td>
+</tr>
+<tr>
+<td style="text-align: left;">PLS (raw, SNV, derivative) and ridge</td>
+<td style="text-align: right;">1.98 to 2.20</td>
+<td style="text-align: right;">8.08 to 8.47</td>
+<td style="text-align: right;">1.66 to 2.19</td>
+</tr>
+</tbody>
+</table>
+<p>beamfeat had the lowest errors on E1, though eight samples make that a hint
+rather than a measurement. Releases before 0.7.0 missed E1 badly (RMSE
+47.7) with a ratio whose denominator came near zero beyond the training
+samples; the search now rules such ratios out, and <code>predict</code> warns when a
+new row takes a feature far beyond its training range
+(<a href="../guide/data/#new-rows-beyond-the-training-data">New rows beyond the training data</a>).</p>
+<h2 id="selection-calibration">Selection calibration</h2>
+<ul>
+<li><strong>Selector level</strong>
+  (<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py"><code>benchmarks/selector_calibration.py</code></a>).
+  On Gaussian designs over 100 trials, Benjamini–Hochberg realised
+  0.046 ± 0.008, 0.084 ± 0.012 and 0.161 ± 0.016 at nominal 0.05/0.10/0.20,
+  against its ceiling of <code>q·m₀/m</code> = 0.040/0.080/0.160; Benjamini–Yekutieli,
+  stricter by a harmonic factor, realised 0.013 ± 0.005, 0.018 ± 0.005 and
+  0.046 ± 0.008. Power was 1.00 throughout. The bounds are computed from the
+  design, and the script stops with an error if a bound falls below a
+  realised rate's whole 95% interval.</li>
+<li><strong>End to end</strong>
+  (<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/calibration_study.py"><code>benchmarks/calibration_study.py</code></a>).
+  Search plus holdout selection at nominal FDR 0.10, on 500 rows and 6 input
+  columns of which 2 carry signal through their product, with noise at 5% of
+  the signal's standard deviation: no false discovery in 200 replicates, a 95%
+  upper bound of 0.015 on the true rate, power 1.000 and no fallbacks. Over 60
+  global-null replicates, nothing was selected.</li>
+<li><strong>Pure noise</strong>
+  (<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/selector_calibration.py"><code>benchmarks/selector_calibration.py</code></a>).
+  Over 100 global-null pipelines, where every selection is false by
+  construction, BH returned features in 7 trials and BY in 1: false
+  discovery proportions of 0.07 and 0.01, both under the nominal 0.10. On
+  the same 100 datasets, BY's one selecting trial is among BH's seven, and
+  an exact paired test rejects equal rates (p = 0.03). BY, valid under any
+  dependence, is the default. The paper, on 0.4.2, reports 6 and 1.</li>
+</ul>
+<p>The <a href="../guarantees/">guarantees page</a> states what each procedure guarantees and
+under which assumptions.</p>
+<h2 id="formula-recovery">Formula recovery</h2>
+<ul>
+<li><strong>Known formulas</strong>
+  (<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/run_benchmarks.py"><code>benchmarks/run_benchmarks.py</code></a>,
+  one 70/30 split per dataset). Mean R² over the ten core-suite problems, and recovery of
+  the generating columns over the ten synthetic problems that declare them;
+  the two sets differ by one dataset each. beamfeat: mean R² 0.9989, fits of
+  about 0.2 s, 10/10 recovered. autofeat: 0.9970, about 12 s, 8/10. LightGBM
+  0.9798, ridge 0.8442. On the purely linear problem, where feature
+  construction has nothing to add, ridge ties beamfeat.</li>
+<li><strong>Feynman equations</strong>
+  (<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/feynman_panel.py"><code>benchmarks/feynman_panel.py</code></a>,
+  12 physics laws, 0.1% noise). In the archived run, 10/12 solved at the
+  SRBench criterion, and the exact symbolic form on 8 of the 9 laws that
+  have one. The misses are limits of the search space: a depth-3 rational, a
+  literal constant, depth-4 nesting and the Gaussian's exponential. With
+  constants inside expressions (<code>fitted_ops</code>, the default since 0.6.0), the
+  last two are found, the Gaussian as <code>exp(-0.5*(x0)^2)</code> and relativistic
+  velocity addition as <code>(x0 + x1)/((x0*x1) + 1)</code>: the exact form on 10 of
+  the 11 laws that have one within the depth, still 10/12 solved, at 0.4 s
+  per equation.</li>
+<li><strong>Heavy-tailed noise</strong> (Student t(2), infinite variance). The exact formula
+  is recovered, at R² 0.956 against LightGBM's 0.866. The permutation test is
+  distribution-free, so heavy tails do not affect its validity.</li>
+</ul>
+<h2 id="distractors-and-false-features">Distractors and false features</h2>
+<p><img alt="False features returned on the distractor stress suite" src="https://raw.githubusercontent.com/LD-Shell/beamfeat/main/paper/figures/fig_false_feature_rate.png" /></p>
+<p><em>Signal hidden among ten distractor columns. A false feature is a returned
+formula touching only irrelevant ones; the count is over the five stress
+datasets that declare which columns their formula uses. Regenerate with
+<code>python</code>
+<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/make_figures.py"><code>benchmarks/make_figures.py</code></a>,
+which writes six other figures alongside it.</em></p>
+<ul>
+<li><strong>Stress suite</strong> (signal among ten distractor columns). beamfeat's
+  false-feature rate, the share of returned formulas that touch only
+  irrelevant columns, is 0.000 at noise levels from 5% to 50% of the signal
+  scale and at n as small as 120, with recovery and the guarantee intact
+  throughout. autofeat recovers the formula as often but returns
+  distractor-only features on 2 of the 5 scoreable datasets. The comparison is
+  a count rather than a mean, since a mean over five datasets carries a
+  standard error of about 0.15, and autofeat's output varies between
+  processes.</li>
+<li><strong>OpenFE</strong> on the same suite (its features feeding LightGBM, after shimming
+  a removed scikit-learn parameter): a false-feature rate of 0.000 as well,
+  but 0/5 formulas recovered and a lower R² on all five. It optimises a tree
+  model's lift rather than equations.</li>
+<li><strong>Selection alone</strong> (knockpy on the raw columns, with the modified-FDR
+  offset, the only satisfiable configuration at these dimensionalities): 0/15
+  formulas recovered, a core-suite R² at the ridge level (0.845), and
+  distractor-only features on 2 of the 5 scoreable stress datasets. The
+  difference from beamfeat is the construction step and the holdout.</li>
+</ul>
+<h2 id="real-datasets">Real datasets</h2>
+<p>Seven datasets, numeric columns only. beamfeat leads on mpg (0.864 against
+LightGBM's 0.853) and on tips, where gradient boosting overfits below ridge
+while the FDR screen keeps beamfeat at the top. It ties ridge on diamonds with
+one interpretable feature. It trails LightGBM on penguins, breast cancer and
+California housing (0.700 against 0.843, where the signal is spatial), and
+ridge on diabetes (0.376), where there is no nonlinear structure to find and
+beamfeat adds none.</p>
+<h2 id="known-limits">Known limits</h2>
+<ul>
+<li><strong>Piecewise targets</strong> suit trees: on a threshold problem, LightGBM reaches
+  0.998 and beamfeat 0.808. When a tree model beats beamfeat by a wide margin,
+  the signal is likely piecewise rather than algebraic. OpenFE also records
+  0.998 there, but bit-identically to raw LightGBM and from a feature touching
+  only an irrelevant column, so the result belongs to its tree model.</li>
+<li><strong>Laws whose parts do not correlate with the target</strong>
+  (<a href="https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/search_stress"><code>benchmarks/search_stress/</code></a>).
+  With centred inputs, the parts of <code>x0*x1*x2</code>, and of <code>x0*x1</code> among
+  hundreds of columns, do not correlate with the target, so a search without
+  magnitude slots can drop them before it combines them. Over 50 fits per cell, on
+  inputs uniform on (-1, 1), <code>x0*x1*x2</code> is recovered exactly in every fit
+  with 5 columns but in 0.54, 0.18 and 0.10 of them with 20, 100 and 300,
+  and <code>x0*x1</code> in 0.32 with 1,000 columns; on shifted inputs the same laws are recovered in every fit.
+  A wider beam does not close the gap. The magnitude slots, on by default
+  for regression, recovered every lost cell but one crowded sum law (0.88),
+  at 1.2 to 1.7 times the fit time, and left the real-data suites and the
+  false-discovery rates essentially unchanged
+  (<a href="../guide/search/#laws-whose-parts-the-score-cannot-see">guide</a>).</li>
+<li><strong>Friedman #1</strong>
+  (<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/friedman_decomposition.py"><code>benchmarks/friedman_decomposition.py</code></a>).
+  Over six draws, a representation oracle reaches 0.960 ± 0.003, a
+  screening-admissible ceiling 0.874 ± 0.006, and the pipeline 0.780 ± 0.013.
+  About 0.086 is lost to what marginal screening cannot see: the centred
+  quadratic term is nearly uncorrelated with the target on its own, so a
+  marginal screen has almost no power to reject its null. The other 0.094 is
+  lost in the search. The
+  <a href="../guarantees/#permutation-selector-default">guarantees page</a> explains the
+  marginal null.</li>
+</ul>
+<h2 id="independent-comparison">Independent comparison</h2>
+<p><a href="https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/independent"><code>benchmarks/independent/</code></a>
+holds a 360-fit study (nine datasets, eight methods, five splits, average ranks
+and a Friedman test) with its harness, pinned environment, data, and a
+notebook that reproduces the analysis. Mean held-out R²: random forest 0.810,
+beamfeat 0.803, LightGBM 0.798, OpenFE 0.736, ridge 0.704, autofeat −1.561
+and featuretools −2.478. The worst of each method's 45 fits: beamfeat 0.355,
+autofeat −103.2 and featuretools −57.3; no beamfeat fit fell below zero.
+beamfeat ran at about 60 times autofeat's speed, and <code>fdr_controlled_</code> was
+true on 45 of 45 fits. The featuretools figures come from a harness that
+filled its non-finite test cells with 0; with the training medians, as the
+harness now fills them, they read 0.461 and −12.882 (see
+<a href="#reading-the-paper-today">Reading the paper today</a>).</p>
+<p><a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md"><code>PROVENANCE.md</code></a>
+records what reproduces and what does not. beamfeat's selections reproduce
+bit-identically, though the fitted model's cross-validated penalty can flip
+on marginal problems. autofeat sets no <code>random_state</code> and draws its decoy
+features from the global NumPy generator: six runs on one identical split
+ranged from +0.952 to −109.8.</p>
+<h2 id="relationship-to-autofeat">Relationship to autofeat</h2>
+<p>beamfeat's design began from a code review of
+<a href="https://github.com/cod3licious/autofeat">autofeat</a>
+(<a href="https://doi.org/10.1007/978-3-030-43823-4_10">Horn et al., 2019</a>). It keeps
+autofeat's central idea, compact symbolic features feeding a linear model,
+and replaces exhaustive expansion with beam search, noise-threshold selection
+with FDR-controlled procedures, and upper-pinned dependencies with tested
+floors. The generate-then-filter design has a direct precedent in
+<a href="https://github.com/blue-yonder/tsfresh">tsfresh</a>
+(<a href="https://doi.org/10.1016/j.neucom.2018.03.067">Christ et al., 2018</a>), which
+filters mass-generated time-series features under Benjamini–Yekutieli
+control; beamfeat applies it to symbolic expressions on tabular columns.
+<a href="../migrating-from-autofeat/">Migrating from autofeat</a> maps one API onto the
+other.</p>
+<h2 id="three-settings">Three settings</h2>
+<p><a href="https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/three_settings"><code>benchmarks/three_settings/</code></a>
+fits the default, <code>parsimony_alpha=0.05</code>, <code>input_test=True</code> and both together
+on the same data: a noise sweep on <code>y = x0/x1</code> among unrelated columns, the
+release comparison's datasets and splits, and the paper's own studies with
+their own settings. <a href="../settings/">Choosing a setting</a> summarises it. In
+short, at noise as large as the signal the default printed a median of 9.5
+terms, most of them reading an unrelated column, and <code>parsimony_alpha</code>
+printed the one true term in every fit; on the 12 real datasets the default
+had the best mean held-out score (0.693, against 0.675 with
+<code>parsimony_alpha</code> and 0.675 with <code>input_test</code>). At the paper's settings the
+comparison study's mean R² is 0.803 at the default, 0.784 with
+<code>parsimony_alpha</code> and 0.803 with <code>input_test</code>, against the paper's 0.803.</p>
+<h2 id="release-comparison">Release comparison</h2>
+<p><a href="https://github.com/LD-Shell/beamfeat/tree/main/benchmarks/release_comparison"><code>benchmarks/release_comparison/</code></a>
+runs the same benchmarks, data, splits and seeds through six releases, from
+0.4.2, the paper's, to 0.8.0, on one software stack: about 30,000 fits. The
+paper's release against the current one, at their defaults:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">measure</th>
+<th style="text-align: right;">0.4.2 (the paper's)</th>
+<th style="text-align: right;">0.8.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Feynman panel, fits solved of 60</td>
+<td style="text-align: right;">47</td>
+<td style="text-align: right;">50</td>
+</tr>
+<tr>
+<td style="text-align: left;">search stress laws, exact recovery</td>
+<td style="text-align: right;">0.883</td>
+<td style="text-align: right;">1.000</td>
+</tr>
+<tr>
+<td style="text-align: left;">riders at signal to noise 1 (conditional FDR)</td>
+<td style="text-align: right;">0.736</td>
+<td style="text-align: right;">0.722</td>
+</tr>
+<tr>
+<td style="text-align: left;">7 real datasets, mean held-out score</td>
+<td style="text-align: right;">0.725</td>
+<td style="text-align: right;">0.727</td>
+</tr>
+<tr>
+<td style="text-align: left;">fit time, relative to 0.4.2</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.6</td>
+</tr>
+<tr>
+<td style="text-align: left;">peak fit memory, relative to 0.4.2</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.2</td>
+</tr>
+</tbody>
+</table>
+<p>The <a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md">report</a>
+has the releases in between, and measures each option against its release's
+default.</p>
+<h2 id="test-suite">Test suite</h2>
+<p>1,079 tests at 97% statement coverage, with a 90% floor enforced in CI,
+including scikit-learn's full estimator-conformance checks.</p>
+<p><a id="corrections-since-the-paper"></a></p>
+<h2 id="reading-the-paper-today">Reading the paper today</h2>
+<p>The paper describes release 0.4.2, archived with its run records at
+<a href="https://doi.org/10.5281/zenodo.23417132">10.5281/zenodo.23417132</a>. Some of
+its numbers differ from what current releases give, for three reasons: two
+bugs, figures from runs made under an earlier release, and speed. The
+archived records are kept as they were run. Comparisons added since the
+paper, such as the chemometrics baselines on tecator and the
+<a href="#three-settings">three settings</a>, have folders of their own and change
+none of the paper's numbers.</p>
+<h3 id="two-bugs-fixed-in-050">Two bugs, fixed in 0.5.0</h3>
+<ul>
+<li><strong>Comparison harness.</strong> The harness filled non-finite test cells of the
+  constructed features with 0, while the training cells got the training
+  median. This understated featuretools, whose ratio features divide by
+  columns that contain zeros. With the training medians on both, featuretools
+  has a mean R² of about 0.461 rather than −2.478 in the independent
+  comparison, a worst fit of −12.882 rather than −57.320, and one fit below
+  zero rather than six. Every other method's row, and every conclusion about
+  beamfeat, is unaffected
+  (<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md#non-finite-test-cells"><code>PROVENANCE.md</code></a>).</li>
+<li><strong>Search.</strong> When <code>max_candidates_per_depth</code> bound at depth 1, the first
+  round proposed parents in column order, so from about 258 inputs, pairs
+  among the last columns were never proposed. The first round now proposes
+  the inputs in order of their score, as documented. Three datasets of the
+  high-dimensional study reach the ceiling. Rerun with 0.5.0, beamfeat's mean
+  R² is 0.340 on riboflavin, 0.664 on ct_slices and 0.816 on ujiindoorloc,
+  against 0.544, 0.687 and 0.812 in the paper; the archived riboflavin run
+  was made with an earlier version, and 0.4.4 gives 0.523 there. With the
+  ceiling raised so that every input is proposed, ct_slices and ujiindoorloc
+  give the new results exactly; the old ones depended on which columns came
+  first in the file. beamfeat now leads both tree ensembles on four of the
+  nine datasets rather than five.</li>
+</ul>
+<h3 id="figures-from-runs-made-under-an-earlier-release">Figures from runs made under an earlier release</h3>
+<p>These are not bugs. The method is the one the paper describes, but the
+release that produced the figure is not the one it names, and the figures
+move little:</p>
+<ul>
+<li><strong>riboflavin</strong>, in the high-dimensional study, as noted under the search
+  bug above.</li>
+<li><strong>The independent comparison.</strong> Its archived run predates 0.3.0, when the
+  internal ridge penalty was fixed at <code>alpha=1</code>. Rerun with 0.4.2,
+  <code>beamfeat_ridge</code> matches 37 of the 45 archived fits to four decimals, with a
+  mean of 0.8034 against 0.8033
+  (<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/independent/PROVENANCE.md#what-reproduces"><code>PROVENANCE.md</code></a>).</li>
+<li><strong>threshold_step</strong>, in <code>run_benchmarks.py</code>'s robustness results, which
+  were regenerated under 0.3.0. The paper quotes beamfeat's held-out R² there
+  as 0.808, and 0.4.2 with the script's own settings gives 0.843. It
+  reproduces the script's other 19 datasets and the Feynman panel exactly,
+  and the five other robustness datasets to within 0.003 with the same number
+  of terms
+  (<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/PROVENANCE.md#against-the-papers-numbers">release comparison</a>).
+  That check cannot tell whether the release or the software environment
+  causes the difference.</li>
+</ul>
+<h3 id="speed-and-memory">Speed and memory</h3>
+<p>Later releases are faster, so the paper's timings and memory figures
+describe 0.4.2. 0.5.0 runs the high-dimensional study 2 to 28 times faster per
+dataset without changing any feature, p-value or prediction, and a default
+fit on 1000 columns and 600 rows that peaked at 2.6 GB of memory peaks at
+0.35 GB in 0.5.0. Over the eight timing items of the
+<a href="https://github.com/LD-Shell/beamfeat/blob/main/benchmarks/release_comparison/REPORT.md">release comparison</a>,
+0.8.0 fits in about 0.6 of 0.4.2's time with a fifth of its memory. The
+<a href="../changelog/">changelog</a> lists every change.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../guarantees/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Statistical guarantees">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Statistical guarantees
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../citing/" class="md-footer__link md-footer__link--next" aria-label="Next: Citing beamfeat">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Citing beamfeat
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 <a href="https://orcid.org/0009-0006-3327-2047" rel="author">Olanrewaju M. Daramola</a> (ORCID)
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.footer", "navigation.indexes", "navigation.sections", "navigation.tabs", "navigation.top", "search.highlight", "search.suggest", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">
+/* Shared by full pages and Material's instant navigation. */
+(() => {
+  const config = JSON.parse(document.currentScript.dataset.mkdocsJupyterMathjax);
+  if (window.mkdocsJupyterMathJax) return;
+
+  let loading;
+  let queue = Promise.resolve();
+  let previous = [];
+
+  const ready = async () => {
+    if (!loading) {
+      loading = (async () => {
+        let math = window.MathJax;
+        if (!math?.typesetPromise) {
+          const url = new URL(config.url, document.baseURI).href;
+          const existing = Array.from(document.scripts).find(script =>
+            script.src && (script.src === url || script.id === 'MathJax-script' ||
+              (/mathjax/i.test(script.src) &&
+               /\/(?:MathJax|latest|(?:tex|mml)(?:-mml)?-(?:chtml|svg))\.js(?:[?#]|$)/i.test(script.src))));
+          if (existing) {
+            if (!math?.startup?.promise) {
+              await new Promise((resolve, reject) => {
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', reject, { once: true });
+              });
+            }
+          } else {
+            // Keep site macros, delimiters and startup hooks when supplied.
+            const options = math || {};
+            window.MathJax = {
+              ...options,
+              loader: {
+                ...options.loader,
+                load: Array.from(new Set(['ui/safe', ...(options.loader?.load || [])]))
+              },
+              startup: { typeset: false, ...options.startup },
+              tex: {
+                tags: 'ams',
+                useLabelIds: true,
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true,
+                ...options.tex
+              }
+            };
+            await new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = config.url;
+              script.id = 'MathJax-script';
+              script.async = true;
+              script.onload = resolve;
+              script.onerror = reject;
+              document.head.appendChild(script);
+            });
+          }
+        }
+        math = window.MathJax;
+        await math.startup.promise;
+        return math;
+      })();
+    }
+    const math = await loading;
+    // A site owner can extend the v3 queue again on each navigation.
+    await math.startup.promise;
+    return math;
+  };
+
+  const unrendered = node => {
+    if (node.matches('mjx-container')) return [];
+    if (!node.querySelector('mjx-container')) return [node];
+    // In v3, scanning generated assistive MathML again produces nested output.
+    return Array.from(node.children).flatMap(unrendered);
+  };
+
+  const refresh = () => {
+    // A separate chain also serializes v3, without changing v4's startup promise.
+    queue = queue.then(async () => {
+      const notebooks = Array.from(document.querySelectorAll('.jupyter-wrapper'));
+      if (!notebooks.length && !previous.length) return;
+      if (notebooks.length === previous.length &&
+          notebooks.every((node, index) => node === previous[index])) return;
+      const math = await ready();
+      if (previous.length) {
+        math.typesetClear(previous);
+        math.texReset();
+      }
+      previous = notebooks.filter(node => node.isConnected);
+      const pending = previous.flatMap(unrendered);
+      if (pending.length) await math.typesetPromise(pending);
+    }).catch(error => console.error('mkdocs-jupyter: MathJax rendering failed', error));
+    return queue;
+  };
+
+  window.mkdocsJupyterMathJax = { refresh };
+  const start = () => {
+    if (typeof document$ !== 'undefined') document$.subscribe(refresh);
+    else refresh();
+  };
+  // Theme bundles and user-provided MathJax scripts can follow notebook content.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else start();
+})();
+
+</script>
+</body>
+</html>
