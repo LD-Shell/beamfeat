@@ -59,6 +59,7 @@ nav:
       - API reference: api.md
       - Statistical guarantees: guarantees.md
       - Benchmarks: benchmarks.md
+      - Testing: testing.md
       - Citing beamfeat: citing.md
       - Changelog: changelog.md
 plugins:
