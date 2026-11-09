@@ -4,6 +4,18 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The knockoff statistic for classification raised `KeyError: 'penalty'` on
+  scikit-learn 1.10's development builds, which remove
+  `LogisticRegressionCV`'s `penalty` parameter (deprecated in 1.8), and the
+  fit there would have warned, since 1.10 deprecates `use_legacy_attributes`
+  and warns when it is passed. The helper now checks that each parameter is
+  still there before using it. On scikit-learn 1.6 to 1.9 it passes the same
+  arguments as before.
+
 ## [0.8.0] - 2026-10-26
 
 Every fit at the defaults is 0.7.0's: on all 1,430 items of
