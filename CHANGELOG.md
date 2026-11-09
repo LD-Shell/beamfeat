@@ -4,7 +4,12 @@ Notable changes to `beamfeat`. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.8.1] - 2026-11-09
+
+A compatibility release. The one change is to how the classification
+knockoff statistic builds its logistic fit on scikit-learn 1.10's development
+builds; on scikit-learn 1.6 to 1.9 it passes the same arguments as 0.8.0, so
+every fit is 0.8.0's.
 
 ### Fixed
 
