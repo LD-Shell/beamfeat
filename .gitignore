@@ -57,15 +57,3 @@ benchmarks/results_reproduce/
 benchmarks/pysr_panel/results/*.log
 paper/figures_reproduce/
 
-# Assistant and editor tooling
-.aider*
-.claude/
-.codeium/
-.continue/
-.cursor/
-.cursorrules
-.specstory/
-.windsurfrules
-AGENTS.md
-CLAUDE.md
-.github/copilot-instructions.md
