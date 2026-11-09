@@ -1,5 +1,5 @@
 context:
-  version: "0.8.0"
+  version: "0.8.1"
 
 package:
   name: beamfeat
@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://files.pythonhosted.org/packages/source/b/beamfeat/beamfeat-${{ version }}.tar.gz
-  sha256: 2cf3ff006290c1b077fbe84137a1c044aac5253f53640523a3e8c8c7aadc7b2d
+  sha256: f6bb8a2be8bcac36d4df8d8699ea11989aaf8582eee5a63753d9e170a603289d
 
 build:
   noarch: python
