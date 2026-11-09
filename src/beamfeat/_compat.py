@@ -3,8 +3,10 @@
 scikit-learn is supported from 1.6 on, and its logistic regression has
 changed across that range: 1.7 deprecates fitting more than two classes
 with the ``liblinear`` solver, which fits two classes only from 1.8; 1.8
-deprecates ``penalty`` in favour of ``l1_ratio`` and ``l1_ratios``; 1.10
-deprecates ``C`` in favour of ``alpha = 1/C``, and ``liblinear`` itself.
+deprecates ``penalty`` in favour of ``l1_ratio`` and ``l1_ratios``, and 1.10
+removes it; 1.10 deprecates ``C`` in favour of ``alpha = 1/C``, ``liblinear``
+itself, and ``LogisticRegressionCV``'s ``use_legacy_attributes``, which 1.8
+and 1.9 warn about unless it is set.
 The helpers here build the models beamfeat fits internally with the
 arguments the installed version expects, so that none of those
 deprecations is triggered, and a fit on a version older than a change is
@@ -80,7 +82,7 @@ def l1_logistic_coefficients(
     from sklearn.linear_model import LogisticRegressionCV
 
     parameters = inspect.signature(LogisticRegressionCV).parameters
-    if parameters["penalty"].default != "deprecated":
+    if "penalty" in parameters and parameters["penalty"].default != "deprecated":
         model = LogisticRegressionCV(
             cv=cv, penalty="l1", solver="liblinear", max_iter=2000, random_state=random_state
         )
@@ -102,7 +104,9 @@ def l1_logistic_coefficients(
         "max_iter": 2000,
         "random_state": random_state,
     }
-    if "use_legacy_attributes" in parameters:
+    if "use_legacy_attributes" in parameters and parameters["use_legacy_attributes"].default != "deprecated":
+        # 1.8 and 1.9 warn unless it is set; 1.10 deprecates it and warns
+        # when it is passed.
         options["use_legacy_attributes"] = False
     classes = np.unique(target)
     if len(classes) <= 2:
